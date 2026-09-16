@@ -8,17 +8,23 @@
 
 const fs = require('fs');
 const path = require('path');
+const { loadTemplate, renderTemplate } = require('./lib/templates');
+const { getCurrentSessionId } = require('./lib/session-store');
 
 function getTicket(ticketNum) {
   const projectRoot = process.cwd();
   const sessionsDir = path.join(projectRoot, '.work', 'sessions');
+  const currentSession = getCurrentSessionId(sessionsDir);
 
-  const sessions = fs.readdirSync(sessionsDir).sort().reverse();
-  const currentSession = sessions[0];
+  if (!currentSession) {
+    console.error('No sessions found. Run /gps start first.');
+    process.exit(1);
+  }
+
   const ticketsDir = path.join(sessionsDir, currentSession, '02-plan', 'tickets');
 
   const ticketFiles = fs.readdirSync(ticketsDir)
-    .filter(f => f.startsWith(ticketNum.toString().padStart(2, '0') + '-'))
+    .filter((f) => f.startsWith(ticketNum.toString().padStart(2, '0') + '-'))
     .sort();
 
   if (ticketFiles.length === 0) {
@@ -37,40 +43,24 @@ function implementTicket(ticketNum) {
   const projectRoot = process.cwd();
   const { ticketContent, slug, currentSession } = getTicket(ticketNum);
 
-  const sessionsDir = path.join(projectRoot, '.work', 'sessions', currentSession);
-  const implDir = path.join(
-    sessionsDir,
-    '03-implement',
-    `${ticketNum.toString().padStart(2, '0')}-${slug}`
-  );
+  const sessionDir = path.join(projectRoot, '.work', 'sessions', currentSession);
+  const ticketNumPadded = ticketNum.toString().padStart(2, '0');
+  const implDir = path.join(sessionDir, '03-implement', `${ticketNumPadded}-${slug}`);
 
-  // Create implementation directory
   fs.mkdirSync(implDir, { recursive: true });
 
-  // Create log file
-  const logTemplate = `# Ticket ${ticketNum.toString().padStart(2, '0')} Implementation
+  const logContent = renderTemplate(loadTemplate('03-implement-log.md'), {
+    N: ticketNumPadded,
+  });
+  fs.writeFileSync(path.join(implDir, 'commit-log.md'), logContent);
 
-**Status:** In Progress
-
-## Commits
-
-(To be filled)
-
-## Test Results
-
-(To be filled)
-`;
-
-  fs.writeFileSync(path.join(implDir, 'commit-log.md'), logTemplate);
-
-  // Print spec
   console.log('\n' + '='.repeat(70));
-  console.log(`TICKET SPEC - ${ticketNum.toString().padStart(2, '0')}`);
+  console.log(`TICKET SPEC - ${ticketNumPadded}`);
   console.log('='.repeat(70) + '\n');
   console.log(ticketContent);
   console.log('\n' + '='.repeat(70));
-  console.log(`📝 Working directory: ${implDir}`);
-  console.log(`📄 Log file: ${path.join(implDir, 'commit-log.md')}`);
+  console.log(`Working directory: ${implDir}`);
+  console.log(`Log file: ${path.join(implDir, 'commit-log.md')}`);
   console.log('\nImplement in Claude Code, test locally, save results to commit-log.md');
   console.log('='.repeat(70) + '\n');
 }
