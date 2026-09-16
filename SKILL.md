@@ -24,6 +24,16 @@ All output lives in `.work/sessions/YYYY-MM-DD__<feature>/` with a standard stru
 
 ---
 
+## Dependencies
+
+This skill composes the following superpowers and tools:
+
+- **brainstorming** (superpowers) — Initial ideation and spec clarification during grill phase
+- **writing-plans** (superpowers) — Generate implementation tasks from clarified spec during plan phase
+- **unslop** — Polish and crisp up generated ticket language for clarity
+
+---
+
 ## Commands
 
 ### /gps start <feature-name>
@@ -96,7 +106,7 @@ All output lives in `.work/sessions/YYYY-MM-DD__<feature>/` with a standard stru
 
 ## Composable Skills
 
-This plugin composes:
+This plugin orchestrates a workflow using:
 
 - `brainstorming` (superpowers)
 - `writing-plans` (superpowers)

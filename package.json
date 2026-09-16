@@ -1,13 +1,18 @@
 {
   "name": "grill-plan-ship",
+  "version": "1.0.0",
+  "description": "Universal workflow plugin: grill → plan → ship",
   "keywords": [
     "workflow",
     "brainstorm",
     "planning",
     "implementation"
   ],
-  "description": "Universal workflow plugin: grill → plan → ship",
-  "version": "1.0.0",
   "author": "your-username",
-  "license": "MIT"
+  "license": "MIT",
+  "peerDependencies": {
+    "superpowers:brainstorming": "*",
+    "superpowers:writing-plans": "*",
+    "unslop": "*"
+  }
 }
