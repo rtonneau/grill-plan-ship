@@ -4,38 +4,38 @@
  * /gps start <feature-name>
  *
  * Creates session directory with structure:
- * .work/sessions/YYYYMMDD__<feature-name>/
- *   ├── .session-config.json
- *   ├── 01-grill/
- *   │   ├── resume.md
- *   │   └── notes.md
- *   └── INDEX.md
+ * .work/sessions/YYYY-MM-DD__<feature-name>/
+ *   - .session-config.json
+ *   - 01-grill/
+ *       - resume.md
+ *       - notes.md
+ *   - INDEX.md
  */
 
 const fs = require('fs');
 const path = require('path');
+const { loadTemplate, renderTemplate } = require('./lib/templates');
+const { setCurrentSession } = require('./lib/session-store');
 
 function startSession(featureName) {
-  // Generate session ID
   const date = new Date().toISOString().split('T')[0];
   const slug = featureName.toLowerCase().replace(/\s+/g, '-');
   const sessionId = `${date}__${slug}`;
 
-  // Create directories
   const projectRoot = process.cwd();
-  const workDir = path.join(projectRoot, '.work', 'sessions', sessionId);
+  const sessionsDir = path.join(projectRoot, '.work', 'sessions');
+  const workDir = path.join(sessionsDir, sessionId);
   const grillDir = path.join(workDir, '01-grill');
 
   fs.mkdirSync(grillDir, { recursive: true });
 
-  // Create .session-config.json
   const config = {
     session_id: sessionId,
     feature_name: featureName,
     created_at: new Date().toISOString(),
     phases_completed: [],
     tickets: [],
-    status: 'grill-in-progress'
+    status: 'grill-in-progress',
   };
 
   fs.writeFileSync(
@@ -43,47 +43,29 @@ function startSession(featureName) {
     JSON.stringify(config, null, 2)
   );
 
-  // Create resume.md template
-  const resumeTemplate = `# Session: ${featureName}
+  const resumeContent = renderTemplate(loadTemplate('01-grill-resume.md'), {
+    'feature-name': featureName,
+    timestamp: config.created_at,
+  });
 
-**Date:** ${new Date().toISOString()}
-**Status:** Grill in progress
-
-## Problem Statement
-
-(To be filled by Claude after brainstorming)
-
-## Context & Constraints
-
-(To be filled)
-
-## Success Metrics
-
-(To be filled)
-
-## Architecture & Approach
-
-(To be filled)
-`;
-
-  fs.writeFileSync(path.join(grillDir, 'resume.md'), resumeTemplate);
+  fs.writeFileSync(path.join(grillDir, 'resume.md'), resumeContent);
   fs.writeFileSync(path.join(grillDir, 'notes.md'), '# Brainstorm Transcript\n\n(To be filled)\n');
 
-  // Create initial INDEX.md
   fs.writeFileSync(
     path.join(workDir, 'INDEX.md'),
     `# Session: ${featureName}\n\nPhase: Grill (in progress)\n`
   );
 
-  console.log(`✅ Session initialized: ${sessionId}`);
-  console.log(`📁 Path: ${workDir}`);
-  console.log(`\n📝 Next steps:`);
+  setCurrentSession(sessionsDir, sessionId);
+
+  console.log(`Session initialized: ${sessionId}`);
+  console.log(`Path: ${workDir}`);
+  console.log(`\nNext steps:`);
   console.log(`1. Run /brainstorming to clarify the spec`);
   console.log(`2. Save output to ${path.join(grillDir, 'resume.md')}`);
   console.log(`3. Then run /gps plan`);
 }
 
-// Main
 const featureName = process.argv[2];
 if (!featureName) {
   console.error('Usage: /gps start <feature-name>');
