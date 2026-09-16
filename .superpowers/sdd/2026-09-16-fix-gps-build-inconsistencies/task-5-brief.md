@@ -1,3 +1,20 @@
+# Task 5: Fix `scripts/plan.js`
+
+**Context:** This task modifies the existing `scripts/plan.js` to use the shared modules. It also adds a critical validation step: reading and checking that resume.md has been filled in (no unfilled placeholders remain).
+
+**Files:**
+- Modify: `scripts/plan.js` (replace entire file)
+- Test: manual CLI run
+
+**Interfaces:**
+- Consumes: `loadTemplate`, `renderTemplate` from `./lib/templates`; `getCurrentSessionId`, `markPhaseCompleted` from `./lib/session-store`
+- Produces: `02-plan/plan.md` and four `02-plan/tickets/NN-[slug].md` files, rendered from templates
+
+**What to do:**
+
+Replace the entire `scripts/plan.js` file with this exact content:
+
+```javascript
 #!/usr/bin/env node
 
 /**
@@ -81,3 +98,35 @@ function createPlan() {
 }
 
 createPlan();
+```
+
+**Key changes from the old version:**
+1. Resolve current session via `getCurrentSessionId(sessionsDir)` instead of sorting directory names
+2. **NEW:** Read resume.md and validate it — fail if it still contains unfilled {{ ... }} placeholders
+3. Load plan.md template instead of hardcoding it
+4. Load ticket.md template instead of hardcoding it (4 times)
+5. Render both templates with renderTemplate(), filling keys 'feature-name', 'timestamp', 'N', 'slug'
+6. Call `markPhaseCompleted(config, 'grill')` instead of `config.phases_completed.push('grill')` — ensures idempotence
+7. Import the shared modules
+
+**Test it:**
+1. Use the .work session created by Task 4 (or create one with `node scripts/start-session.js "test-feature"`)
+2. Try to run `node scripts/plan.js` before filling in resume.md — should fail with "unfilled placeholders" error
+3. Fill in resume.md: `sed -i 's/{{[^}]*}}/filled in/g' .work/sessions/*/01-grill/resume.md`
+4. Run `node scripts/plan.js` again — should succeed
+5. Verify: `02-plan/plan.md` exists and contains rendered plan template
+6. Verify: `02-plan/tickets/01-[slug].md` through `04-[slug].md` exist
+7. Verify: `.session-config.json` has "grill" in phases_completed
+8. Run `node scripts/plan.js` again — should not add a second "grill" entry to phases_completed
+
+**Commit:**
+`git add scripts/plan.js && git commit -m "fix: plan.js reads and validates resume.md, renders templates/, dedupes phases_completed"`
+
+**Report to:**
+.superpowers/sdd/2026-09-16-fix-gps-build-inconsistencies/task-5-report.md
+
+When done, post only:
+- Status (one word)
+- Commits (hash space message)
+- One-line manual test summary
+- Any concerns

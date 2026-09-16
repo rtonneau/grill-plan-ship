@@ -20,7 +20,7 @@ This plugin orchestrates a repeatable, documented workflow for any code project:
 3. **Ship** (Session 3+) — Implement tickets one by one
 4. **Finish** — Archive and summarize
 
-All output lives in `.work/sessions/YYYYMMDD__<feature>/` with a standard structure.
+All output lives in `.work/sessions/YYYY-MM-DD__<feature>/` with a standard structure.
 
 ---
 
@@ -32,10 +32,11 @@ All output lives in `.work/sessions/YYYYMMDD__<feature>/` with a standard struct
 
 **What it does:**
 
-1. Creates session directory: `.work/sessions/YYYYMMDD__<feature-name>/`
-2. Creates `.work/sessions/YYYYMMDD__<feature-name>/.session-config.json`
-3. Creates `.work/sessions/YYYYMMDD__<feature-name>/01-grill/` directory
+1. Creates session directory: `.work/sessions/YYYY-MM-DD__<feature-name>/`
+2. Creates `.work/sessions/YYYY-MM-DD__<feature-name>/.session-config.json`
+3. Creates `.work/sessions/YYYY-MM-DD__<feature-name>/01-grill/` directory
 4. Creates empty `resume.md` and `notes.md` templates
+5. Writes `.work/sessions/.current-session` pointing at this session, so later commands operate on it regardless of what other sessions exist
 
 **Output:** Ready to brainstorm.
 
@@ -53,7 +54,7 @@ All output lives in `.work/sessions/YYYYMMDD__<feature>/` with a standard struct
 
 **What it does:**
 
-1. Reads `.work/sessions/CURRENT/01-grill/resume.md`
+1. Resolves the current session via `.work/sessions/.current-session`, then reads its `01-grill/resume.md` (fails if it still contains unfilled `{{ ... }}` placeholders)
 2. Creates `02-plan/` directory
 3. Creates `02-plan/plan.md` template
 4. Creates 4 ticket templates in `02-plan/tickets/`

@@ -1,3 +1,20 @@
+# Task 6: Fix `scripts/ticket.js`
+
+**Context:** This task modifies `scripts/ticket.js` to use the shared modules. Critically, it fixes the "implementation log mismatch" bug: the old hardcoded log template was missing the "Blockers / Challenges" section.
+
+**Files:**
+- Modify: `scripts/ticket.js` (replace entire file)
+- Test: manual CLI run
+
+**Interfaces:**
+- Consumes: `loadTemplate`, `renderTemplate` from `./lib/templates`; `getCurrentSessionId` from `./lib/session-store`
+- Produces: `03-implement/NN-<slug>/commit-log.md` rendered from the template
+
+**What to do:**
+
+Replace the entire `scripts/ticket.js` file with this exact content:
+
+```javascript
 #!/usr/bin/env node
 
 /**
@@ -72,3 +89,30 @@ if (!ticketNum) {
 }
 
 implementTicket(ticketNum);
+```
+
+**Key changes from the old version:**
+1. Resolve current session via `getCurrentSessionId(sessionsDir)` instead of sorting
+2. Load commit-log.md template instead of hardcoding it
+3. Render template with key 'N' (the ticket number, zero-padded)
+4. The loaded template now includes the "## Blockers / Challenges" section that was missing before
+5. Import the shared modules
+
+**Test it:**
+1. Using the .work session from previous tasks (or create one), and after running `/gps plan`:
+2. Run: `node scripts/ticket.js 1`
+3. Verify: directory `03-implement/01-<slug>/` is created
+4. Verify: file `03-implement/01-<slug>/commit-log.md` exists
+5. Check the content: `cat .work/sessions/*/03-implement/01-*/commit-log.md` — it should match the template exactly, including the "## Blockers / Challenges" section
+
+**Commit:**
+`git add scripts/ticket.js && git commit -m "fix: ticket.js renders commit-log.md from templates/03-implement-log.md"`
+
+**Report to:**
+.superpowers/sdd/2026-09-16-fix-gps-build-inconsistencies/task-6-report.md
+
+When done, post only:
+- Status (one word)
+- Commits (hash space message)
+- One-line manual test summary
+- Any concerns
