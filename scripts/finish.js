@@ -8,24 +8,27 @@
 
 const fs = require('fs');
 const path = require('path');
+const { getCurrentSessionId, markPhaseCompleted } = require('./lib/session-store');
 
 function finishSession() {
   const projectRoot = process.cwd();
   const sessionsDir = path.join(projectRoot, '.work', 'sessions');
+  const currentSession = getCurrentSessionId(sessionsDir);
 
-  const sessions = fs.readdirSync(sessionsDir).sort().reverse();
-  const currentSession = sessions[0];
+  if (!currentSession) {
+    console.error('No sessions found. Run /gps start first.');
+    process.exit(1);
+  }
+
   const sessionDir = path.join(sessionsDir, currentSession);
   const configPath = path.join(sessionDir, '.session-config.json');
-
   const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
 
-  // Generate INDEX.md
   const indexContent = `# Session Summary: ${config.feature_name}
 
 **Session ID:** ${config.session_id}
 **Created:** ${config.created_at}
-**Status:** ✅ Complete
+**Status:** Complete
 
 ## Phases
 
@@ -46,14 +49,13 @@ Next: Start a new feature with /gps start <next-feature>
 
   fs.writeFileSync(path.join(sessionDir, 'INDEX.md'), indexContent);
 
-  // Update config
   config.status = 'completed';
-  config.phases_completed.push('implement');
+  markPhaseCompleted(config, 'implement');
   fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
 
-  console.log(`✅ Session complete: ${config.session_id}`);
-  console.log(`📋 Summary: ${path.join(sessionDir, 'INDEX.md')}`);
-  console.log(`\n✨ Ready for next feature. Run: /gps start <new-feature>`);
+  console.log(`Session complete: ${config.session_id}`);
+  console.log(`Summary: ${path.join(sessionDir, 'INDEX.md')}`);
+  console.log(`\nReady for next feature. Run: /gps start <new-feature>`);
 }
 
 finishSession();
