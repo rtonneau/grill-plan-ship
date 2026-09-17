@@ -32,11 +32,11 @@ All output lives in `.work/sessions/YYYY-MM-DD__<feature>/` with a standard stru
 
 ## Dependencies
 
-This skill composes the following superpowers and tools:
+`/gps` invokes these automatically as part of its own commands — you never run them yourself:
 
-- **brainstorming** (superpowers) — Initial ideation and spec clarification during grill phase
-- **writing-plans** (superpowers) — Generate implementation tasks from clarified spec during plan phase
-- **unslop** — Polish and crisp up generated ticket language for clarity
+- **brainstorming** (superpowers) — invoked by `/gps start` for ideation and spec clarification
+- **writing-plans** (superpowers) — invoked by `/gps plan` to turn the approved resume into tickets
+- **unslop** — invoked by `/gps plan` on each generated ticket for crisp language
 
 ---
 
@@ -53,8 +53,11 @@ This skill composes the following superpowers and tools:
 3. Creates `.work/sessions/YYYY-MM-DD__<feature-name>/01-grill/` directory
 4. Creates empty `resume.md` and `notes.md` templates
 5. Writes `.work/sessions/.current-session` pointing at this session, so later commands operate on it regardless of what other sessions exist
+6. Immediately invokes the `brainstorming` skill for this feature to begin the grill conversation — do not wait for or ask the user to run `/brainstorming` themselves
 
-**Output:** Ready to brainstorm.
+**Output:** The grill conversation begins right away.
+
+**Next:** Once the brainstorming design is approved, run `/gps write` to save the resume, then `/gps plan`.
 
 **Example:**
 
@@ -66,7 +69,7 @@ This skill composes the following superpowers and tools:
 
 ### /gps write
 
-**When:** After a `/brainstorming` conversation (before `/gps plan`), or after a `/writing-plans` conversation (before `/gps ticket`). Takes no arguments — it detects which phase needs writing.
+**When:** After the brainstorming conversation `/gps start` began has been approved (before `/gps plan`), or after the writing-plans conversation `/gps plan` began has been approved (before `/gps ticket`). Takes no arguments — it detects which phase needs writing.
 
 **What it does:**
 
@@ -76,7 +79,7 @@ This skill composes the following superpowers and tools:
    - Otherwise, if `02-plan/plan.md` or any ticket file still has placeholders → **plan** phase is pending.
    - Otherwise → nothing pending.
 2. **If grill is pending:** Claude Code synthesizes the brainstorming conversation into `01-grill/resume.md`, filling in every template section (Problem Statement, Context & Constraints, Success Metrics, Architecture & Approach, Assumptions & Trade-offs, Open Questions, Notes) — leaving no `{{ ... }}` placeholders.
-3. **If plan is pending:** Claude Code synthesizes the most recent `/writing-plans` output into `02-plan/plan.md`, then replaces the placeholder ticket stubs in `02-plan/tickets/` with one real `NN-<slug>.md` file per actual ticket (the ticket count is whatever `/writing-plans` produced, not fixed at 4). It then runs `node $CLAUDE_PLUGIN_ROOT/scripts/mark-plan-written.js` to record the plan phase as complete.
+3. **If plan is pending:** Claude Code synthesizes the most recent writing-plans output into `02-plan/plan.md`, then replaces the placeholder ticket stubs in `02-plan/tickets/` with one real `NN-<slug>.md` file per actual ticket (the ticket count is whatever writing-plans produced, not fixed at 4). It then runs `node $CLAUDE_PLUGIN_ROOT/scripts/mark-plan-written.js` to record the plan phase as complete.
 4. **If nothing is pending:** reports that and suggests the next command (`/gps plan`, `/gps ticket <N>`, or `/gps finish`).
 
 **Output:** The pending phase's files written to disk with real content, ready for the next command.
@@ -99,10 +102,11 @@ This skill composes the following superpowers and tools:
 2. Creates `02-plan/` directory
 3. Creates `02-plan/plan.md` template
 4. Creates 4 ticket templates in `02-plan/tickets/`
+5. Immediately invokes the `writing-plans` skill against the approved `resume.md` to generate the actual tickets, then invokes `unslop` on each resulting ticket — do not wait for or ask the user to run these themselves
 
-**Output:** Ticket templates ready for you to fill in.
+**Output:** The writing-plans conversation begins right away.
 
-**Next:** Run `/writing-plans` to generate actual tickets, run `/unslop` on each ticket, then `/gps write` to save them to disk.
+**Next:** Once the tickets are approved, run `/gps write` to save the plan and tickets to disk.
 
 ---
 
@@ -137,11 +141,11 @@ This skill composes the following superpowers and tools:
 
 ## Composable Skills
 
-This plugin orchestrates a workflow using:
+`/gps` commands invoke these automatically — you never run them directly:
 
-- `brainstorming` (superpowers)
-- `writing-plans` (superpowers)
-- `unslop` (for crisp language)
+- `brainstorming` (superpowers) — invoked by `/gps start`
+- `writing-plans` (superpowers) — invoked by `/gps plan`
+- `unslop` — invoked by `/gps plan`, after writing-plans, for crisp language
 
 ---
 

@@ -25,15 +25,13 @@ Restart Claude Code.
 ```
 # In any project:
 /gps start add-dark-mode
-
-# Brainstorm (run /brainstorming)
-/gps write   # saves the resume to 01-grill/resume.md
+# ...brainstorming conversation happens automatically...
+/gps write   # once approved, saves the resume to 01-grill/resume.md
 
 # Plan tickets
 /gps plan
-
-# Run /writing-plans, then /unslop each ticket
-/gps write   # saves plan.md + tickets to disk
+# ...writing-plans + unslop happen automatically...
+/gps write   # once approved, saves plan.md + tickets to disk
 
 # Implement tickets (repeat)
 /gps ticket 01

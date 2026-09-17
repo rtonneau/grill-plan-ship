@@ -73,11 +73,9 @@ function createPlan() {
 
   console.log(`Plan directory created`);
   console.log(`Path: ${planDir}`);
-  console.log(`\nNext steps:`);
-  console.log(`1. Run /writing-plans to generate your tickets`);
-  console.log(`2. Run /unslop rewrite on each ticket for crisp language`);
-  console.log(`3. Run /gps write to save the plan + tickets to disk`);
-  console.log(`4. Then run /gps ticket 01 to start implementing`);
+  console.log(`\nNext: the writing-plans conversation begins now, followed by an unslop pass`);
+  console.log(`on each ticket. Once approved, run /gps write to save the plan + tickets to disk,`);
+  console.log(`then /gps ticket 01 to start implementing.`);
 }
 
 createPlan();

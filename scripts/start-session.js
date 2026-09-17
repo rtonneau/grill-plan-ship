@@ -60,10 +60,8 @@ function startSession(featureName) {
 
   console.log(`Session initialized: ${sessionId}`);
   console.log(`Path: ${workDir}`);
-  console.log(`\nNext steps:`);
-  console.log(`1. Run /brainstorming to clarify the spec`);
-  console.log(`2. Run /gps write to save the resume to ${path.join(grillDir, 'resume.md')}`);
-  console.log(`3. Then run /gps plan`);
+  console.log(`\nNext: the brainstorming conversation begins now. Once it's approved,`);
+  console.log(`run /gps write to save the resume to ${path.join(grillDir, 'resume.md')}, then /gps plan.`);
 }
 
 const featureName = process.argv[2];
