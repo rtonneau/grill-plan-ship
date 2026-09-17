@@ -35,6 +35,15 @@ assert.strictEqual(getCurrentSessionId(sessionsDir), '2026-09-16__a-feature');
 fs.unlinkSync(path.join(sessionsDir, '.current-session'));
 assert.strictEqual(getCurrentSessionId(sessionsDir), '2026-09-16__b-feature');
 
+// A marker-less directory (e.g. scout-reports) is never treated as a
+// session: it has no .session-config.json, so listSessionDirs must skip
+// it and getCurrentSessionId must not fall back to picking it.
+const noMarkerDir = fs.mkdtempSync(path.join(os.tmpdir(), 'gps-session-store-nomarker-'));
+fs.mkdirSync(path.join(noMarkerDir, 'scout-reports'));
+fs.writeFileSync(path.join(noMarkerDir, 'scout-reports', 'some-report.html'), '<html></html>');
+assert.strictEqual(getCurrentSessionId(noMarkerDir), null);
+fs.rmSync(noMarkerDir, { recursive: true, force: true });
+
 // markPhaseCompleted only pushes a phase once
 const config = { phases_completed: [] };
 markPhaseCompleted(config, 'grill');

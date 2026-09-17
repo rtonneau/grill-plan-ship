@@ -54,5 +54,13 @@ assert.strictEqual(removeSeed(sessionsDir, 'does-not-exist'), false);
 const afterRaw = fs.readFileSync(path.join(sessionsDir, '.pending-seeds.json'), 'utf-8');
 assert.strictEqual(beforeRaw, afterRaw);
 
+// A corrupted .pending-seeds.json degrades to "no seeds found" instead
+// of throwing: getSeed returns null, removeSeed returns false.
+const corruptDir = fs.mkdtempSync(path.join(os.tmpdir(), 'gps-seeds-store-corrupt-'));
+fs.writeFileSync(path.join(corruptDir, '.pending-seeds.json'), '{ this is not valid json');
+assert.strictEqual(getSeed(corruptDir, 'runconfig-resolver'), null);
+assert.strictEqual(removeSeed(corruptDir, 'runconfig-resolver'), false);
+fs.rmSync(corruptDir, { recursive: true, force: true });
+
 fs.rmSync(sessionsDir, { recursive: true, force: true });
 console.log('seeds-store.test.js: all assertions passed');

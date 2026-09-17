@@ -11,6 +11,7 @@ function setCurrentSession(sessionsDir, sessionId) {
 function listSessionDirs(sessionsDir) {
   return fs.readdirSync(sessionsDir, { withFileTypes: true })
     .filter((entry) => entry.isDirectory())
+    .filter((entry) => fs.existsSync(path.join(sessionsDir, entry.name, '.session-config.json')))
     .map((entry) => entry.name);
 }
 

@@ -11,7 +11,11 @@ function seedsPath(sessionsDir) {
 function readSeeds(sessionsDir) {
   const filePath = seedsPath(sessionsDir);
   if (!fs.existsSync(filePath)) return {};
-  return JSON.parse(fs.readFileSync(filePath, 'utf-8'));
+  try {
+    return JSON.parse(fs.readFileSync(filePath, 'utf-8'));
+  } catch (_err) {
+    return {};
+  }
 }
 
 function writeSeeds(sessionsDir, seeds) {
