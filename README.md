@@ -5,22 +5,23 @@ A structured workflow plugin for any code project.
 **Workflow:** brainstorm (grill) → plan → implement (ship)
 
 **Commands:**
-- \`/gps start <feature>\` — Begin a feature
-- \`/gps plan\` — Create tickets
-- \`/gps ticket <N>\` — Implement ticket
-- \`/gps finish\` — Archive session
+- `/gps start <feature>` — Begin a feature
+- `/gps plan` — Create tickets
+- `/gps ticket <N>` — Implement ticket
+- `/gps finish` — Archive session
 
 ## Installation
 
-\`\`\`powershell
-gh repo clone yourusername/grill-plan-ship \`\$HOME\.claude\skills\grill-plan-ship
+```
+/plugin marketplace add rtonneau/grill-plan-ship
+/plugin install grill-plan-ship
+```
 
-# Restart Claude Code
-\`\`\`
+Restart Claude Code.
 
 ## Quick Start
 
-\`\`\`
+```
 # In any project:
 /gps start add-dark-mode
 
@@ -37,18 +38,18 @@ gh repo clone yourusername/grill-plan-ship \`\$HOME\.claude\skills\grill-plan-sh
 
 # Finish
 /gps finish
-\`\`\`
+```
 
 ## Session Structure
 
-\`\`\`
+```
 .work/sessions/YYYYMMDD__<feature>/
 ├── 01-grill/           ← Brainstorm output
 ├── 02-plan/            ← Plan + tickets
 ├── 03-implement/       ← Implementation logs
 ├── .session-config.json
 └── INDEX.md
-\`\`\`
+```
 
 ## Features
 
@@ -59,10 +60,10 @@ gh repo clone yourusername/grill-plan-ship \`\$HOME\.claude\skills\grill-plan-sh
 
 ## Example Session
 
-See \`examples/\` for real-world sessions:
-- \`geant4-chemistry-refactor/\` — Scientific project
-- \`react-form-validation/\` — Frontend project
-- \`python-etl-pipeline/\` — Data project
+See `examples/` for real-world sessions:
+- `geant4-chemistry-refactor/` — Scientific project
+- `react-form-validation/` — Frontend project
+- `python-etl-pipeline/` — Data project
 
 ## License
 

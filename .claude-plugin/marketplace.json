@@ -1,0 +1,18 @@
+{
+  "name": "grill-plan-ship",
+  "description": "Universal workflow plugin: grill → plan → ship",
+  "owner": {
+    "name": "rtonneau"
+  },
+  "plugins": [
+    {
+      "name": "grill-plan-ship",
+      "description": "Universal workflow plugin: grill → plan → ship",
+      "version": "1.0.0",
+      "source": "./",
+      "author": {
+        "name": "rtonneau"
+      }
+    }
+  ]
+}

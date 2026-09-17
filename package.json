@@ -8,7 +8,7 @@
     "planning",
     "implementation"
   ],
-  "author": "your-username",
+  "author": "rtonneau",
   "license": "MIT",
   "peerDependencies": {
     "superpowers:brainstorming": "*",

@@ -1,3 +1,8 @@
+---
+name: gps
+description: "grill-plan-ship: universal workflow plugin (brainstorm → plan → implement). Use for /gps start, /gps plan, /gps ticket, /gps finish."
+---
+
 # grill-plan-ship
 
 Universal workflow plugin: brainstorm → plan → implement.
@@ -116,8 +121,9 @@ This plugin orchestrates a workflow using:
 
 ## Installation
 
-```powershell
-gh repo clone yourusername/grill-plan-ship $HOME\.claude\skills\grill-plan-ship
+```
+/plugin marketplace add rtonneau/grill-plan-ship
+/plugin install grill-plan-ship
 ```
 
 ## Restart Claude Code
