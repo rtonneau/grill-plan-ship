@@ -75,8 +75,8 @@ function createPlan() {
   console.log(`Path: ${planDir}`);
   console.log(`\nNext steps:`);
   console.log(`1. Run /writing-plans to generate your tickets`);
-  console.log(`2. Copy ticket content into 02-plan/tickets/`);
-  console.log(`3. Run /unslop rewrite on each ticket for crisp language`);
+  console.log(`2. Run /unslop rewrite on each ticket for crisp language`);
+  console.log(`3. Run /gps write to save the plan + tickets to disk`);
   console.log(`4. Then run /gps ticket 01 to start implementing`);
 }
 

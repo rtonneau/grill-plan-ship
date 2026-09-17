@@ -6,6 +6,7 @@ A structured workflow plugin for any code project.
 
 **Commands:**
 - `/gps start <feature>` — Begin a feature
+- `/gps write` — Save the current phase's output (brainstorm resume, or plan + tickets) to disk
 - `/gps plan` — Create tickets
 - `/gps ticket <N>` — Implement ticket
 - `/gps finish` — Archive session
@@ -26,10 +27,13 @@ Restart Claude Code.
 /gps start add-dark-mode
 
 # Brainstorm (run /brainstorming)
-# Save output to 01-grill/resume.md
+/gps write   # saves the resume to 01-grill/resume.md
 
 # Plan tickets
 /gps plan
+
+# Run /writing-plans, then /unslop each ticket
+/gps write   # saves plan.md + tickets to disk
 
 # Implement tickets (repeat)
 /gps ticket 01

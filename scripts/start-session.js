@@ -62,7 +62,7 @@ function startSession(featureName) {
   console.log(`Path: ${workDir}`);
   console.log(`\nNext steps:`);
   console.log(`1. Run /brainstorming to clarify the spec`);
-  console.log(`2. Save output to ${path.join(grillDir, 'resume.md')}`);
+  console.log(`2. Run /gps write to save the resume to ${path.join(grillDir, 'resume.md')}`);
   console.log(`3. Then run /gps plan`);
 }
 

@@ -1,6 +1,6 @@
 ---
 name: gps
-description: "grill-plan-ship: universal workflow plugin (brainstorm → plan → implement). Use for /gps start, /gps plan, /gps ticket, /gps finish."
+description: "grill-plan-ship: universal workflow plugin (brainstorm → plan → implement). Use for /gps start, /gps write, /gps plan, /gps ticket, /gps finish."
 ---
 
 # grill-plan-ship
@@ -10,6 +10,7 @@ Universal workflow plugin: brainstorm → plan → implement.
 **Commands:**
 
 - `/gps start <feature-name>` — Begin a new feature
+- `/gps write` — Write the current phase's output (brainstorm resume, or plan + tickets) to disk
 - `/gps plan` — Generate plan + tickets
 - `/gps ticket <number>` — Implement ticket N
 - `/gps finish` — Archive session + summary
@@ -63,6 +64,31 @@ This skill composes the following superpowers and tools:
 
 ---
 
+### /gps write
+
+**When:** After a `/brainstorming` conversation (before `/gps plan`), or after a `/writing-plans` conversation (before `/gps ticket`). Takes no arguments — it detects which phase needs writing.
+
+**What it does:**
+
+1. Runs `node $CLAUDE_PLUGIN_ROOT/scripts/write-target.js`, which resolves the current session and inspects its files for unfilled `{{ ... }}` template placeholders to decide what's pending:
+   - `01-grill/resume.md` still has placeholders → **grill** phase is pending.
+   - Otherwise, if `02-plan/plan.md` doesn't exist yet → nothing to write; run `/gps plan` first.
+   - Otherwise, if `02-plan/plan.md` or any ticket file still has placeholders → **plan** phase is pending.
+   - Otherwise → nothing pending.
+2. **If grill is pending:** Claude Code synthesizes the brainstorming conversation into `01-grill/resume.md`, filling in every template section (Problem Statement, Context & Constraints, Success Metrics, Architecture & Approach, Assumptions & Trade-offs, Open Questions, Notes) — leaving no `{{ ... }}` placeholders.
+3. **If plan is pending:** Claude Code synthesizes the most recent `/writing-plans` output into `02-plan/plan.md`, then replaces the placeholder ticket stubs in `02-plan/tickets/` with one real `NN-<slug>.md` file per actual ticket (the ticket count is whatever `/writing-plans` produced, not fixed at 4). It then runs `node $CLAUDE_PLUGIN_ROOT/scripts/mark-plan-written.js` to record the plan phase as complete.
+4. **If nothing is pending:** reports that and suggests the next command (`/gps plan`, `/gps ticket <N>`, or `/gps finish`).
+
+**Output:** The pending phase's files written to disk with real content, ready for the next command.
+
+**Example:**
+
+```
+/gps write
+```
+
+---
+
 ### /gps plan
 
 **When:** After reviewing the grill session (resume.md approved).
@@ -76,7 +102,7 @@ This skill composes the following superpowers and tools:
 
 **Output:** Ticket templates ready for you to fill in.
 
-**Next:** Run `/writing-plans` to generate actual tickets. Run `/unslop` on each ticket.
+**Next:** Run `/writing-plans` to generate actual tickets, run `/unslop` on each ticket, then `/gps write` to save them to disk.
 
 ---
 

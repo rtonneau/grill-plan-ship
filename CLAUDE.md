@@ -14,6 +14,7 @@ A reusable Claude Code plugin that orchestrates structured development workflows
 ## Commands
 
 - `/gps start <feature-name>` — Create new session directory + initialize templates
+- `/gps write` — Detect the pending phase (grill or plan) and write its output to disk
 - `/gps plan` — Generate plan.md + numbered tickets
 - `/gps ticket <N>` — Start implementing ticket N
 - `/gps finish` — Archive session + generate summary
@@ -22,16 +23,22 @@ A reusable Claude Code plugin that orchestrates structured development workflows
 
 ```
 grill-plan-ship/
-├── SKILL.md              ← Entry point (Claude Code reads this)
-├── scripts/              ← JavaScript handlers that do the work
-│   ├── start-session.js  ← Creates .work/sessions/YYYYMMDD__feature/
-│   ├── plan.js           ← Creates 02-plan/ + ticket templates
-│   ├── ticket.js         ← Creates 03-implement/NN-*/ workspace
-│   └── finish.js         ← Generates INDEX.md
-├── templates/            ← Markdown templates (01-grill, 02-plan, 02-ticket, 03-implement)
-├── examples/             ← Real session examples (geant4, react, python)
-├── README.md             ← User documentation
-└── package.json          ← Project metadata
+├── .claude-plugin/
+│   ├── plugin.json          ← Plugin manifest
+│   └── marketplace.json     ← Self-hosted marketplace entry
+├── skills/gps/SKILL.md      ← Entry point (Claude Code reads this)
+├── scripts/                 ← JavaScript handlers that do the work
+│   ├── start-session.js     ← Creates .work/sessions/YYYYMMDD__feature/
+│   ├── write-target.js      ← Detects pending phase for /gps write
+│   ├── mark-plan-written.js ← Records plan phase complete after /gps write
+│   ├── plan.js               ← Creates 02-plan/ + ticket templates
+│   ├── ticket.js             ← Creates 03-implement/NN-*/ workspace
+│   ├── finish.js             ← Generates INDEX.md
+│   └── lib/                 ← Shared helpers (session-store, templates, write-target) + tests
+├── templates/                ← Markdown templates (01-grill, 02-plan, 02-ticket, 03-implement)
+├── examples/                 ← Real session examples (geant4, react, python)
+├── README.md                 ← User documentation
+└── package.json              ← Project metadata
 ```
 
 ## How it Works
@@ -47,7 +54,7 @@ Each command follows this same pattern: SKILL.md → handler → file creation.
 ## Development Tasks
 
 ### Short-term (MVP)
-- [ ] Test all 4 handlers with real Geant4 session
+- [ ] Test all handlers with real Geant4 session
 - [ ] Verify SKILL.md correctly registers commands
 - [ ] Create examples/geant4-chemistry-refactor/ real session
 - [ ] Write examples/react-form-validation/ dummy session
