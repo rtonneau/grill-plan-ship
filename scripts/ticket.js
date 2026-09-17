@@ -10,6 +10,7 @@ const fs = require('fs');
 const path = require('path');
 const { loadTemplate, renderTemplate } = require('./lib/templates');
 const { getCurrentSessionId } = require('./lib/session-store');
+const { parseTicketFilename } = require('./lib/ticket-queue');
 
 function getTicket(ticketNum) {
   const projectRoot = process.cwd();
@@ -34,7 +35,7 @@ function getTicket(ticketNum) {
 
   const ticketPath = path.join(ticketsDir, ticketFiles[0]);
   const ticketContent = fs.readFileSync(ticketPath, 'utf-8');
-  const slug = ticketFiles[0].replace(/^\d+-/, '').replace(/\.md$/, '');
+  const { slug } = parseTicketFilename(ticketFiles[0]);
 
   return { ticketContent, slug, currentSession };
 }

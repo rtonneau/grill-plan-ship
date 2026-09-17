@@ -8,7 +8,8 @@ A structured workflow plugin for any code project.
 - `/gps start <feature>` — Begin a feature
 - `/gps write` — Save the current phase's output (brainstorm resume, or plan + tickets) to disk
 - `/gps plan` — Create tickets
-- `/gps ticket <N>` — Implement ticket
+- `/gps ticket <N>` — Implement one ticket by hand
+- `/gps ship` — Implement every remaining ticket in order, one commit each
 - `/gps finish` — Archive session
 
 ## Installation
@@ -33,10 +34,8 @@ Restart Claude Code.
 # ...writing-plans + unslop happen automatically...
 /gps write   # once approved, saves plan.md + tickets to disk
 
-# Implement tickets (repeat)
-/gps ticket 01
-/gps ticket 02
-# ... etc
+# Implement every ticket, one commit each
+/gps ship
 
 # Finish
 /gps finish

@@ -17,6 +17,7 @@ A reusable Claude Code plugin that orchestrates structured development workflows
 - `/gps write` — Detect the pending phase (grill or plan) and write its output to disk
 - `/gps plan` — Generate plan.md + numbered tickets
 - `/gps ticket <N>` — Start implementing ticket N
+- `/gps ship` — Implement every remaining ticket in order, one commit each
 - `/gps finish` — Archive session + generate summary
 
 ## Architecture
@@ -33,8 +34,9 @@ grill-plan-ship/
 │   ├── mark-plan-written.js ← Records plan phase complete after /gps write
 │   ├── plan.js               ← Creates 02-plan/ + ticket templates
 │   ├── ticket.js             ← Creates 03-implement/NN-*/ workspace
+│   ├── ticket-queue.js       ← Lists tickets + next pending one for /gps ship
 │   ├── finish.js             ← Generates INDEX.md
-│   └── lib/                 ← Shared helpers (session-store, templates, write-target) + tests
+│   └── lib/                 ← Shared helpers (session-store, templates, write-target, ticket-queue) + tests
 ├── templates/                ← Markdown templates (01-grill, 02-plan, 02-ticket, 03-implement)
 ├── examples/                 ← Real session examples (geant4, react, python)
 ├── README.md                 ← User documentation

@@ -1,6 +1,6 @@
 ---
 name: gps
-description: "grill-plan-ship: universal workflow plugin (brainstorm → plan → implement). Use for /gps start, /gps write, /gps plan, /gps ticket, /gps finish."
+description: "grill-plan-ship: universal workflow plugin (brainstorm → plan → implement). Use for /gps start, /gps write, /gps plan, /gps ticket, /gps ship, /gps finish."
 ---
 
 # grill-plan-ship
@@ -13,6 +13,7 @@ Universal workflow plugin: brainstorm → plan → implement.
 - `/gps write` — Write the current phase's output (brainstorm resume, or plan + tickets) to disk
 - `/gps plan` — Generate plan + tickets
 - `/gps ticket <number>` — Implement ticket N
+- `/gps ship` — Implement every remaining ticket in order, one commit each
 - `/gps finish` — Archive session + summary
 
 ---
@@ -106,13 +107,13 @@ All output lives in `.work/sessions/YYYY-MM-DD__<feature>/` with a standard stru
 
 **Output:** The writing-plans conversation begins right away.
 
-**Next:** Once the tickets are approved, run `/gps write` to save the plan and tickets to disk.
+**Next:** Once the tickets are approved, run `/gps write` to save the plan and tickets to disk, then `/gps ship` to implement them.
 
 ---
 
 ### /gps ticket <number>
 
-**When:** Starting implementation of a ticket.
+**When:** Starting implementation of a single ticket by hand. To implement every remaining ticket in one go, use `/gps ship` instead.
 
 **What it does:**
 
@@ -122,6 +123,32 @@ All output lives in `.work/sessions/YYYY-MM-DD__<feature>/` with a standard stru
 4. Prints ticket spec to console
 
 **Output:** Workspace + spec printed. Ready to code.
+
+---
+
+### /gps ship
+
+**When:** After tickets have been saved to disk (`/gps write` has run for the plan phase). Takes no arguments — it works through whatever tickets remain.
+
+**What it does, repeated until done or blocked:**
+
+1. Runs `node $CLAUDE_PLUGIN_ROOT/scripts/ticket-queue.js`, which lists every ticket in `02-plan/tickets/` and, for each, checks its `03-implement/NN-<slug>/commit-log.md`: a ticket counts as done only if that file's Status line is exactly `**Status:** ✅ Done` (not the raw template's `In Progress / ✅ Done`, and not a still-open `In Progress`). Returns the full list plus `nextPending`, the first ticket that isn't done.
+2. **If `nextPending` is null:** every ticket is done — report that and suggest `/gps finish`. Stop.
+3. **Otherwise**, for `nextPending`:
+   - Run `node $CLAUDE_PLUGIN_ROOT/scripts/ticket.js <N>` (same as `/gps ticket <N>`) to scaffold the workspace and print the spec.
+   - Implement it the normal way — write the code, debug and fix issues as they come up, that's just development, not a "blocker."
+   - Run the ticket's Verification Step command from its spec.
+   - **On success:** fill in `commit-log.md` (Status: `✅ Done`, the commit(s), test output, review notes, time spent). Stage only the files this ticket touched (never `git add -A`) and commit them with a message referencing the ticket.
+   - **On genuine failure** (verification won't pass after reasonable attempts, or the ticket needs information only the user can provide): leave `commit-log.md` as `**Status:** In Progress` with a filled-in Blockers/Challenges section explaining what's wrong. Do not commit. Stop the whole `/gps ship` loop here and report to the user which ticket and why.
+4. Go back to step 1 and repeat, until `nextPending` is null or step 3 stops the loop on a failure.
+
+**Output:** Every ticket implemented and committed, one commit per ticket — or a clear report of which ticket blocked the run and why.
+
+**Example:**
+
+```
+/gps ship
+```
 
 ---
 
