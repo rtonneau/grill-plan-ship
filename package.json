@@ -13,6 +13,7 @@
   "peerDependencies": {
     "superpowers:brainstorming": "*",
     "superpowers:writing-plans": "*",
-    "unslop": "*"
+    "unslop": "*",
+    "mattpocock-skills:improve-codebase-architecture": "*"
   }
 }

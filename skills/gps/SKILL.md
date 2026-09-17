@@ -1,6 +1,6 @@
 ---
 name: gps
-description: "grill-plan-ship: universal workflow plugin (brainstorm → plan → implement). Use for /gps start, /gps write, /gps plan, /gps ticket, /gps ship, /gps finish."
+description: "grill-plan-ship: universal workflow plugin (brainstorm → plan → implement). Use for /gps scout, /gps start, /gps write, /gps plan, /gps ticket, /gps ship, /gps finish."
 ---
 
 # grill-plan-ship
@@ -9,6 +9,7 @@ Universal workflow plugin: brainstorm → plan → implement.
 
 **Commands:**
 
+- `/gps scout [direction]` — Scan the codebase for architecture candidates and turn them into ready-to-use `/gps start` seeds
 - `/gps start <feature-name>` — Begin a new feature
 - `/gps write` — Write the current phase's output (brainstorm resume, or plan + tickets) to disk
 - `/gps plan` — Generate plan + tickets
@@ -27,6 +28,8 @@ This plugin orchestrates a repeatable, documented workflow for any code project:
 3. **Ship** (Session 3+) — Implement tickets one by one
 4. **Finish** — Archive and summarize
 
+An optional `/gps scout` step can run before Grill to source feature candidates from an architecture review, instead of starting `/gps start` from a blank idea.
+
 All output lives in `.work/sessions/YYYY-MM-DD__<feature>/` with a standard structure.
 
 ---
@@ -35,6 +38,7 @@ All output lives in `.work/sessions/YYYY-MM-DD__<feature>/` with a standard stru
 
 `/gps` invokes these automatically as part of its own commands — you never run them yourself:
 
+- **improve-codebase-architecture** (mattpocock-skills) — invoked by `/gps scout` to scan the codebase and produce the candidate report
 - **brainstorming** (superpowers) — invoked by `/gps start` for ideation and spec clarification
 - **writing-plans** (superpowers) — invoked by `/gps plan` to turn the approved resume into tickets
 - **unslop** — invoked by `/gps plan` on each generated ticket for crisp language
@@ -42,6 +46,33 @@ All output lives in `.work/sessions/YYYY-MM-DD__<feature>/` with a standard stru
 ---
 
 ## Commands
+
+### /gps scout [direction]
+
+**When:** Before you know what feature to build — you want the codebase itself to suggest candidates.
+
+**What it does:**
+
+1. Calls the Skill tool with `improve-codebase-architecture`, passing `[direction]` through verbatim as its prompt argument (e.g. `only review sim.cc`). Omit `[direction]` to let that skill infer hot spots from git history instead.
+2. Follows that skill's own process for its steps 1 (Explore) and 2 (Present candidates as an HTML report) exactly as written — the same self-contained HTML report gets written to the OS temp dir and opened for you.
+3. Does **not** proceed to that skill's step 3 (the grilling loop). Instead, for every candidate card in the report, Claude Code synthesizes a seed entry: `slug` (lowercase kebab-case, no spaces — this becomes the `/gps start` argument), `strength`, `files`, `problem`, `solution`, `benefits`.
+4. Writes those candidates to a temp JSON file and runs `node $CLAUDE_PLUGIN_ROOT/scripts/scout-merge.js <tempReportPath> <entriesJsonPath>`, which:
+   - Copies the HTML report, unmodified, into `.work/sessions/scout-reports/architecture-review-<timestamp>.html` — this copy is write-once and is never edited or deleted by any later `/gps` command.
+   - Merges the seed entries into `.work/sessions/.pending-seeds.json`, keyed by slug (a slug that already exists there gets overwritten with the fresh version; other slugs are untouched).
+   - Prints a JSON summary of what was seeded.
+5. Claude Code presents that summary in chat: each candidate's slug, strength badge, one-line problem, and an explicit `/gps start <slug>` line to copy.
+
+**Output:** The HTML report (temp + a permanent copy under `.work/sessions/scout-reports/`), plus a chat list of ready-to-run `/gps start <slug>` commands.
+
+**Next:** Run `/gps start <slug>` for whichever candidate you want to pursue — if a seed matches, brainstorming opens already seeded with that candidate's problem/solution/files instead of starting from zero.
+
+**Example:**
+
+```
+/gps scout only review sim.cc
+```
+
+---
 
 ### /gps start <feature-name>
 
@@ -54,7 +85,8 @@ All output lives in `.work/sessions/YYYY-MM-DD__<feature>/` with a standard stru
 3. Creates `.work/sessions/YYYY-MM-DD__<feature-name>/01-grill/` directory
 4. Creates empty `resume.md` and `notes.md` templates
 5. Writes `.work/sessions/.current-session` pointing at this session, so later commands operate on it regardless of what other sessions exist
-6. Immediately invokes the `brainstorming` skill for this feature to begin the grill conversation — do not wait for or ask the user to run `/brainstorming` themselves
+6. Looks up `.work/sessions/.pending-seeds.json` for an entry whose slug matches this feature-name (e.g. `/gps start runconfig-resolver` matches a seed keyed `runconfig-resolver`, written earlier by `/gps scout`). If found, removes that entry from the seeds file — consumed seeds don't linger — and carries its `problem`/`solution`/`files`/`sourceReport` forward as the starting context for brainstorming. If no match, brainstorming starts from zero as it always has.
+7. Immediately invokes the `brainstorming` skill for this feature to begin the grill conversation — do not wait for or ask the user to run `/brainstorming` themselves. If a seed was found in step 6, open with that context already summarized rather than asking the user to restate it.
 
 **If brainstorming classifies the work as "bounded"** (a short in-chat design instead of a full spec/plan doc):
 
@@ -176,6 +208,7 @@ All output lives in `.work/sessions/YYYY-MM-DD__<feature>/` with a standard stru
 
 `/gps` commands invoke these automatically — you never run them directly:
 
+- `improve-codebase-architecture` (mattpocock-skills) — invoked by `/gps scout`
 - `brainstorming` (superpowers) — invoked by `/gps start`
 - `writing-plans` (superpowers) — invoked by `/gps plan`
 - `unslop` — invoked by `/gps plan`, after writing-plans, for crisp language
