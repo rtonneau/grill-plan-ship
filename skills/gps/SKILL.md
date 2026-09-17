@@ -56,6 +56,12 @@ All output lives in `.work/sessions/YYYY-MM-DD__<feature>/` with a standard stru
 5. Writes `.work/sessions/.current-session` pointing at this session, so later commands operate on it regardless of what other sessions exist
 6. Immediately invokes the `brainstorming` skill for this feature to begin the grill conversation — do not wait for or ask the user to run `/brainstorming` themselves
 
+**If brainstorming classifies the work as "bounded"** (a short in-chat design instead of a full spec/plan doc):
+
+- Presenting the design and getting a "yes" are two different steps. Answering an open design question (e.g. "macro file first or order-independent?") is **not** approval to implement. The agent must ask a standalone, unambiguous question — e.g. *"Ready for me to implement this?"* — and wait for an explicit yes before writing any code.
+- Once approved, and **before touching any code**, the agent must synthesize and save `01-grill/resume.md` using the same full-template process `/gps write` performs (all 7 sections) — every grill phase leaves a trace on disk, bounded or not.
+- No `02-plan/plan.md`, no tickets: bounded work skips straight from the saved resume to implementation via the normal dev workflow. Run `/gps finish` when done.
+
 **Output:** The grill conversation begins right away.
 
 **Next:** Once the brainstorming design is approved, run `/gps write` to save the resume, then `/gps plan`.
