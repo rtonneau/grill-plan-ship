@@ -41,7 +41,7 @@
 
     <rect class="panel" x="190" y="240" width="360" height="170" rx="18"/>
     <text class="mono" x="214" y="276">/gps start &lt;feature&gt;</text>
-    <text class="mono" x="214" y="304">(invokes /brainstorming)</text>
+    <text class="text" x="214" y="304">Guided brainstorm/spec session</text>
 
     <rect class="panel" x="610" y="240" width="360" height="170" rx="18"/>
     <text class="text" x="634" y="278">• Brainstorm and clarify scope</text>
@@ -60,7 +60,7 @@
 
     <rect class="panel" x="190" y="450" width="360" height="220" rx="18"/>
     <text class="mono" x="214" y="486">/gps plan</text>
-    <text class="mono" x="214" y="514">(invokes /writing-plans)</text>
+    <text class="text" x="214" y="514">Guided atomic-ticket planning</text>
     <text class="mono" x="214" y="542">/gps write</text>
 
     <rect class="panel" x="610" y="450" width="360" height="220" rx="18"/>
@@ -93,8 +93,7 @@
     <text class="text" x="634" y="860">• One commit per completed ticket</text>
 
     <rect class="panel" x="1030" y="710" width="360" height="250" rx="18"/>
-    <text class="mono" x="1054" y="748">.work/.../03-implement/NN-*/</text>
-    <text class="mono" x="1054" y="776">commit-log.md</text>
+    <text class="mono" x="1054" y="748">.work/.../03-implement/NN-*/commit-log.md</text>
     <text class="text" x="1054" y="808">Status: ✅ Done when complete</text>
     <text class="text" x="1054" y="836">Token usage + verification notes</text>
   </g>
