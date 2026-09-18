@@ -1,0 +1,120 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 1180" role="img" aria-labelledby="title desc">
+  <title id="title">grill-plan-ship workflow visualization</title>
+  <desc id="desc">Dark themed diagram of the GPS workflow with GRILL, PLAN, SHIP, and FINISH phases, plus command, activity, and output cards.</desc>
+
+  <defs>
+    <style>
+      .bg { fill: #0b1020; }
+      .panel { fill: #121a2f; stroke: #2b3657; stroke-width: 1.5; }
+      .header { fill: #1b2542; stroke: #3b4b7a; stroke-width: 1; }
+      .phase { font: 700 20px "Inter", "Segoe UI", Arial, sans-serif; fill: #f8fbff; letter-spacing: 0.5px; }
+      .h1 { font: 700 36px "Inter", "Segoe UI", Arial, sans-serif; fill: #f8fbff; }
+      .sub { font: 500 17px "Inter", "Segoe UI", Arial, sans-serif; fill: #adc1ff; }
+      .colTitle { font: 700 16px "Inter", "Segoe UI", Arial, sans-serif; fill: #dbe7ff; letter-spacing: 0.8px; }
+      .cardTitle { font: 700 15px "Inter", "Segoe UI", Arial, sans-serif; fill: #e9efff; }
+      .text { font: 500 14px "Inter", "Segoe UI", Arial, sans-serif; fill: #ced9ff; }
+      .mono { font: 600 13px "JetBrains Mono", "Consolas", monospace; fill: #9dd8ff; }
+      .arrow { stroke: #8da8ff; stroke-width: 3.5; fill: none; stroke-linecap: round; stroke-linejoin: round; }
+    </style>
+
+    <marker id="arrowhead" markerWidth="10" markerHeight="10" refX="7" refY="3" orient="auto">
+      <path d="M0,0 L0,6 L8,3 z" fill="#8da8ff" />
+    </marker>
+  </defs>
+
+  <rect class="bg" x="0" y="0" width="1600" height="1180" rx="28" />
+
+  <text class="h1" x="60" y="76">grill-plan-ship (GPS) workflow</text>
+  <text class="sub" x="60" y="108">Structured Claude Code flow: grill → plan → ship → finish</text>
+
+  <rect class="header" x="190" y="150" width="360" height="52" rx="14"/>
+  <rect class="header" x="610" y="150" width="360" height="52" rx="14"/>
+  <rect class="header" x="1030" y="150" width="360" height="52" rx="14"/>
+  <text class="colTitle" x="320" y="183">COMMAND</text>
+  <text class="colTitle" x="725" y="183">ACTIVITY</text>
+  <text class="colTitle" x="1110" y="183">OUTPUT / ARTIFACTS</text>
+
+  <g id="phase-grill">
+    <rect x="40" y="240" width="140" height="170" rx="26" fill="#ff7a59"/>
+    <text class="phase" x="74" y="312">GRILL</text>
+
+    <rect class="panel" x="190" y="240" width="360" height="170" rx="18"/>
+    <text class="mono" x="214" y="276">/gps start &lt;feature&gt;</text>
+    <text class="mono" x="214" y="304">(invokes /brainstorming)</text>
+
+    <rect class="panel" x="610" y="240" width="360" height="170" rx="18"/>
+    <text class="text" x="634" y="278">• Brainstorm and clarify scope</text>
+    <text class="text" x="634" y="306">• Define constraints and success metrics</text>
+    <text class="text" x="634" y="334">• Approve spec before planning</text>
+
+    <rect class="panel" x="1030" y="240" width="360" height="170" rx="18"/>
+    <text class="mono" x="1054" y="278">.work/.../01-grill/resume.md</text>
+    <text class="mono" x="1054" y="306">.work/.../01-grill/notes.md</text>
+    <text class="text" x="1054" y="338">Written via /gps write</text>
+  </g>
+
+  <g id="phase-plan">
+    <rect x="40" y="450" width="140" height="220" rx="26" fill="#56c596"/>
+    <text class="phase" x="83" y="538">PLAN</text>
+
+    <rect class="panel" x="190" y="450" width="360" height="220" rx="18"/>
+    <text class="mono" x="214" y="486">/gps plan</text>
+    <text class="mono" x="214" y="514">(invokes /writing-plans)</text>
+    <text class="mono" x="214" y="542">/gps write</text>
+
+    <rect class="panel" x="610" y="450" width="360" height="220" rx="18"/>
+    <text class="text" x="634" y="488">• Break spec into atomic tickets</text>
+    <text class="text" x="634" y="516">• Generate numbered ticket files</text>
+    <text class="text" x="634" y="544">• User review/approval checkpoint</text>
+    <text class="text" x="634" y="572">• Mark plan as ready to implement</text>
+
+    <rect class="panel" x="1030" y="450" width="360" height="220" rx="18"/>
+    <text class="mono" x="1054" y="488">.work/.../02-plan/plan.md</text>
+    <text class="mono" x="1054" y="516">.work/.../02-plan/tickets/</text>
+    <text class="mono" x="1054" y="544">NN-&lt;slug&gt;.md files</text>
+    <text class="text" x="1054" y="576">Ready for /gps ticket or /gps ship</text>
+  </g>
+
+  <g id="phase-ship">
+    <rect x="40" y="710" width="140" height="250" rx="26" fill="#6ea8ff"/>
+    <text class="phase" x="54" y="784">SHIP /</text>
+    <text class="phase" x="43" y="813">IMPLEMENT</text>
+
+    <rect class="panel" x="190" y="710" width="360" height="250" rx="18"/>
+    <text class="mono" x="214" y="746">/gps ticket &lt;N&gt; (single)</text>
+    <text class="mono" x="214" y="774">or /gps ship (loop all)</text>
+
+    <rect class="panel" x="610" y="710" width="360" height="250" rx="18"/>
+    <text class="text" x="634" y="748">• Scaffold ticket workspace</text>
+    <text class="text" x="634" y="776">• Implement ticket by hand</text>
+    <text class="text" x="634" y="804">• Run ticket verification command</text>
+    <text class="text" x="634" y="832">• Manual testing + debug/fix</text>
+    <text class="text" x="634" y="860">• One commit per completed ticket</text>
+
+    <rect class="panel" x="1030" y="710" width="360" height="250" rx="18"/>
+    <text class="mono" x="1054" y="748">.work/.../03-implement/NN-*/</text>
+    <text class="mono" x="1054" y="776">commit-log.md</text>
+    <text class="text" x="1054" y="808">Status: ✅ Done when complete</text>
+    <text class="text" x="1054" y="836">Token usage + verification notes</text>
+  </g>
+
+  <g id="phase-finish">
+    <rect x="40" y="1000" width="140" height="130" rx="26" fill="#b07cff"/>
+    <text class="phase" x="67" y="1078">FINISH</text>
+
+    <rect class="panel" x="190" y="1000" width="360" height="130" rx="18"/>
+    <text class="mono" x="214" y="1040">/gps finish</text>
+
+    <rect class="panel" x="610" y="1000" width="360" height="130" rx="18"/>
+    <text class="text" x="634" y="1040">• Archive completed session</text>
+    <text class="text" x="634" y="1068">• Prepare summary for handoff</text>
+
+    <rect class="panel" x="1030" y="1000" width="360" height="130" rx="18"/>
+    <text class="mono" x="1054" y="1040">.work/.../INDEX.md</text>
+    <text class="mono" x="1054" y="1068">.session-config.json = completed</text>
+  </g>
+
+  <path class="arrow" marker-end="url(#arrowhead)" d="M110,410 L110,438"/>
+  <path class="arrow" marker-end="url(#arrowhead)" d="M110,670 L110,698"/>
+  <path class="arrow" marker-end="url(#arrowhead)" d="M110,960 L110,988"/>
+</svg>

@@ -12,6 +12,10 @@ A structured workflow plugin for any code project.
 - `/gps ship` — Implement every remaining ticket in order, one commit each
 - `/gps finish` — Archive session
 
+## Workflow Visualization
+
+![GPS workflow diagram](docs/gps-workflow.svg)
+
 ## Installation
 
 ```
