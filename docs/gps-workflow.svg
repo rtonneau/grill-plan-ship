@@ -13,6 +13,7 @@
       .colTitle { font: 700 16px "Inter", "Segoe UI", Arial, sans-serif; fill: #dbe7ff; letter-spacing: 0.8px; }
       .cardTitle { font: 700 15px "Inter", "Segoe UI", Arial, sans-serif; fill: #e9efff; }
       .text { font: 500 14px "Inter", "Segoe UI", Arial, sans-serif; fill: #ced9ff; }
+      .transition { font: 700 13px "Inter", "Segoe UI", Arial, sans-serif; fill: #f8fbff; letter-spacing: 0.4px; }
       .mono { font: 600 13px "JetBrains Mono", "Consolas", monospace; fill: #9dd8ff; }
       .arrow { stroke: #8da8ff; stroke-width: 3.5; fill: none; stroke-linecap: round; stroke-linejoin: round; }
     </style>
@@ -115,9 +116,9 @@
   </g>
 
   <path class="arrow" marker-end="url(#arrowhead)" d="M110,410 L110,438"/>
-  <text class="text" x="126" y="430">GRILL → PLAN</text>
+  <text class="transition" x="126" y="430">GRILL → PLAN</text>
   <path class="arrow" marker-end="url(#arrowhead)" d="M110,670 L110,698"/>
-  <text class="text" x="126" y="690">PLAN → SHIP</text>
+  <text class="transition" x="126" y="690">PLAN → SHIP</text>
   <path class="arrow" marker-end="url(#arrowhead)" d="M110,960 L110,968"/>
-  <text class="text" x="126" y="972">SHIP → FINISH</text>
+  <text class="transition" x="126" y="972">SHIP → FINISH</text>
 </svg>
