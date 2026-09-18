@@ -12,6 +12,7 @@ const fs = require('fs');
 const path = require('path');
 const { resolveWriteTarget } = require('./lib/write-target');
 const { getCurrentSessionId } = require('./lib/session-store');
+const { touchPhase, computeUsage } = require('./lib/token-usage');
 
 function main() {
   const projectRoot = process.cwd();
@@ -30,6 +31,14 @@ function main() {
 
   const sessionDir = path.join(sessionsDir, currentSession);
   const result = resolveWriteTarget(sessionDir);
+
+  if (result.target === 'grill' || result.target === 'plan') {
+    const configPath = path.join(sessionDir, '.session-config.json');
+    const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
+    touchPhase(config, result.target);
+    fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
+    result.tokenUsage = computeUsage(config, result.target);
+  }
 
   console.log(JSON.stringify({ sessionId: currentSession, sessionDir, ...result }, null, 2));
 }

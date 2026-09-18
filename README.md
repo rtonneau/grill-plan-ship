@@ -58,6 +58,11 @@ Restart Claude Code.
 ✅ Composable (uses superpowers + unslop)
 ✅ Documented (every session has INDEX.md)
 ✅ Versionable (.session-config.json tracks state)
+✅ Token usage tracked per phase (grill, plan, each ticket)
+
+## Token Usage
+
+Every phase output (`01-grill/resume.md`, `02-plan/plan.md`, each ticket's `03-implement/NN-*/commit-log.md`) ends with a `## Token Usage` section reporting that phase's real input/output/cache token totals, parsed from Claude Code's own session transcripts. If the transcript can't be found or parsed, the section reads `unavailable` instead of blocking the write.
 
 ## Example Session
 

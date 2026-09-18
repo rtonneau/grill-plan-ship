@@ -35,3 +35,11 @@
 ## Notes
 
 {{ Additional notes or observations from the grill phase }}
+
+## Token Usage
+
+- **Input:** {{ input tokens }}
+- **Output:** {{ output tokens }}
+- **Cache read:** {{ cache read tokens }}
+- **Cache creation:** {{ cache creation tokens }}
+- **Total:** {{ total tokens }}

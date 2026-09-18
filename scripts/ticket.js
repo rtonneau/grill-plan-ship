@@ -11,6 +11,7 @@ const path = require('path');
 const { loadTemplate, renderTemplate } = require('./lib/templates');
 const { getCurrentSessionId } = require('./lib/session-store');
 const { parseTicketFilename } = require('./lib/ticket-queue');
+const { touchPhase } = require('./lib/token-usage');
 
 function getTicket(ticketNum) {
   const projectRoot = process.cwd();
@@ -46,9 +47,15 @@ function implementTicket(ticketNum) {
 
   const sessionDir = path.join(projectRoot, '.work', 'sessions', currentSession);
   const ticketNumPadded = ticketNum.toString().padStart(2, '0');
+  const phaseKey = `03-${ticketNumPadded}-${slug}`;
   const implDir = path.join(sessionDir, '03-implement', `${ticketNumPadded}-${slug}`);
 
   fs.mkdirSync(implDir, { recursive: true });
+
+  const configPath = path.join(sessionDir, '.session-config.json');
+  const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
+  touchPhase(config, phaseKey);
+  fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
 
   const logContent = renderTemplate(loadTemplate('03-implement-log.md'), {
     N: ticketNumPadded,
@@ -62,6 +69,7 @@ function implementTicket(ticketNum) {
   console.log('\n' + '='.repeat(70));
   console.log(`Working directory: ${implDir}`);
   console.log(`Log file: ${path.join(implDir, 'commit-log.md')}`);
+  console.log(`Token usage phase key: ${phaseKey}`);
   console.log('\nImplement in Claude Code, test locally, save results to commit-log.md');
   console.log('='.repeat(70) + '\n');
 }

@@ -22,6 +22,7 @@ const path = require('path');
 const { loadTemplate, renderTemplate } = require('./lib/templates');
 const { setCurrentSession } = require('./lib/session-store');
 const { getSeed, removeSeed } = require('./lib/seeds-store');
+const { touchPhase } = require('./lib/token-usage');
 
 function startSession(featureName) {
   const date = new Date().toISOString().split('T')[0];
@@ -43,6 +44,8 @@ function startSession(featureName) {
     tickets: [],
     status: 'grill-in-progress',
   };
+
+  touchPhase(config, 'grill');
 
   fs.writeFileSync(
     path.join(workDir, '.session-config.json'),

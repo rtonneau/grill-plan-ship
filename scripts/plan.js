@@ -10,6 +10,7 @@ const fs = require('fs');
 const path = require('path');
 const { loadTemplate, renderTemplate } = require('./lib/templates');
 const { getCurrentSessionId, markPhaseCompleted } = require('./lib/session-store');
+const { touchPhase } = require('./lib/token-usage');
 
 function createPlan() {
   const projectRoot = process.cwd();
@@ -67,6 +68,7 @@ function createPlan() {
     fs.writeFileSync(ticketPath, ticketContent);
   }
 
+  touchPhase(config, 'plan');
   markPhaseCompleted(config, 'grill');
   config.status = 'plan-in-progress';
   fs.writeFileSync(configPath, JSON.stringify(config, null, 2));

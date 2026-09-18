@@ -23,3 +23,11 @@
 ## Blockers / Challenges
 
 {{ Any issues encountered during implementation }}
+
+## Token Usage
+
+- **Input:** {{ input tokens }}
+- **Output:** {{ output tokens }}
+- **Cache read:** {{ cache read tokens }}
+- **Cache creation:** {{ cache creation tokens }}
+- **Total:** {{ total tokens }}

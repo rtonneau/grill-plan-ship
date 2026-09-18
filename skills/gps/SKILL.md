@@ -145,8 +145,9 @@ All output lives in `.work/sessions/YYYY-MM-DD__<feature>/` with a standard stru
    - Otherwise, if `02-plan/plan.md` doesn't exist yet → nothing to write; run `/gps plan` first.
    - Otherwise, if `02-plan/plan.md` or any ticket file still has placeholders → **plan** phase is pending.
    - Otherwise → nothing pending.
-2. **If grill is pending:** Claude Code synthesizes the brainstorming conversation into `01-grill/resume.md`, filling in every template section (Problem Statement, Context & Constraints, Success Metrics, Architecture & Approach, Assumptions & Trade-offs, Open Questions, Notes) — leaving no `{{ ... }}` placeholders.
-3. **If plan is pending:** Claude Code synthesizes the most recent writing-plans output into `02-plan/plan.md`, then replaces the placeholder ticket stubs in `02-plan/tickets/` with one real `NN-<slug>.md` file per actual ticket (the ticket count is whatever writing-plans produced, not fixed at 4). It then runs `node $CLAUDE_PLUGIN_ROOT/scripts/mark-plan-written.js` to record the plan phase as complete.
+   - When a phase is pending, it also computes that phase's real token usage (parsed from Claude Code's own session transcripts) and includes it as `tokenUsage` in its JSON output — either `{ available: true, input, output, cacheRead, cacheCreation, total }` or `{ available: false }`.
+2. **If grill is pending:** Claude Code synthesizes the brainstorming conversation into `01-grill/resume.md`, filling in every template section (Problem Statement, Context & Constraints, Success Metrics, Architecture & Approach, Assumptions & Trade-offs, Open Questions, Notes, Token Usage) — leaving no `{{ ... }}` placeholders. For Token Usage, use the `tokenUsage` values from step 1's output verbatim; if `available` is `false`, write `unavailable` for each line instead of a number.
+3. **If plan is pending:** Claude Code synthesizes the most recent writing-plans output into `02-plan/plan.md` (including its Token Usage section, filled the same way as grill's), then replaces the placeholder ticket stubs in `02-plan/tickets/` with one real `NN-<slug>.md` file per actual ticket (the ticket count is whatever writing-plans produced, not fixed at 4). It then runs `node $CLAUDE_PLUGIN_ROOT/scripts/mark-plan-written.js` to record the plan phase as complete.
 4. **If nothing is pending:** reports that and suggests the next command (`/gps plan`, `/gps ticket <N>`, or `/gps finish`).
 
 **Output:** The pending phase's files written to disk with real content, ready for the next command.
@@ -186,7 +187,8 @@ All output lives in `.work/sessions/YYYY-MM-DD__<feature>/` with a standard stru
 1. Reads `02-plan/tickets/NN-*.md`
 2. Creates `03-implement/NN-slug/` directory
 3. Creates `commit-log.md` template
-4. Prints ticket spec to console
+4. Records this ticket's token-usage phase key (`03-NN-<slug>`) in `.session-config.json`, so usage can be computed later when the ticket is finalized
+5. Prints ticket spec to console, including that phase key
 
 **Output:** Workspace + spec printed. Ready to code.
 
@@ -204,7 +206,7 @@ All output lives in `.work/sessions/YYYY-MM-DD__<feature>/` with a standard stru
    - Run `node $CLAUDE_PLUGIN_ROOT/scripts/ticket.js <N>` (same as `/gps ticket <N>`) to scaffold the workspace and print the spec.
    - Implement it the normal way — write the code, debug and fix issues as they come up, that's just development, not a "blocker."
    - Run the ticket's Verification Step command from its spec.
-   - **On success:** fill in `commit-log.md` (Status: `✅ Done`, the commit(s), test output, review notes, time spent). Stage only the files this ticket touched (never `git add -A`) and commit them with a message referencing the ticket.
+   - **On success:** run `node $CLAUDE_PLUGIN_ROOT/scripts/token-usage.js 03-<NN>-<slug>` (the phase key printed by `ticket.js` in the previous step) to get this ticket's token usage, then fill in `commit-log.md` (Status: `✅ Done`, the commit(s), test output, review notes, time spent, Token Usage — `unavailable` per line if the script returned `available: false`). Stage only the files this ticket touched (never `git add -A`) and commit them with a message referencing the ticket.
    - **On genuine failure** (verification won't pass after reasonable attempts, or the ticket needs information only the user can provide): leave `commit-log.md` as `**Status:** In Progress` with a filled-in Blockers/Challenges section explaining what's wrong. Do not commit. Stop the whole `/gps ship` loop here and report to the user which ticket and why.
 4. Go back to step 1 and repeat, until `nextPending` is null or step 3 stops the loop on a failure.
 
