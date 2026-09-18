@@ -99,25 +99,25 @@
   </g>
 
   <g id="phase-finish">
-    <rect x="40" y="1000" width="140" height="130" rx="26" fill="#b07cff"/>
-    <text class="phase" x="67" y="1078">FINISH</text>
+    <rect x="40" y="980" width="140" height="130" rx="26" fill="#b07cff"/>
+    <text class="phase" x="67" y="1058">FINISH</text>
 
-    <rect class="panel" x="190" y="1000" width="360" height="130" rx="18"/>
-    <text class="mono" x="214" y="1040">/gps finish</text>
+    <rect class="panel" x="190" y="980" width="360" height="130" rx="18"/>
+    <text class="mono" x="214" y="1020">/gps finish</text>
 
-    <rect class="panel" x="610" y="1000" width="360" height="130" rx="18"/>
-    <text class="text" x="634" y="1040">• Archive completed session</text>
-    <text class="text" x="634" y="1068">• Prepare summary for handoff</text>
+    <rect class="panel" x="610" y="980" width="360" height="130" rx="18"/>
+    <text class="text" x="634" y="1020">• Archive completed session</text>
+    <text class="text" x="634" y="1048">• Prepare summary for handoff</text>
 
-    <rect class="panel" x="1030" y="1000" width="360" height="130" rx="18"/>
-    <text class="mono" x="1054" y="1040">.work/.../INDEX.md</text>
-    <text class="mono" x="1054" y="1068">.session-config.json = completed</text>
+    <rect class="panel" x="1030" y="980" width="360" height="130" rx="18"/>
+    <text class="mono" x="1054" y="1020">.work/.../INDEX.md</text>
+    <text class="mono" x="1054" y="1048">.session-config.json = completed</text>
   </g>
 
   <path class="arrow" marker-end="url(#arrowhead)" d="M110,410 L110,438"/>
   <text class="text" x="126" y="430">GRILL → PLAN</text>
   <path class="arrow" marker-end="url(#arrowhead)" d="M110,670 L110,698"/>
   <text class="text" x="126" y="690">PLAN → SHIP</text>
-  <path class="arrow" marker-end="url(#arrowhead)" d="M110,960 L110,988"/>
-  <text class="text" x="126" y="980">SHIP → FINISH</text>
+  <path class="arrow" marker-end="url(#arrowhead)" d="M110,960 L110,968"/>
+  <text class="text" x="126" y="972">SHIP → FINISH</text>
 </svg>
