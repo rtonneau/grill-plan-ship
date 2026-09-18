@@ -119,6 +119,6 @@
   <text class="transition" x="126" y="430">GRILL to PLAN</text>
   <path class="arrow" marker-end="url(#arrowhead)" d="M110,670 L110,698"/>
   <text class="transition" x="126" y="690">PLAN to SHIP</text>
-  <path class="arrow" marker-end="url(#arrowhead)" d="M110,960 L110,968"/>
+  <path class="arrow" marker-end="url(#arrowhead)" d="M110,960 L110,978"/>
   <text class="transition" x="126" y="972">SHIP to FINISH</text>
 </svg>
