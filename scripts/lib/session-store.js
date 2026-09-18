@@ -64,6 +64,7 @@ function markPhaseCompleted(config, phase) {
 module.exports = {
   CURRENT_SESSION_FILENAME,
   setCurrentSession,
+  listSessionDirs,
   getCurrentSessionId,
   markPhaseCompleted,
 };

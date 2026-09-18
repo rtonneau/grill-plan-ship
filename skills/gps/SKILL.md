@@ -1,6 +1,6 @@
 ---
 name: gps
-description: "grill-plan-ship: universal workflow plugin (brainstorm → plan → implement). Use for /gps scout, /gps start, /gps write, /gps plan, /gps ticket, /gps ship, /gps finish."
+description: "grill-plan-ship: universal workflow plugin (brainstorm → plan → implement). Use for /gps scout, /gps start, /gps status, /gps write, /gps plan, /gps ticket, /gps ship, /gps finish."
 ---
 
 # grill-plan-ship
@@ -11,6 +11,7 @@ Universal workflow plugin: brainstorm → plan → implement.
 
 - `/gps scout [direction]` — Scan the codebase for architecture candidates and turn them into ready-to-use `/gps start` seeds
 - `/gps start <feature-name>` — Begin a new feature
+- `/gps status` — Show every session's state and what's pending on the current one
 - `/gps write` — Write the current phase's output (brainstorm resume, or plan + tickets) to disk
 - `/gps plan` — Generate plan + tickets
 - `/gps ticket <number>` — Implement ticket N
@@ -102,6 +103,33 @@ All output lives in `.work/sessions/YYYY-MM-DD__<feature>/` with a standard stru
 
 ```
 /gps start add-dark-mode
+```
+
+---
+
+### /gps status
+
+**When:** Reorienting after returning to a project, losing context, switching machines, or any time you need a "where did I leave off?" answer. Takes no arguments. Read-only — it never writes or modifies any session file.
+
+**What it does:**
+
+1. Runs `node $CLAUDE_PLUGIN_ROOT/scripts/status.js`, which:
+   - Lists every session under `.work/sessions/` with its feature name, creation date, status, and completed phases.
+   - Resolves the current session (same logic as every other command) and, for it only, adds:
+     - `writeTarget` — whether `/gps write` has something pending (`grill`, `plan`, or `none`), same detection `/gps write` itself uses.
+     - `tickets` / `nextPending` — the ticket queue, same detection `/gps ship` itself uses.
+     - `gitLog` — the last 5 commits (oneline) touching that session's directory, so recent implementation activity is visible even without opening `commit-log.md` files.
+2. Claude Code renders that JSON as a short human-readable report:
+   - One line per session: feature name, status, phases completed.
+   - For the current session: which phase is pending and why, ticket progress (`X/Y done`, next pending ticket if any), and the recent commits.
+   - Ends with an explicit suggested next command, using the same phase logic `/gps write` and `/gps ship` already use: grill pending → `/gps write`; plan not started → `/gps plan`; plan pending write → `/gps write`; tickets pending → `/gps ship` (or `/gps ticket <N>`); everything done → `/gps finish`.
+
+**Output:** A status report printed in chat. No files are created or changed.
+
+**Example:**
+
+```
+/gps status
 ```
 
 ---
