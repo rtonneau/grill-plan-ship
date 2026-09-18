@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 1180" role="img" aria-labelledby="title desc" focusable="false">
   <title id="title">grill-plan-ship workflow visualization</title>
-  <desc id="desc">Dark themed diagram of the GPS workflow with GRILL, PLAN, SHIP, and FINISH phases, plus command, activity, and output cards.</desc>
+  <desc id="desc">Dark themed GPS workflow diagram with three columns for command, activity, and output. Flow transitions are GRILL to PLAN, PLAN to SHIP, and SHIP to FINISH, with /gps write checkpoints after GRILL and PLAN.</desc>
 
   <defs>
     <style>
