@@ -26,7 +26,7 @@
   <rect class="bg" x="0" y="0" width="1600" height="1180" rx="28" />
 
   <text class="h1" x="60" y="76">grill-plan-ship (GPS) workflow</text>
-  <text class="sub" x="60" y="108">Core phases: grill → plan → ship → finish, with /gps write checkpoints after grill and plan</text>
+  <text class="sub" x="60" y="108">Core phases: grill to plan to ship to finish, with /gps write checkpoints after grill and plan</text>
 
   <rect class="header" x="190" y="150" width="360" height="52" rx="14"/>
   <rect class="header" x="610" y="150" width="360" height="52" rx="14"/>
@@ -116,9 +116,9 @@
   </g>
 
   <path class="arrow" marker-end="url(#arrowhead)" d="M110,410 L110,438"/>
-  <text class="transition" x="126" y="430">GRILL → PLAN</text>
+  <text class="transition" x="126" y="430">GRILL to PLAN</text>
   <path class="arrow" marker-end="url(#arrowhead)" d="M110,670 L110,698"/>
-  <text class="transition" x="126" y="690">PLAN → SHIP</text>
+  <text class="transition" x="126" y="690">PLAN to SHIP</text>
   <path class="arrow" marker-end="url(#arrowhead)" d="M110,960 L110,968"/>
-  <text class="transition" x="126" y="972">SHIP → FINISH</text>
+  <text class="transition" x="126" y="972">SHIP to FINISH</text>
 </svg>
