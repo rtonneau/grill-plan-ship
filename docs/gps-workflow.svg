@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 1180" aria-labelledby="svg-title svg-desc" focusable="false">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 1180" role="img" aria-labelledby="svg-title svg-desc" focusable="false">
   <title id="svg-title">GPS workflow diagram</title>
   <desc id="svg-desc">GRILL, PLAN, SHIP/IMPLEMENT, and FINISH phases mapped across command, activity, and output columns with write checkpoints after GRILL and PLAN.</desc>
 
