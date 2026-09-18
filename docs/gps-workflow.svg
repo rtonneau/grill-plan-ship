@@ -26,7 +26,7 @@
   <rect class="bg" x="0" y="0" width="1600" height="1220" rx="28" />
 
   <text class="h1" x="60" y="76">grill-plan-ship (GPS) workflow</text>
-  <text class="sub" x="60" y="108">Core command flow: /gps start to /gps plan to /gps ticket or /gps ship to /gps finish; /gps write persists GRILL and PLAN outputs</text>
+  <text class="sub" x="60" y="108">Primary commands: /gps start, /gps plan, /gps ticket, /gps finish; /gps ship automates pending tickets and /gps write persists GRILL/PLAN outputs</text>
 
   <rect class="header" x="190" y="150" width="360" height="52" rx="14"/>
   <rect class="header" x="610" y="150" width="360" height="52" rx="14"/>
@@ -87,7 +87,7 @@
     <rect class="panel" x="610" y="710" width="360" height="250" rx="18"/>
     <text class="text" x="634" y="748">• Scaffold ticket workspace</text>
     <text class="text" x="634" y="776">• Implement ticket by hand</text>
-    <text class="text" x="634" y="804">• Run ticket verification command</text>
+    <text class="text" x="634" y="804">• Run ticket's documented verification steps</text>
     <text class="text" x="634" y="832">• Manual testing + debug/fix</text>
     <text class="text" x="634" y="860">• One commit per completed ticket</text>
 
