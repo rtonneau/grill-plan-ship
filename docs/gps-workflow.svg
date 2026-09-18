@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 1180" role="img" aria-labelledby="title desc">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 1180" role="img" aria-labelledby="title desc" focusable="false">
   <title id="title">grill-plan-ship workflow visualization</title>
   <desc id="desc">Dark themed diagram of the GPS workflow with GRILL, PLAN, SHIP, and FINISH phases, plus command, activity, and output cards.</desc>
 
