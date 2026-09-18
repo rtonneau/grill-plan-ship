@@ -16,7 +16,7 @@ A structured workflow plugin for any code project.
 
 ![Diagram of GPS workflow phases: GRILL, PLAN, SHIP/IMPLEMENT, and FINISH with command, activity, and output columns.](docs/gps-workflow.svg)
 
-GPS phases and outputs at a glance.
+GPS phases and outputs at a glance, including `/gps write` checkpoints after GRILL and PLAN.
 
 ## Installation
 

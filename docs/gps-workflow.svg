@@ -40,8 +40,8 @@
     <text class="phase" x="74" y="312">GRILL</text>
 
     <rect class="panel" x="190" y="240" width="360" height="170" rx="18"/>
-    <text class="mono" x="214" y="276">/gps start &lt;feature&gt;</text>
-    <text class="text" x="214" y="304">Guided brainstorm/spec session</text>
+    <text class="mono" x="214" y="276">/gps start &lt;feature&gt; (setup)</text>
+    <text class="mono" x="214" y="304">/gps write (save grill output)</text>
 
     <rect class="panel" x="610" y="240" width="360" height="170" rx="18"/>
     <text class="text" x="634" y="278">• Brainstorm and clarify scope</text>
@@ -59,9 +59,8 @@
     <text class="phase" x="83" y="538">PLAN</text>
 
     <rect class="panel" x="190" y="450" width="360" height="220" rx="18"/>
-    <text class="mono" x="214" y="486">/gps plan</text>
-    <text class="text" x="214" y="514">Guided atomic-ticket planning</text>
-    <text class="mono" x="214" y="542">/gps write</text>
+    <text class="mono" x="214" y="486">/gps plan (create plan/ticket stubs)</text>
+    <text class="mono" x="214" y="514">/gps write (save approved plan)</text>
 
     <rect class="panel" x="610" y="450" width="360" height="220" rx="18"/>
     <text class="text" x="634" y="488">• Break spec into atomic tickets</text>
