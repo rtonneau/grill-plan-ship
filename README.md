@@ -14,12 +14,9 @@ A structured workflow plugin for any code project.
 
 ## Workflow Visualization
 
-<figure>
-  <img src="docs/gps-workflow.svg" alt="Diagram of GPS workflow phases: GRILL, PLAN, SHIP/IMPLEMENT, and FINISH with command, activity, and output columns." />
-  <figcaption>
-    GPS phases and outputs at a glance.
-  </figcaption>
-</figure>
+![Diagram of GPS workflow phases: GRILL, PLAN, SHIP/IMPLEMENT, and FINISH with command, activity, and output columns.](docs/gps-workflow.svg)
+
+GPS phases and outputs at a glance.
 
 ## Installation
 
