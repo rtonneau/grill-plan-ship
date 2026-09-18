@@ -94,6 +94,7 @@
 
     <rect class="panel" x="1030" y="710" width="360" height="250" rx="18"/>
     <text class="mono" x="1054" y="748">.work/.../03-implement/NN-*/commit-log.md</text>
+    <text class="mono" x="1054" y="776">.work/.../03-implement/NN-*/code-review.md</text>
     <text class="text" x="1054" y="808">Status: ✅ Done when complete</text>
     <text class="text" x="1054" y="836">Token usage + verification notes</text>
   </g>
