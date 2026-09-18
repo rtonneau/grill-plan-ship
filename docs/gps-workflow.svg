@@ -9,7 +9,7 @@
       .header { fill: #1b2542; stroke: #3b4b7a; stroke-width: 1; }
       .phase { font: 700 20px "Inter", "Segoe UI", Arial, sans-serif; fill: #f8fbff; letter-spacing: 0.5px; }
       .h1 { font: 700 36px "Inter", "Segoe UI", Arial, sans-serif; fill: #f8fbff; }
-      .sub { font: 500 17px "Inter", "Segoe UI", Arial, sans-serif; fill: #adc1ff; }
+      .sub { font: 500 17px "Inter", "Segoe UI", Arial, sans-serif; fill: #d9e6ff; }
       .colTitle { font: 700 16px "Inter", "Segoe UI", Arial, sans-serif; fill: #dbe7ff; letter-spacing: 0.8px; }
       .cardTitle { font: 700 15px "Inter", "Segoe UI", Arial, sans-serif; fill: #e9efff; }
       .text { font: 500 14px "Inter", "Segoe UI", Arial, sans-serif; fill: #ced9ff; }

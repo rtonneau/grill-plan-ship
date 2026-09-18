@@ -15,7 +15,7 @@ A structured workflow plugin for any code project.
 ## Workflow Visualization
 
 <figure>
-  <img src="docs/gps-workflow.svg" alt="GPS workflow from GRILL to PLAN to SHIP/IMPLEMENT to FINISH, organized by command, activity, and output artifacts." />
+  <img src="docs/gps-workflow.svg" alt="GPS workflow diagram with phase cards." />
   <figcaption>
     Flow summary: GRILL (<code>/gps start</code> + <code>/brainstorming</code>) produces <code>01-grill/resume.md</code> and <code>notes.md</code> via <code>/gps write</code>; PLAN (<code>/gps plan</code> + <code>/writing-plans</code>) produces <code>02-plan/plan.md</code> and numbered tickets after user approval and <code>/gps write</code>; SHIP/IMPLEMENT uses <code>/gps ticket &lt;N&gt;</code> or <code>/gps ship</code> for manual implementation/testing with one commit per ticket and <code>03-implement/NN-*/commit-log.md</code>; FINISH (<code>/gps finish</code>) archives with <code>INDEX.md</code>.
   </figcaption>
