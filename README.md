@@ -50,7 +50,11 @@ Restart Claude Code.
 ├── 03-implement/       ← Implementation logs
 ├── .session-config.json
 └── INDEX.md
+
+.scratch/tests/YYYYMMDD__<feature>/   ← Build/run/test artifacts for the whole session
 ```
+
+`/gps start` creates the scratch directory, records it as `scratch_dir` in `.session-config.json`, and adds `.scratch/` to the project's `.gitignore` if missing. `/gps ticket` prints its path so agents keep build logs and run output there (prefixed with the ticket number, e.g. `03-build.log`). To enforce a stricter policy (capture stdout, never write to the source tree), add it to your project's CLAUDE.md.
 
 ## Features
 

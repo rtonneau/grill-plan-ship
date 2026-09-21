@@ -10,6 +10,9 @@
  *       - resume.md
  *       - notes.md
  *   - INDEX.md
+ * and a matching scratch directory for run/test artifacts:
+ * .scratch/tests/<session-id>/   (recorded as scratch_dir in the config;
+ * ".scratch/" is appended to the project's .gitignore if missing)
  *
  * If .work/sessions/.pending-seeds.json has an entry whose key matches
  * this feature-name's slug (written earlier by /gps scout), that entry is
@@ -23,6 +26,7 @@ const { loadTemplate, renderTemplate } = require('./lib/templates');
 const { setCurrentSession } = require('./lib/session-store');
 const { getSeed, removeSeed } = require('./lib/seeds-store');
 const { touchPhase } = require('./lib/token-usage');
+const { ensureScratchDir, ensureGitignoreEntry } = require('./lib/scratch-dir');
 
 function startSession(featureName) {
   const date = new Date().toISOString().split('T')[0];
@@ -36,9 +40,13 @@ function startSession(featureName) {
 
   fs.mkdirSync(grillDir, { recursive: true });
 
+  const scratchDir = ensureScratchDir(projectRoot, sessionId);
+  const gitignoreUpdated = ensureGitignoreEntry(projectRoot);
+
   const config = {
     session_id: sessionId,
     feature_name: featureName,
+    scratch_dir: scratchDir,
     created_at: new Date().toISOString(),
     phases_completed: [],
     tickets: [],
@@ -69,6 +77,8 @@ function startSession(featureName) {
 
   console.log(`Session initialized: ${sessionId}`);
   console.log(`Path: ${workDir}`);
+  console.log(`Scratch dir: ${scratchDir} (run/test artifacts go here)`);
+  if (gitignoreUpdated) console.log(`Added ".scratch/" to .gitignore`);
 
   const seed = getSeed(sessionsDir, slug);
   if (seed) {

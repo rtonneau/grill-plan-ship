@@ -12,6 +12,7 @@ const { loadTemplate, renderTemplate } = require('./lib/templates');
 const { getCurrentSessionId } = require('./lib/session-store');
 const { parseTicketFilename } = require('./lib/ticket-queue');
 const { touchPhase } = require('./lib/token-usage');
+const { ensureScratchDir } = require('./lib/scratch-dir');
 
 function getTicket(ticketNum) {
   const projectRoot = process.cwd();
@@ -55,6 +56,9 @@ function implementTicket(ticketNum) {
   const configPath = path.join(sessionDir, '.session-config.json');
   const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
   touchPhase(config, phaseKey);
+  // Sessions started before scratch dirs existed have no scratch_dir; backfill.
+  const scratchDir = ensureScratchDir(projectRoot, currentSession);
+  config.scratch_dir = scratchDir;
   fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
 
   const logContent = renderTemplate(loadTemplate('03-implement-log.md'), {
@@ -68,6 +72,7 @@ function implementTicket(ticketNum) {
   console.log(ticketContent);
   console.log('\n' + '='.repeat(70));
   console.log(`Working directory: ${implDir}`);
+  console.log(`Scratch dir: ${scratchDir}  (all build/run/test output goes here; prefix files with ${ticketNumPadded}-)`);
   console.log(`Log file: ${path.join(implDir, 'commit-log.md')}`);
   console.log(`Token usage phase key: ${phaseKey}`);
   console.log('\nImplement in Claude Code, test locally, save results to commit-log.md');

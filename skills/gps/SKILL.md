@@ -82,7 +82,8 @@ All output lives in `.work/sessions/YYYY-MM-DD__<feature>/` with a standard stru
 **What it does:**
 
 1. Creates session directory: `.work/sessions/YYYY-MM-DD__<feature-name>/`
-2. Creates `.work/sessions/YYYY-MM-DD__<feature-name>/.session-config.json`
+2. Creates `.work/sessions/YYYY-MM-DD__<feature-name>/.session-config.json`, recording `scratch_dir`
+   Also creates the session's scratch directory `.scratch/tests/YYYY-MM-DD__<feature-name>/` (for build/run/test artifacts) and appends `.scratch/` to the project's `.gitignore` if missing.
 3. Creates `.work/sessions/YYYY-MM-DD__<feature-name>/01-grill/` directory
 4. Creates empty `resume.md` and `notes.md` templates
 5. Writes `.work/sessions/.current-session` pointing at this session, so later commands operate on it regardless of what other sessions exist
@@ -188,7 +189,7 @@ All output lives in `.work/sessions/YYYY-MM-DD__<feature>/` with a standard stru
 2. Creates `03-implement/NN-slug/` directory
 3. Creates `commit-log.md` template
 4. Records this ticket's token-usage phase key (`03-NN-<slug>`) in `.session-config.json`, so usage can be computed later when the ticket is finalized
-5. Prints ticket spec to console, including that phase key
+5. Prints ticket spec to console, including that phase key and the session's scratch dir (backfilled for sessions started before scratch dirs existed)
 
 **Output:** Workspace + spec printed. Ready to code.
 
@@ -204,7 +205,7 @@ All output lives in `.work/sessions/YYYY-MM-DD__<feature>/` with a standard stru
 2. **If `nextPending` is null:** every ticket is done — report that and suggest `/gps finish`. Stop.
 3. **Otherwise**, for `nextPending`:
    - Run `node $CLAUDE_PLUGIN_ROOT/scripts/ticket.js <N>` (same as `/gps ticket <N>`) to scaffold the workspace and print the spec.
-   - Implement it the normal way — write the code, debug and fix issues as they come up, that's just development, not a "blocker."
+   - Implement it the normal way — write the code, debug and fix issues as they come up, that's just development, not a "blocker." Run and test artifacts (build/run logs, output files) go under the session's scratch dir printed by `ticket.js`, never in the repo root or source tree.
    - Run the ticket's Verification Step command from its spec.
    - **On success:** run `node $CLAUDE_PLUGIN_ROOT/scripts/token-usage.js 03-<NN>-<slug>` (the phase key printed by `ticket.js` in the previous step) to get this ticket's token usage, then fill in `commit-log.md` (Status: `✅ Done`, the commit(s), test output, review notes, time spent, Token Usage — `unavailable` per line if the script returned `available: false`). Stage only the files this ticket touched (never `git add -A`) and commit them with a message referencing the ticket.
    - **On genuine failure** (verification won't pass after reasonable attempts, or the ticket needs information only the user can provide): leave `commit-log.md` as `**Status:** In Progress` with a filled-in Blockers/Challenges section explaining what's wrong. Do not commit. Stop the whole `/gps ship` loop here and report to the user which ticket and why.
