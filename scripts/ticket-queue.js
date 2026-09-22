@@ -21,7 +21,10 @@ runCli(() => {
     throw new GpsError(`The ${writeTarget} phase is not written yet.`, 'Run /gps write first, then /gps ship.');
   }
 
-  const { tickets, nextPending } = listTickets(sessionDir);
+  const { tickets, nextPending, skipped } = listTickets(sessionDir);
+  for (const fileName of skipped) {
+    console.error(`⚠️  Skipped ${fileName}: ticket files must be named NN-<slug>.md`);
+  }
   if (tickets.length === 0) {
     throw new GpsError('No tickets found.', 'Run /gps plan, then /gps write, then /gps ship.');
   }

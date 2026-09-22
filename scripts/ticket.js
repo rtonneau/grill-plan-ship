@@ -17,11 +17,11 @@ const fs = require('fs');
 const path = require('path');
 const { loadTemplate, renderTemplate } = require('./lib/templates');
 const { resolveSession } = require('./lib/session-store');
-const { parseTicketFilename, isTicketDone } = require('./lib/ticket-queue');
+const { listTickets, isTicketDone } = require('./lib/ticket-queue');
 const { resolveWriteTarget } = require('./lib/write-target');
 const { touchPhase } = require('./lib/token-usage');
 const { ensureScratchDir } = require('./lib/scratch-dir');
-const { GpsError, isSlug, writeJsonAtomic, runCli } = require('./lib/guard');
+const { GpsError, writeJsonAtomic, runCli } = require('./lib/guard');
 
 function findTicket(sessionDir, ticketNum) {
   const ticketsDir = path.join(sessionDir, '02-plan', 'tickets');
@@ -37,27 +37,16 @@ function findTicket(sessionDir, ticketNum) {
     throw new GpsError('The plan and tickets are not written yet.', 'Run /gps write to save them, then /gps ticket <N>.');
   }
 
-  const candidates = fs.readdirSync(ticketsDir)
-    .filter((f) => f.endsWith('.md'))
-    .sort()
-    .map((fileName) => ({ fileName, parsed: parseTicketFilename(fileName) }))
-    .filter(({ parsed }) => parsed && isSlug(parsed.slug) && Number(parsed.num) === ticketNum)
-    .map(({ fileName, parsed }) => {
-      const implName = `${parsed.num}-${parsed.slug}`;
-      const implDir = path.join(sessionDir, '03-implement', implName);
-      return {
-        fileName,
-        ...parsed,
-        ticketPath: path.join(ticketsDir, fileName),
-        implDir,
-        commitLogPath: path.join(implDir, 'commit-log.md'),
-      };
-    });
+  const { tickets, skipped } = listTickets(sessionDir);
+  for (const fileName of skipped) {
+    console.error(`⚠️  Skipped ${fileName}: ticket files must be named NN-<slug>.md`);
+  }
+  const candidates = tickets.filter((t) => Number(t.num) === ticketNum);
 
   if (candidates.length === 0) {
     throw new GpsError(`Ticket ${ticketNum} not found.`, 'Run /gps ship or /gps status to list the tickets.');
   }
-  return candidates.find((t) => !isTicketDone(t.commitLogPath)) || candidates[0];
+  return candidates.find((t) => !t.done) || candidates[0];
 }
 
 function implementTicket(ticketNum) {
