@@ -261,7 +261,7 @@ If `brainstorming` or `writing-plans` is not available, stop and tell the user t
 
 **What it does, repeated until done or blocked:**
 
-1. Runs `node $CLAUDE_PLUGIN_ROOT/scripts/ticket-queue.js`, which lists every ticket in `02-plan/tickets/` and, for each, checks its `03-implement/NN-<slug>/commit-log.md`: a ticket counts as done only if that file's Status line is exactly `**Status:** ✅ Done` (not the raw template's `In Progress / ✅ Done`, and not a still-open `In Progress`). Returns the full list plus `nextPending`, the first ticket that isn't done.
+1. Runs `node $CLAUDE_PLUGIN_ROOT/scripts/ticket-queue.js`, which lists every ticket in `02-plan/tickets/` and, for each, checks its `03-implement/NN-<slug>/commit-log.md`: a ticket counts as done only if that file's Status line is exactly `**Status:** ✅ Done` (the template starts as `In Progress`; older sessions' raw `In Progress / ✅ Done` also doesn't count). Returns the full list in ticket-number order plus `nextPending`, the first ticket that isn't done. Files not named `NN-<slug>.md` are skipped with a warning. It fails if the grill or plan phase isn't written yet.
 2. **If `nextPending` is null:** every ticket is done — report that and suggest `/gps finish`. Stop.
 3. **Otherwise**, for `nextPending`:
    - Run `node $CLAUDE_PLUGIN_ROOT/scripts/ticket.js <N>` (same as `/gps ticket <N>`) to scaffold the workspace and print the spec.
