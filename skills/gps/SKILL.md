@@ -1,6 +1,6 @@
 ---
 name: gps
-description: "grill-plan-ship: universal workflow plugin (brainstorm → plan → implement). Use for /gps scout, /gps start, /gps status, /gps write, /gps plan, /gps ticket, /gps ship, /gps finish."
+description: "grill-plan-ship: universal workflow plugin (brainstorm → plan → implement). Use for /gps scout, /gps start, /gps status, /gps write, /gps plan, /gps ticket, /gps ship, /gps finish, /gps handoff, /gps resume."
 ---
 
 # grill-plan-ship
@@ -17,6 +17,8 @@ Universal workflow plugin: brainstorm → plan → implement.
 - `/gps ticket <number>` — Implement ticket N
 - `/gps ship` — Implement every remaining ticket in order, one commit each
 - `/gps finish` — Archive session + summary
+- `/gps handoff` — Save an in-flight checkpoint of the current session before stopping work
+- `/gps resume` — Catch up on the current session using its saved handoff plus live state
 
 ---
 
@@ -120,6 +122,7 @@ All output lives in `.work/sessions/YYYY-MM-DD__<feature>/` with a standard stru
      - `writeTarget` — whether `/gps write` has something pending (`grill`, `plan`, or `none`), same detection `/gps write` itself uses.
      - `tickets` / `nextPending` — the ticket queue, same detection `/gps ship` itself uses.
      - `gitLog` — the last 5 commits (oneline) touching that session's directory, so recent implementation activity is visible even without opening `commit-log.md` files.
+     - `hasHandoff` — whether a saved checkpoint exists for this session (`HANDOFF.md` present). When true, Claude Code's rendered report should mention `/gps resume` is available for full context.
 2. Claude Code renders that JSON as a short human-readable report:
    - One line per session: feature name, status, phases completed.
    - For the current session: which phase is pending and why, ticket progress (`X/Y done`, next pending ticket if any), and the recent commits.
@@ -131,6 +134,44 @@ All output lives in `.work/sessions/YYYY-MM-DD__<feature>/` with a standard stru
 
 ```
 /gps status
+```
+
+---
+
+### /gps handoff
+
+**When:** Stopping work on the current session — end of day, context running low, switching to something else — and you want a future session (yours or a fresh AI's) to pick it back up with full context, not just "what phase is pending." Takes no arguments.
+
+**What it does:**
+
+1. Runs `node $CLAUDE_PLUGIN_ROOT/scripts/handoff.js`, which resolves the current session and auto-fills everything derivable from disk/git into `HANDOFF.md` at the session root: current phase, active ticket, ticket-queue state, recent commits, and a summary of uncommitted changes. It prints this data as JSON.
+2. Claude Code then fills in `HANDOFF.md`'s remaining narrative placeholders directly (Edit tool, not the script): where work stopped, the reasoning behind the current approach (including alternatives tried and rejected), the next concrete action to take, open questions only the user can resolve, decisions already settled (so a future session doesn't re-ask), and — only if the git-status summary isn't "clean" — why the changes aren't committed yet.
+3. `HANDOFF.md` is a single file: each run overwrites the previous one. There is no history log.
+
+**Output:** `HANDOFF.md` written to the session root with full narrative context.
+
+**Example:**
+
+```
+/gps handoff
+```
+
+### /gps resume
+
+**When:** Picking a session back up after a break. Takes no arguments. Read-only — never writes or modifies any session file.
+
+**What it does:**
+
+1. Runs `node $CLAUDE_PLUGIN_ROOT/scripts/resume.js`, which resolves the current session, reads `HANDOFF.md` if one exists, and independently recomputes live state (ticket queue, git log, git status) the same way `/gps handoff` does — so it never trusts stale narrative for facts it can verify itself. If the handoff's recorded phase or active ticket disagrees with the freshly computed values, it's reported as `drift`.
+2. If no `HANDOFF.md` exists, `live` is still fully populated and `handoff` is `null` — the command degrades gracefully rather than failing.
+3. Claude Code renders the result as one combined briefing in chat: the handoff's narrative sections (if present), the live facts, any drift warning, and the same suggested next command `/gps status` uses.
+
+**Output:** A catch-up briefing printed in chat. No files are created or changed.
+
+**Example:**
+
+```
+/gps resume
 ```
 
 ---
