@@ -2,35 +2,32 @@
 
 **Session:** {{ feature-name }}
 **Date:** {{ timestamp }}
-**Estimated effort:** {{ N hours/days }}
+**Estimated effort:** <!-- gps:fill N hours/days -->
 
 ## Strategy
 
-{{ High-level approach: what's the sequence? Why this order? Any blockers? }}
+<!-- gps:fill High-level approach: what's the sequence? Why this order? Any blockers? -->
 
 ## Tickets Overview
 
-- **Ticket 1:** {{ What does it accomplish? }}
-- **Ticket 2:** {{ }}
-- **Ticket 3:** {{ }}
-- **Ticket 4:** {{ }}
+- **Ticket 1:** <!-- gps:fill What does it accomplish? (one line per ticket) -->
 
 ## Sequencing Rationale
 
-{{ Why this order? Dependencies? }}
+<!-- gps:fill Why this order? Dependencies? -->
 
 ## Risks & Mitigation
 
-- **Risk:** {{ }} → **Mitigation:** {{ }}
+- **Risk:** <!-- gps:fill risk --> → **Mitigation:** <!-- gps:fill mitigation -->
 
 ## Assumptions
 
-- {{ Assumptions about dependencies, environment, or constraints }}
+- <!-- gps:fill Assumptions about dependencies, environment, or constraints -->
 
 ## Token Usage
 
-- **Input:** {{ input tokens }}
-- **Output:** {{ output tokens }}
-- **Cache read:** {{ cache read tokens }}
-- **Cache creation:** {{ cache creation tokens }}
-- **Total:** {{ total tokens }}
+- **Input:** <!-- gps:fill input tokens -->
+- **Output:** <!-- gps:fill output tokens -->
+- **Cache read:** <!-- gps:fill cache read tokens -->
+- **Cache creation:** <!-- gps:fill cache creation tokens -->
+- **Total:** <!-- gps:fill total tokens -->

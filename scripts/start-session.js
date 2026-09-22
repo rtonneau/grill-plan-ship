@@ -29,6 +29,7 @@ const fs = require('fs');
 const path = require('path');
 const { loadTemplate, renderTemplate } = require('./lib/templates');
 const { setCurrentSession } = require('./lib/session-store');
+const { TEMPLATE_VERSION } = require('./lib/write-target');
 const { getSeed, removeSeed } = require('./lib/seeds-store');
 const { touchPhase } = require('./lib/token-usage');
 const { ensureScratchDir, ensureGitignoreEntry } = require('./lib/scratch-dir');
@@ -65,6 +66,7 @@ function startSession(featureName) {
     feature_name: featureName,
     scratch_dir: scratchDir,
     created_at: now.toISOString(),
+    template_version: TEMPLATE_VERSION,
   };
 
   touchPhase(config, 'grill');

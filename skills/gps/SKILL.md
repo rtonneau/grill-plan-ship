@@ -197,13 +197,13 @@ If `brainstorming` or `writing-plans` is not available, stop and tell the user t
 
 **What it does:**
 
-1. Runs `node $CLAUDE_PLUGIN_ROOT/scripts/write-target.js`, which resolves the current session and inspects its files for unfilled `{{ ... }}` template placeholders to decide what's pending:
+1. Runs `node $CLAUDE_PLUGIN_ROOT/scripts/write-target.js`, which resolves the current session and inspects its files for unfilled placeholders — `<!-- gps:fill ... -->` markers (sessions created before template version 2 use `{{ ... }}` instead) — to decide what's pending:
    - `01-grill/resume.md` still has placeholders → **grill** phase is pending.
    - Otherwise, if `02-plan/plan.md` doesn't exist yet → nothing to write; run `/gps plan` first.
    - Otherwise, if `02-plan/plan.md` or any ticket file still has placeholders → **plan** phase is pending.
    - Otherwise → nothing pending.
    - When a phase is pending, it also computes that phase's real token usage (parsed from Claude Code's own session transcripts) and includes it as `tokenUsage` in its JSON output — either `{ available: true, input, output, cacheRead, cacheCreation, total }` or `{ available: false }`.
-2. **If grill is pending:** Claude Code synthesizes the brainstorming conversation into `01-grill/resume.md`, filling in every template section (Problem Statement, Context & Constraints, Success Metrics, Architecture & Approach, Assumptions & Trade-offs, Open Questions, Notes, Token Usage) — leaving no `{{ ... }}` placeholders. For Token Usage, use the `tokenUsage` values from step 1's output verbatim; if `available` is `false`, write `unavailable` for each line instead of a number.
+2. **If grill is pending:** Claude Code synthesizes the brainstorming conversation into `01-grill/resume.md`, filling in every template section (Problem Statement, Context & Constraints, Success Metrics, Architecture & Approach, Assumptions & Trade-offs, Open Questions, Notes, Token Usage) — replacing every `<!-- gps:fill ... -->` marker (or `{{ ... }}` in older sessions) with real content. For Token Usage, use the `tokenUsage` values from step 1's output verbatim; if `available` is `false`, write `unavailable` for each line instead of a number.
 3. **If plan is pending:** Claude Code synthesizes the most recent writing-plans output into `02-plan/plan.md` (including its Token Usage section, filled the same way as grill's), then replaces the placeholder ticket stubs in `02-plan/tickets/` with one real `NN-<slug>.md` file per actual ticket (the ticket count is whatever writing-plans produced, not fixed at 4). It then runs `node $CLAUDE_PLUGIN_ROOT/scripts/mark-plan-written.js`, which checks that the plan is fully written (no placeholders, no `[slug]` stubs, at least one valid ticket). If it fails, fix what it lists and run it again.
 4. **If nothing is pending:** reports that and suggests the next command (`/gps plan`, `/gps ticket <N>`, or `/gps finish`).
 
@@ -225,7 +225,7 @@ If `brainstorming` or `writing-plans` is not available, stop and tell the user t
 
 **What it does:**
 
-1. Resolves the current session via `.work/sessions/.current-session`, then reads its `01-grill/resume.md` (fails if it still contains unfilled `{{ ... }}` placeholders)
+1. Resolves the current session via `.work/sessions/.current-session`, then reads its `01-grill/resume.md` (fails if it still contains unfilled placeholders)
 2. **Fails and changes nothing if `02-plan/plan.md` already exists** — its hint says whether to run `/gps write` (plan still pending) or `/gps ship` (plan already written).
 3. Creates `02-plan/plan.md` and placeholder ticket stubs in `02-plan/tickets/` for `/gps write` to replace
 4. Immediately invokes the `writing-plans` skill against the approved `resume.md` to generate the actual tickets, then invokes `unslop` on each resulting ticket (skipped with a notice if `unslop` isn't available) — do not wait for or ask the user to run these themselves

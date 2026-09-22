@@ -12,7 +12,7 @@ const fs = require('fs');
 const path = require('path');
 const { loadTemplate, renderTemplate } = require('./lib/templates');
 const { resolveSession } = require('./lib/session-store');
-const { resolveWriteTarget } = require('./lib/write-target');
+const { resolveWriteTarget, placeholderTester } = require('./lib/write-target');
 const { touchPhase } = require('./lib/token-usage');
 const { GpsError, writeJsonAtomic, runCli } = require('./lib/guard');
 
@@ -37,9 +37,9 @@ function createPlan() {
   }
 
   const resumeContent = fs.readFileSync(resumePath, 'utf-8');
-  if (/\{\{[^}]+\}\}/.test(resumeContent)) {
+  if (placeholderTester(sessionDir)(resumeContent)) {
     throw new GpsError(
-      'resume.md still contains unfilled {{ ... }} placeholders.',
+      'resume.md still contains unfilled placeholders.',
       `Complete the grill phase with /gps write (fills ${resumePath}) before running /gps plan.`
     );
   }
