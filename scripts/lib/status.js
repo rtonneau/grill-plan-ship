@@ -1,10 +1,10 @@
 // scripts/lib/status.js
 const fs = require('fs');
 const path = require('path');
-const { execSync } = require('child_process');
 const { listSessionDirs, getCurrentSessionId } = require('./session-store');
 const { resolveWriteTarget } = require('./write-target');
 const { listTickets } = require('./ticket-queue');
+const { readRecentCommits } = require('./git');
 
 function readConfig(sessionsDir, sessionId) {
   const configPath = path.join(sessionsDir, sessionId, '.session-config.json');
@@ -26,20 +26,6 @@ function summarizeSession(sessionsDir, sessionId) {
   };
 }
 
-function readRecentCommits(projectRoot, sessionDir) {
-  const relPath = path.relative(projectRoot, sessionDir);
-  try {
-    const output = execSync(`git log --oneline -n 5 -- "${relPath}"`, {
-      cwd: projectRoot,
-      encoding: 'utf-8',
-      stdio: ['ignore', 'pipe', 'ignore'],
-    });
-    return output.split('\n').map((line) => line.trim()).filter(Boolean);
-  } catch (_err) {
-    return [];
-  }
-}
-
 function buildStatusReport(sessionsDir, projectRoot) {
   const sessionIds = listSessionDirs(sessionsDir);
   const sessions = sessionIds.map((sessionId) => summarizeSession(sessionsDir, sessionId));
@@ -53,6 +39,7 @@ function buildStatusReport(sessionsDir, projectRoot) {
   const writeTarget = resolveWriteTarget(sessionDir);
   const { tickets, nextPending } = listTickets(sessionDir);
   const gitLog = readRecentCommits(projectRoot, sessionDir);
+  const hasHandoff = fs.existsSync(path.join(sessionDir, 'HANDOFF.md'));
 
   return {
     sessions,
@@ -62,6 +49,7 @@ function buildStatusReport(sessionsDir, projectRoot) {
       tickets,
       nextPending,
       gitLog,
+      hasHandoff,
     },
   };
 }

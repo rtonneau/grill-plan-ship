@@ -6,6 +6,8 @@ A structured workflow plugin for any code project.
 
 **Commands:**
 - `/gps start <feature>` — Begin a feature
+- `/gps handoff` — Save an in-flight checkpoint before stopping
+- `/gps resume` — Catch up on a session using its checkpoint plus live state
 - `/gps write` — Save the current phase's output (brainstorm resume, or plan + tickets) to disk
 - `/gps plan` — Create tickets
 - `/gps ticket <N>` — Implement one ticket by hand
