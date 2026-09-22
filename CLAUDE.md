@@ -212,6 +212,8 @@ git push origin main
 
 **Next:** Test all 4 commands end-to-end with actual Geant4 session → refine → document examples → v1.0 release
 
+See docs/reviews/2026-09-22-mvp-hardening-review.md for the current hardening plan.
+
 ---
 
 **Author:** rtonneau (Université de Namur)
