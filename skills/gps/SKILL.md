@@ -16,7 +16,7 @@ Universal workflow plugin: brainstorm → plan → implement.
 - `/gps plan` — Generate plan + tickets
 - `/gps ticket <number>` — Implement ticket N
 - `/gps ship` — Implement every remaining ticket in order, one commit each
-- `/gps finish` — Archive session + summary
+- `/gps finish` — Close the session and write its summary
 - `/gps handoff` — Save an in-flight checkpoint of the current session before stopping work
 - `/gps resume` — Catch up on the current session using its saved handoff plus live state
 
@@ -29,11 +29,19 @@ This plugin orchestrates a repeatable, documented workflow for any code project:
 1. **Grill** (Session 1) — Brainstorm, clarify spec
 2. **Plan** (Session 2) — Break work into atomic tickets
 3. **Ship** (Session 3+) — Implement tickets one by one
-4. **Finish** — Archive and summarize
+4. **Finish** — Close and summarize
 
 An optional `/gps scout` step can run before Grill to source feature candidates from an architecture review, instead of starting `/gps start` from a blank idea.
 
-All output lives in `.work/sessions/YYYY-MM-DD__<feature>/` with a standard structure.
+All output lives in `.work/sessions/YYYY-MM-DD__<slug>/` with a standard structure (local date; `<slug>` is the feature name cleaned to lowercase `a-z 0-9 . _ -`).
+
+---
+
+## Rules for every command
+
+- Every command runs its handler script with the exact `node $CLAUDE_PLUGIN_ROOT/scripts/<name>.js` line given below. **Never create, edit or delete session state by hand** (`.session-config.json`, `.current-session`, `.pending-seeds.json`, directories) to stand in for a handler.
+- If a handler exits non-zero, it prints `❌ <what failed>` and a recovery hint on the next line. Show both to the user and stop that command — do not retry with different arguments or work around it.
+- Handlers never overwrite existing work: re-running `/gps start`, `/gps plan`, `/gps ticket` or `/gps finish` against existing output either refuses (changing nothing) or resumes, as described per command.
 
 ---
 
@@ -41,10 +49,12 @@ All output lives in `.work/sessions/YYYY-MM-DD__<feature>/` with a standard stru
 
 `/gps` invokes these automatically as part of its own commands — you never run them yourself:
 
-- **improve-codebase-architecture** (mattpocock-skills) — invoked by `/gps scout` to scan the codebase and produce the candidate report
+- **Architecture review** — invoked by `/gps scout`. Use the first one available: `improve-codebase-architecture`, then `mattpocock-skills:codebase-design`. If neither is available, stop and tell the user to install the `mattpocock-skills` plugin.
 - **brainstorming** (superpowers) — invoked by `/gps start` for ideation and spec clarification
 - **writing-plans** (superpowers) — invoked by `/gps plan` to turn the approved resume into tickets
-- **unslop** — invoked by `/gps plan` on each generated ticket for crisp language
+- **unslop** — invoked by `/gps plan` on each generated ticket for crisp language. If it isn't available, skip that step and tell the user it was skipped.
+
+If `brainstorming` or `writing-plans` is not available, stop and tell the user to install the `superpowers` plugin.
 
 ---
 
@@ -56,14 +66,15 @@ All output lives in `.work/sessions/YYYY-MM-DD__<feature>/` with a standard stru
 
 **What it does:**
 
-1. Calls the Skill tool with `improve-codebase-architecture`, passing `[direction]` through verbatim as its prompt argument (e.g. `only review sim.cc`). Omit `[direction]` to let that skill infer hot spots from git history instead.
+1. Calls the Skill tool with the architecture-review skill (first available of `improve-codebase-architecture`, `mattpocock-skills:codebase-design`; if neither exists, stop and tell the user to install `mattpocock-skills`), passing `[direction]` through verbatim as its prompt argument (e.g. `only review sim.cc`). Omit `[direction]` to let that skill infer hot spots from git history instead.
 2. Follows that skill's own process for its steps 1 (Explore) and 2 (Present candidates as an HTML report) exactly as written — the same self-contained HTML report gets written to the OS temp dir and opened for you.
-3. Does **not** proceed to that skill's step 3 (the grilling loop). Instead, for every candidate card in the report, Claude Code synthesizes a seed entry: `slug` (lowercase kebab-case, no spaces — this becomes the `/gps start` argument), `strength`, `files`, `problem`, `solution`, `benefits`.
-4. Writes those candidates to a temp JSON file and runs `node $CLAUDE_PLUGIN_ROOT/scripts/scout-merge.js <tempReportPath> <entriesJsonPath>`, which:
-   - Copies the HTML report, unmodified, into `.work/sessions/scout-reports/architecture-review-<timestamp>.html` — this copy is write-once and is never edited or deleted by any later `/gps` command.
-   - Merges the seed entries into `.work/sessions/.pending-seeds.json`, keyed by slug (a slug that already exists there gets overwritten with the fresh version; other slugs are untouched).
-   - Prints a JSON summary of what was seeded.
-5. Claude Code presents that summary in chat: each candidate's slug, strength badge, one-line problem, and an explicit `/gps start <slug>` line to copy.
+3. Does **not** proceed to that skill's step 3 (the grilling loop). Instead, for every candidate card in the report, Claude Code synthesizes a seed entry. Required: `slug` (lowercase `a-z 0-9`, with `-`, `_` or `.` only between them, max 64 chars — this becomes the `/gps start` argument), `strength` (exactly `Strong`, `Worth exploring` or `Speculative`), `problem`, `solution`. Optional: `files` (array of paths), `benefits`.
+4. Writes `{ "sourceDirection": "<direction>" | null, "candidates": [ ... ] }` to a temp JSON file and runs `node $CLAUDE_PLUGIN_ROOT/scripts/scout-merge.js <tempReportPath> <entriesJsonPath>`, which:
+   - Validates every candidate first; any invalid candidate fails the whole run before anything is written.
+   - Copies the HTML report, unmodified, into `.work/sessions/scout-reports/architecture-review-<timestamp>.html` (a `-2`, `-3`, … suffix if that name exists) — this copy is write-once and is never edited or deleted by any later `/gps` command.
+   - Merges the seed entries into `.work/sessions/.pending-seeds.json`, keyed by slug (a slug that already exists there gets overwritten with the fresh version; other slugs are untouched). A slug repeated within one run keeps its first occurrence, with a warning. An unreadable seeds file is moved aside to `.pending-seeds.json.corrupt-<timestamp>`, with a warning, and a fresh one is started.
+   - Prints a JSON summary of what was seeded (plus any `warnings`).
+5. Claude Code presents that summary in chat: each candidate's slug, strength badge, one-line problem, an explicit `/gps start <slug>` line to copy, and any warnings.
 
 **Output:** The HTML report (temp + a permanent copy under `.work/sessions/scout-reports/`), plus a chat list of ready-to-run `/gps start <slug>` commands.
 
@@ -81,15 +92,17 @@ All output lives in `.work/sessions/YYYY-MM-DD__<feature>/` with a standard stru
 
 **When:** Beginning a new feature.
 
+**Run:** `node $CLAUDE_PLUGIN_ROOT/scripts/start-session.js "<feature-name>"`
+
 **What it does:**
 
-1. Creates session directory: `.work/sessions/YYYY-MM-DD__<feature-name>/`
-2. Creates `.work/sessions/YYYY-MM-DD__<feature-name>/.session-config.json`, recording `scratch_dir`
-   Also creates the session's scratch directory `.scratch/tests/YYYY-MM-DD__<feature-name>/` (for build/run/test artifacts) and appends `.scratch/` to the project's `.gitignore` if missing.
-3. Creates `.work/sessions/YYYY-MM-DD__<feature-name>/01-grill/` directory
+1. Cleans the feature name into a slug (e.g. `Add Dark Mode!` → `add-dark-mode`, printed when it changed; an empty result becomes `untitled-<HHMMSS>`) and creates the session directory `.work/sessions/YYYY-MM-DD__<slug>/` (local date). **If that session already exists, it fails and changes nothing** — tell the user and suggest `/gps status` or a different name.
+2. Creates `.work/sessions/YYYY-MM-DD__<slug>/.session-config.json`, recording `scratch_dir`
+   Also creates the session's scratch directory `.scratch/tests/YYYY-MM-DD__<slug>/` (for build/run/test artifacts) and appends `.work/` and `.scratch/` to the project's `.gitignore` if missing.
+3. Creates `.work/sessions/YYYY-MM-DD__<slug>/01-grill/` directory
 4. Creates empty `resume.md` and `notes.md` templates
 5. Writes `.work/sessions/.current-session` pointing at this session, so later commands operate on it regardless of what other sessions exist
-6. Looks up `.work/sessions/.pending-seeds.json` for an entry whose slug matches this feature-name (e.g. `/gps start runconfig-resolver` matches a seed keyed `runconfig-resolver`, written earlier by `/gps scout`). If found, removes that entry from the seeds file — consumed seeds don't linger — and carries its `problem`/`solution`/`files`/`sourceReport` forward as the starting context for brainstorming. If no match, brainstorming starts from zero as it always has.
+6. Looks up `.work/sessions/.pending-seeds.json` for an entry whose slug matches this session's slug (e.g. `/gps start runconfig-resolver` matches a seed keyed `runconfig-resolver`, written earlier by `/gps scout`). If found, removes that entry from the seeds file — consumed seeds don't linger — and carries its `problem`/`solution`/`files`/`sourceReport` forward as the starting context for brainstorming. If no match, brainstorming starts from zero as it always has.
 7. Immediately invokes the `brainstorming` skill for this feature to begin the grill conversation — do not wait for or ask the user to run `/brainstorming` themselves. If a seed was found in step 6, open with that context already summarized rather than asking the user to restate it.
 
 **If brainstorming classifies the work as "bounded"** (a short in-chat design instead of a full spec/plan doc):
@@ -206,13 +219,14 @@ All output lives in `.work/sessions/YYYY-MM-DD__<feature>/` with a standard stru
 
 **When:** After reviewing the grill session (resume.md approved).
 
+**Run:** `node $CLAUDE_PLUGIN_ROOT/scripts/plan.js`
+
 **What it does:**
 
 1. Resolves the current session via `.work/sessions/.current-session`, then reads its `01-grill/resume.md` (fails if it still contains unfilled `{{ ... }}` placeholders)
-2. Creates `02-plan/` directory
-3. Creates `02-plan/plan.md` template
-4. Creates 4 ticket templates in `02-plan/tickets/`
-5. Immediately invokes the `writing-plans` skill against the approved `resume.md` to generate the actual tickets, then invokes `unslop` on each resulting ticket — do not wait for or ask the user to run these themselves
+2. **Fails and changes nothing if `02-plan/plan.md` already exists** — its hint says whether to run `/gps write` (plan still pending) or `/gps ship` (plan already written).
+3. Creates `02-plan/plan.md` and placeholder ticket stubs in `02-plan/tickets/` for `/gps write` to replace
+4. Immediately invokes the `writing-plans` skill against the approved `resume.md` to generate the actual tickets, then invokes `unslop` on each resulting ticket (skipped with a notice if `unslop` isn't available) — do not wait for or ask the user to run these themselves
 
 **Output:** The writing-plans conversation begins right away.
 
@@ -224,13 +238,16 @@ All output lives in `.work/sessions/YYYY-MM-DD__<feature>/` with a standard stru
 
 **When:** Starting implementation of a single ticket by hand. To implement every remaining ticket in one go, use `/gps ship` instead.
 
+**Run:** `node $CLAUDE_PLUGIN_ROOT/scripts/ticket.js <number>`
+
 **What it does:**
 
-1. Reads `02-plan/tickets/NN-*.md`
-2. Creates `03-implement/NN-slug/` directory
-3. Creates `commit-log.md` template
-4. Records this ticket's token-usage phase key (`03-NN-<slug>`) in `.session-config.json`, so usage can be computed later when the ticket is finalized
-5. Prints ticket spec to console, including that phase key and the session's scratch dir (backfilled for sessions started before scratch dirs existed)
+1. Fails unless the plan phase has been written (`/gps write`); `<number>` must be digits (`3`, `03` and `003` are the same ticket).
+2. Reads `02-plan/tickets/NN-<slug>.md` (if several files share the number, the first not-yet-done one in filename order)
+3. If that ticket's `commit-log.md` says `**Status:** ✅ Done`, reports that and changes nothing.
+4. Otherwise creates `03-implement/NN-<slug>/` and a `commit-log.md` template — **an existing log is kept, never overwritten**, so an interrupted ticket resumes from its notes.
+5. Records this ticket's token-usage phase key (`03-NN-<slug>`) in `.session-config.json`, so usage can be computed later when the ticket is finalized
+6. Prints ticket spec to console, including that phase key and the session's scratch dir (backfilled, with a warning, for sessions started before scratch dirs existed)
 
 **Output:** Workspace + spec printed. Ready to code.
 
@@ -264,15 +281,25 @@ All output lives in `.work/sessions/YYYY-MM-DD__<feature>/` with a standard stru
 
 ### /gps finish
 
-**When:** All tickets complete.
+**When:** All tickets complete (or, for a bounded session, once the resume is saved and the work is done).
+
+**Run:** `node $CLAUDE_PLUGIN_ROOT/scripts/finish.js`
 
 **What it does:**
 
-1. Generates `INDEX.md` (session summary)
-2. Updates `.session-config.json` with "completed" status
-3. Prints summary
+1. Fails and changes nothing if the session is already finished, the grill or plan phase is not written yet, or any ticket is not Done (it lists which).
+2. Generates `INDEX.md` (session summary with every ticket and links to its spec and log)
+3. Records `finished_at` in `.session-config.json`
+4. Clears `.work/sessions/.current-session`
+5. Prints an `UNFINISHED_SESSIONS [...]` line. If it lists any sessions, ask the user whether to switch to one of them. Only if they say yes, run `node $CLAUDE_PLUGIN_ROOT/scripts/set-current.js <session-id>`. Otherwise suggest `/gps start <feature-name>`.
 
-**Output:** Archived session, ready to start next feature.
+**Output:** Summarized session, ready to start the next feature.
+
+---
+
+### Switching the current session (internal, no `/gps` command)
+
+`node $CLAUDE_PLUGIN_ROOT/scripts/set-current.js <session-id>` points `.work/sessions/.current-session` at an existing, unfinished session. Run it **only after the user confirms** a switch — after `/gps finish`, or when a handler reports that the current session can't be resolved.
 
 ---
 
@@ -280,10 +307,10 @@ All output lives in `.work/sessions/YYYY-MM-DD__<feature>/` with a standard stru
 
 `/gps` commands invoke these automatically — you never run them directly:
 
-- `improve-codebase-architecture` (mattpocock-skills) — invoked by `/gps scout`
+- `improve-codebase-architecture` or `mattpocock-skills:codebase-design` — invoked by `/gps scout`
 - `brainstorming` (superpowers) — invoked by `/gps start`
 - `writing-plans` (superpowers) — invoked by `/gps plan`
-- `unslop` — invoked by `/gps plan`, after writing-plans, for crisp language
+- `unslop` — invoked by `/gps plan`, after writing-plans, for crisp language (skipped with a notice if unavailable)
 
 ---
 
