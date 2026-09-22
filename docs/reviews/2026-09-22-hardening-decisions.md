@@ -65,7 +65,7 @@ made is recorded here.
 - Duplicate slugs in one run: keep first, warn.
 - Report filename collision: add a numeric suffix.
 - Scout skill: use `improve-codebase-architecture` if available, else `mattpocock-skills:codebase-design`, else stop and tell the user what to install.
-- `unslop` (not answered; judgment call per rule below): use if available, otherwise skip with a notice.
+- `unslop`: use it if available, otherwise skip that step with a notice.
 
 ## Release (T-19)
 
