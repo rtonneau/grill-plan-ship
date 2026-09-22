@@ -136,5 +136,21 @@ assert.strictEqual(hashWork(), beforeStatus);
 assert.strictEqual(after.current, null);
 assert.strictEqual(after.sessions[0].phase, 'finished');
 
+// scout --from -> start: the seed is consumed and printed with severity + sourcePath
+fs.mkdirSync(path.join(root, 'docs'));
+fs.writeFileSync(path.join(root, 'docs', 'review.md'), '# Review\n\nC1: links delete config.\n');
+const scoutEntries = path.join(root, 'scout-entries.json');
+fs.writeFileSync(scoutEntries, JSON.stringify({
+  sourceDirection: null,
+  candidates: [{ slug: 'safe-linking', strength: 'Strong', severity: 'Critical', problem: 'C1: p', solution: 's' }],
+}));
+ok('scout-merge.js', '--from', 'docs/review.md', scoutEntries);
+const seededStart = ok('start-session.js', 'safe-linking');
+assert.match(seededStart.out, /Scout seed found for "safe-linking"/);
+assert.match(seededStart.out, /"severity": "Critical"/);
+assert.match(seededStart.out, /"sourcePath": "docs\/review\.md"/);
+const seedsLeft = JSON.parse(fs.readFileSync(path.join(root, '.work', 'sessions', '.pending-seeds.json'), 'utf-8'));
+assert.ok(!('safe-linking' in seedsLeft));
+
 fs.rmSync(root, { recursive: true, force: true });
 console.log('e2e.test.js: all assertions passed');

@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 /**
- * /gps scout [direction]
+ * /gps scout [--from <review-file>] [direction]
  *
  * Called by Claude Code after running the architecture-review skill's
  * steps 1-2 (explore + write the HTML report to the OS temp dir) and
@@ -12,6 +12,11 @@
  * Claude to present in chat as /gps start <slug> options.
  *
  * Usage: node scout-merge.js <tempReportPath> <entriesJsonPath>
+ *    or: node scout-merge.js --from <reviewPath> <entriesJsonPath>
+ *
+ * With --from (/gps scout --from <review-file>), the review the user
+ * pointed at is archived as scout-reports/review-<stem>-<timestamp><ext>
+ * (original extension kept) and every seed records its sourcePath.
  *
  * entriesJsonPath must contain:
  *   {
@@ -22,7 +27,8 @@
  *     ]
  *   }
  * Required per candidate: slug, strength (Strong | Worth exploring |
- * Speculative), problem, solution. Optional: files (array), benefits.
+ * Speculative), problem, solution. Optional: files (array), benefits,
+ * severity (non-empty string, max 32 characters).
  * Every candidate is validated before anything is written; a repeated
  * slug keeps its first occurrence and is reported under "warnings".
  */
@@ -31,18 +37,31 @@ const path = require('path');
 const { ingestScoutReport } = require('./lib/scout-ingest');
 const { GpsError, readJson, runCli } = require('./lib/guard');
 
+const USAGE = 'Usage: node scout-merge.js <tempReportPath> <entriesJsonPath> | --from <reviewPath> <entriesJsonPath>';
+
+// --from may only come first; any other "--" argument is an unknown option.
+function parseArgs(argv) {
+  const fromReview = argv[0] === '--from';
+  const args = fromReview ? argv.slice(1) : argv;
+  const flag = args.find((arg) => arg.startsWith('--'));
+  if (flag) throw new GpsError(`Unknown option: ${flag}`, USAGE);
+  if (fromReview && args.length === 0) throw new GpsError('--from needs a review file path.', USAGE);
+  if (args.length < 2) throw new GpsError('Missing arguments.', USAGE);
+  if (args.length > 2) throw new GpsError('Too many arguments.', USAGE);
+  const [reportPath, entriesJsonPath] = args;
+  return { reportPath, entriesJsonPath, sourcePath: fromReview ? reportPath : null };
+}
+
 runCli(() => {
-  const [tempReportPath, entriesJsonPath] = process.argv.slice(2);
-  if (!tempReportPath || !entriesJsonPath) {
-    throw new GpsError('Missing arguments.', 'Usage: node scout-merge.js <tempReportPath> <entriesJsonPath>');
-  }
+  const { reportPath, entriesJsonPath, sourcePath } = parseArgs(process.argv.slice(2));
 
   const input = readJson(entriesJsonPath, 'Scout entries file');
   const sessionsDir = path.join(process.cwd(), '.work', 'sessions');
 
   const result = ingestScoutReport({
     sessionsDir,
-    tempReportPath,
+    reportPath,
+    sourcePath,
     sourceDirection: input.sourceDirection || null,
     candidates: input.candidates,
   });

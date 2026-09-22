@@ -333,6 +333,53 @@ function markDone(root, implName) {
 }
 
 {
+  // --from: review archived with its extension, seeds carry severity + sourcePath
+  const root = tempProject();
+  fs.mkdirSync(path.join(root, 'docs'));
+  fs.writeFileSync(path.join(root, 'docs', 'review.md'), '# Review\n');
+  const entries = path.join(root, 'entries.json');
+  fs.writeFileSync(entries, JSON.stringify({
+    sourceDirection: 'only Critical and High',
+    candidates: [{ slug: 'safe-linking', strength: 'Strong', severity: 'Critical', problem: 'C1: p', solution: 's' }],
+  }));
+  const seedsFile = path.join(sessionsDir(root), '.pending-seeds.json');
+  const reportsDir = path.join(sessionsDir(root), 'scout-reports');
+
+  // Usage errors write nothing
+  for (const args of [
+    ['--from'],
+    ['--from', 'docs/review.md'],
+    ['--bogus', 'docs/review.md', entries],
+    ['docs/review.md', '--from', entries],
+    ['--from', 'docs/review.md', entries, 'extra'],
+  ]) {
+    const res = run(root, 'scout-merge.js', ...args);
+    assert.strictEqual(res.code, 1, args.join(' '));
+    assert.match(res.err, /Usage: node scout-merge\.js/, args.join(' '));
+    assert.doesNotMatch(res.err, /\n\s+at /);
+  }
+  // Missing review / a directory -> clear error, nothing written
+  const missing = run(root, 'scout-merge.js', '--from', 'docs/nope.md', entries);
+  assert.strictEqual(missing.code, 1);
+  assert.match(missing.err, /Review file not found: docs\/nope\.md/);
+  const dir = run(root, 'scout-merge.js', '--from', 'docs', entries);
+  assert.strictEqual(dir.code, 1);
+  assert.match(dir.err, /Not a file: docs/);
+  assert.ok(!fs.existsSync(seedsFile));
+  assert.ok(!fs.existsSync(reportsDir));
+
+  const res = run(root, 'scout-merge.js', '--from', 'docs/review.md', entries);
+  assert.strictEqual(res.code, 0, res.err);
+  const summary = JSON.parse(res.out);
+  assert.match(summary.sourceReport, /^scout-reports\/review-review-.+\.md$/);
+  assert.deepStrictEqual(summary.seeded.map((s) => s.severity), ['Critical']);
+  const seeds = JSON.parse(fs.readFileSync(seedsFile, 'utf-8'));
+  assert.strictEqual(seeds['safe-linking'].sourcePath, 'docs/review.md');
+  assert.strictEqual(seeds['safe-linking'].sourceDirection, 'only Critical and High');
+  assert.strictEqual(fs.readFileSync(path.join(sessionsDir(root), summary.sourceReport), 'utf-8'), '# Review\n');
+}
+
+{
   // F-010: no .work/sessions at all -> every handler gives a clear error, no stack trace
   const root = tempProject();
   for (const [script, ...args] of [
