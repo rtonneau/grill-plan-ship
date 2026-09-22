@@ -9,24 +9,14 @@
  * mutates nothing.
  */
 
-const path = require('path');
-const { getCurrentSessionId } = require('./lib/session-store');
+const { resolveSession } = require('./lib/session-store');
 const { buildResumeReport } = require('./lib/resume');
+const { runCli } = require('./lib/guard');
 
-function main() {
+runCli(() => {
   const projectRoot = process.cwd();
-  const sessionsDir = path.join(projectRoot, '.work', 'sessions');
-  const currentSession = getCurrentSessionId(sessionsDir);
-
-  if (!currentSession) {
-    console.error('No sessions found. Run /gps start first.');
-    process.exit(1);
-  }
-
-  const sessionDir = path.join(sessionsDir, currentSession);
+  const { sessionDir } = resolveSession(projectRoot);
   const report = buildResumeReport(sessionDir, projectRoot);
 
   console.log(JSON.stringify(report, null, 2));
-}
-
-main();
+});

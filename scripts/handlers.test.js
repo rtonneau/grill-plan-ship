@@ -327,7 +327,7 @@ function markDone(root, implName) {
   const root = tempProject();
   for (const [script, ...args] of [
     ['plan.js'], ['ticket.js', '1'], ['finish.js'], ['write-target.js'], ['ticket-queue.js'],
-    ['mark-plan-written.js'], ['status.js'], ['token-usage.js', 'grill'],
+    ['mark-plan-written.js'], ['status.js'], ['token-usage.js', 'grill'], ['handoff.js'], ['resume.js'],
   ]) {
     const res = run(root, script, ...args);
     assert.strictEqual(res.code, 1, script);
