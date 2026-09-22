@@ -7,14 +7,30 @@ const { parseTicketFilename, listTickets } = require('./ticket-queue');
 
 // parseTicketFilename
 assert.deepStrictEqual(parseTicketFilename('01-add-login.md'), { num: '01', slug: 'add-login' });
-assert.deepStrictEqual(parseTicketFilename('04-[slug].md'), { num: '04', slug: '[slug]' });
+assert.strictEqual(parseTicketFilename('04-[slug].md'), null);
+assert.strictEqual(parseTicketFilename('01-Bad Name.md'), null);
 assert.strictEqual(parseTicketFilename('not-a-ticket.txt'), null);
 
 const sessionDir = fs.mkdtempSync(path.join(os.tmpdir(), 'gps-ticket-queue-'));
 const ticketsDir = path.join(sessionDir, '02-plan', 'tickets');
 
 // No 02-plan/tickets/ yet -> empty queue
-assert.deepStrictEqual(listTickets(sessionDir), { tickets: [], nextPending: null });
+assert.deepStrictEqual(listTickets(sessionDir), { tickets: [], nextPending: null, skipped: [] });
+
+// Numeric order (100 after 99), duplicate numbers kept alphabetically,
+// invalid names skipped
+{
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'gps-ticket-order-'));
+  const tdir = path.join(dir, '02-plan', 'tickets');
+  fs.mkdirSync(tdir, { recursive: true });
+  for (const f of ['100-last.md', '99-before.md', '01-b.md', '01-a.md', '02-[slug].md', 'notes.md']) {
+    fs.writeFileSync(path.join(tdir, f), 'x');
+  }
+  const { tickets, skipped } = listTickets(dir);
+  assert.deepStrictEqual(tickets.map((t) => `${t.num}-${t.slug}`), ['01-a', '01-b', '99-before', '100-last']);
+  assert.deepStrictEqual(skipped.sort(), ['02-[slug].md', 'notes.md']);
+  fs.rmSync(dir, { recursive: true, force: true });
+}
 
 fs.mkdirSync(ticketsDir, { recursive: true });
 fs.writeFileSync(path.join(ticketsDir, '01-add-login.md'), '# Ticket 1: add-login\n');

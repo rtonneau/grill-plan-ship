@@ -55,11 +55,25 @@ const afterRaw = fs.readFileSync(path.join(sessionsDir, '.pending-seeds.json'), 
 assert.strictEqual(beforeRaw, afterRaw);
 
 // A corrupted .pending-seeds.json degrades to "no seeds found" instead
-// of throwing: getSeed returns null, removeSeed returns false.
+// of throwing, and is moved aside (never overwritten or deleted).
 const corruptDir = fs.mkdtempSync(path.join(os.tmpdir(), 'gps-seeds-store-corrupt-'));
-fs.writeFileSync(path.join(corruptDir, '.pending-seeds.json'), '{ this is not valid json');
+const corruptRaw = '{ this is not valid json';
+fs.writeFileSync(path.join(corruptDir, '.pending-seeds.json'), corruptRaw);
 assert.strictEqual(getSeed(corruptDir, 'runconfig-resolver'), null);
+const moved = fs.readdirSync(corruptDir).filter((f) => f.startsWith('.pending-seeds.json.corrupt-'));
+assert.strictEqual(moved.length, 1);
+assert.strictEqual(fs.readFileSync(path.join(corruptDir, moved[0]), 'utf-8'), corruptRaw);
 assert.strictEqual(removeSeed(corruptDir, 'runconfig-resolver'), false);
+
+// Merging after corruption starts fresh and leaves the quarantined copy alone
+mergeSeeds(corruptDir, { fresh: { strength: 'Strong', problem: 'p', solution: 's' } });
+assert.notStrictEqual(getSeed(corruptDir, 'fresh'), null);
+assert.strictEqual(fs.readFileSync(path.join(corruptDir, moved[0]), 'utf-8'), corruptRaw);
+
+// Valid JSON that isn't an object is quarantined too
+fs.writeFileSync(path.join(corruptDir, '.pending-seeds.json'), '[1,2]');
+assert.strictEqual(getSeed(corruptDir, 'fresh'), null);
+assert.strictEqual(fs.readdirSync(corruptDir).filter((f) => f.includes('.corrupt-')).length, 2);
 fs.rmSync(corruptDir, { recursive: true, force: true });
 
 fs.rmSync(sessionsDir, { recursive: true, force: true });

@@ -141,3 +141,23 @@ None outstanding — all prior open points (scope, naming, file lifecycle, relat
 ## Notes
 
 Command names: `/gps handoff` (save) and `/gps resume` (catch up), chosen to avoid overlap with `/gps status` (unrelated: all-sessions overview) and with "ticket resume"-style phrasing.
+
+---
+
+## Revision — 2026-09-22 hardening decisions
+
+The feature was implemented as specced above (branch `worktree-handoff-resume`) before the [MVP hardening review](../../reviews/2026-09-22-mvp-hardening-review.md) and its [maintainer decisions](../../reviews/2026-09-22-hardening-decisions.md). Those decisions change the design; this section supersedes the parts of the spec above that it contradicts.
+
+### Already applied (hardening M2)
+
+- **Git scope.** Recent commits are project-wide since the session's `created_at` (max 10), not limited to the session directory — `.work/` is gitignored, so a session-scoped log was always empty. Git status is reported **separately** for the project and for the session directory (`gitStatus: { project, session }`), and `templates/handoff.md` shows both. All git calls use `execFileSync` with an argument array (no shell).
+- **Phase.** `currentPhase` comes from `scripts/lib/phase.js`, the same computation `/gps status` uses; `buildHandoffData` also returns `suggestedNext`.
+- **Placeholders.** Narrative sections in `templates/handoff.md` use `<!-- gps:fill ... -->` markers instead of `{{ ... }}`.
+- **Errors.** Both CLIs go through `runCli` / `resolveSession`: a missing or invalid current session is a one-line error with a recovery hint, never a stack trace.
+
+### Still to do (milestone M4)
+
+1. **Two files.** `/gps handoff` writes `HANDOFF.json` (machine-derived fields: session id, phase, active ticket, ticket queue, git log, git status, timestamp) next to `HANDOFF.md` (narrative only, plus a rendered copy of the machine fields for humans). `/gps resume` reads drift inputs from `HANDOFF.json`, not by parsing Markdown bold-labels.
+2. **Backups.** Before overwriting, the previous `HANDOFF.md` / `HANDOFF.json` pair is moved to `handoff-history/HANDOFF-<timestamp>.{md,json}`; at most 10 pairs are kept (oldest deleted first). This replaces "single file, no history" in *Assumptions & Trade-offs*.
+3. **Staleness.** `/gps resume` labels the narrative "as of <saved timestamp>" and reports any narrative section still containing a `gps:fill` marker as `unfilledSections`, so an unfinished handoff is never presented as fact.
+4. Tests for each of the above, in the existing `scripts/lib/*.test.js` style, plus handler-level cases in `scripts/handlers.test.js`.

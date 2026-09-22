@@ -12,20 +12,21 @@ function ensureScratchDir(projectRoot, sessionId) {
   return [...SCRATCH_ROOT, sessionId].join('/');
 }
 
-// Appends ".scratch/" to the project's .gitignore unless already covered.
-// Returns true if the file was created or modified.
-function ensureGitignoreEntry(projectRoot) {
+// Appends `entry` (default ".scratch/") to the project's .gitignore unless
+// already covered. Returns true if the file was created or modified.
+function ensureGitignoreEntry(projectRoot, entry = GITIGNORE_ENTRY) {
   const gitignorePath = path.join(projectRoot, '.gitignore');
   const existing = fs.existsSync(gitignorePath) ? fs.readFileSync(gitignorePath, 'utf-8') : '';
+  const bare = (line) => line.trim().replace(/^\//, '').replace(/\/$/, '');
 
   const covered = existing
     .split(/\r?\n/)
-    .map((line) => line.trim().replace(/^\//, '').replace(/\/$/, ''))
-    .includes('.scratch');
+    .map(bare)
+    .includes(bare(entry));
   if (covered) return false;
 
   const separator = existing === '' || existing.endsWith('\n') ? '' : '\n';
-  fs.writeFileSync(gitignorePath, existing + separator + GITIGNORE_ENTRY + '\n');
+  fs.writeFileSync(gitignorePath, existing + separator + entry + '\n');
   return true;
 }
 

@@ -12,24 +12,16 @@
 const fs = require('fs');
 const path = require('path');
 const { buildStatusReport } = require('./lib/status');
+const { GpsError, runCli } = require('./lib/guard');
 
-function main() {
+runCli(() => {
   const projectRoot = process.cwd();
   const sessionsDir = path.join(projectRoot, '.work', 'sessions');
+  const noSessions = new GpsError('No sessions found.', 'Run /gps start <feature-name> first.');
 
-  if (!fs.existsSync(sessionsDir)) {
-    console.error('No sessions found. Run /gps start first.');
-    process.exit(1);
-  }
-
+  if (!fs.existsSync(sessionsDir)) throw noSessions;
   const report = buildStatusReport(sessionsDir, projectRoot);
-
-  if (report.sessions.length === 0) {
-    console.error('No sessions found. Run /gps start first.');
-    process.exit(1);
-  }
+  if (report.sessions.length === 0) throw noSessions;
 
   console.log(JSON.stringify(report, null, 2));
-}
-
-main();
+});

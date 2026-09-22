@@ -1,33 +1,35 @@
 # Ticket {{ N }} Implementation
 
-**Status:** In Progress / ✅ Done
+**Status:** In Progress
+
+<!-- Set the Status line to exactly "**Status:** ✅ Done" only once the Verification Step passes. -->
 
 ## Commits
 
-- {{ commit hash }} {{ message }}
+- <!-- gps:fill commit hash and message -->
 
 ## Local Test Result
 
 ```
-{{ test output }}
+<!-- gps:fill test output -->
 ```
 
 ## Review Notes
 
-{{ Any findings during self-review }}
+<!-- gps:fill Any findings during self-review -->
 
 ## Time Spent
 
-{{ ~X hours }}
+<!-- gps:fill ~X hours -->
 
 ## Blockers / Challenges
 
-{{ Any issues encountered during implementation }}
+<!-- gps:fill Any issues encountered during implementation, or "None" -->
 
 ## Token Usage
 
-- **Input:** {{ input tokens }}
-- **Output:** {{ output tokens }}
-- **Cache read:** {{ cache read tokens }}
-- **Cache creation:** {{ cache creation tokens }}
-- **Total:** {{ total tokens }}
+- **Input:** <!-- gps:fill input tokens -->
+- **Output:** <!-- gps:fill output tokens -->
+- **Cache read:** <!-- gps:fill cache read tokens -->
+- **Cache creation:** <!-- gps:fill cache creation tokens -->
+- **Total:** <!-- gps:fill total tokens -->

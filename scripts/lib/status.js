@@ -1,10 +1,9 @@
 // scripts/lib/status.js
 const fs = require('fs');
 const path = require('path');
-const { execSync } = require('child_process');
-const { listSessionDirs, getCurrentSessionId } = require('./session-store');
-const { resolveWriteTarget } = require('./write-target');
-const { listTickets } = require('./ticket-queue');
+const { listSessionDirs, resolveCurrentPointer, pointerError } = require('./session-store');
+const { computeSessionState } = require('./phase');
+const { readRecentCommits } = require('./git');
 
 function readConfig(sessionsDir, sessionId) {
   const configPath = path.join(sessionsDir, sessionId, '.session-config.json');
@@ -15,53 +14,50 @@ function readConfig(sessionsDir, sessionId) {
   }
 }
 
+// Phase is computed from the session's files; status / phases_completed
+// fields in older configs are ignored.
 function summarizeSession(sessionsDir, sessionId) {
   const config = readConfig(sessionsDir, sessionId);
+  const { phase } = computeSessionState(path.join(sessionsDir, sessionId), config);
   return {
     sessionId,
     featureName: config ? config.feature_name : null,
     createdAt: config ? config.created_at : null,
-    status: config ? config.status : null,
-    phasesCompleted: config ? config.phases_completed || [] : [],
+    finishedAt: config ? config.finished_at || null : null,
+    phase,
+    configReadable: Boolean(config),
   };
-}
-
-function readRecentCommits(projectRoot, sessionDir) {
-  const relPath = path.relative(projectRoot, sessionDir);
-  try {
-    const output = execSync(`git log --oneline -n 5 -- "${relPath}"`, {
-      cwd: projectRoot,
-      encoding: 'utf-8',
-      stdio: ['ignore', 'pipe', 'ignore'],
-    });
-    return output.split('\n').map((line) => line.trim()).filter(Boolean);
-  } catch (_err) {
-    return [];
-  }
 }
 
 function buildStatusReport(sessionsDir, projectRoot) {
   const sessionIds = listSessionDirs(sessionsDir);
   const sessions = sessionIds.map((sessionId) => summarizeSession(sessionsDir, sessionId));
 
-  const currentSessionId = getCurrentSessionId(sessionsDir);
-  if (!currentSessionId) {
-    return { sessions, current: null };
+  const pointer = resolveCurrentPointer(sessionsDir);
+  if (pointer.problem) {
+    const { message, hint } = pointerError(sessionsDir, pointer);
+    return { sessions, current: null, currentProblem: { code: pointer.problem, message, hint } };
   }
+  const currentSessionId = pointer.sessionId;
 
   const sessionDir = path.join(sessionsDir, currentSessionId);
-  const writeTarget = resolveWriteTarget(sessionDir);
-  const { tickets, nextPending } = listTickets(sessionDir);
-  const gitLog = readRecentCommits(projectRoot, sessionDir);
+  const config = readConfig(sessionsDir, currentSessionId);
+  const { writeTarget, ticketQueue, phase, suggestedNext } = computeSessionState(sessionDir, config);
+  const gitLog = readRecentCommits(projectRoot, config ? config.created_at : null);
+  const hasHandoff = fs.existsSync(path.join(sessionDir, 'HANDOFF.md'));
 
   return {
     sessions,
     current: {
       sessionId: currentSessionId,
+      phase,
+      suggestedNext,
       writeTarget,
-      tickets,
-      nextPending,
+      tickets: ticketQueue.tickets,
+      nextPending: ticketQueue.nextPending,
+      skippedTicketFiles: ticketQueue.skipped,
       gitLog,
+      hasHandoff,
     },
   };
 }

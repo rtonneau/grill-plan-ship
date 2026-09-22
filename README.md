@@ -6,11 +6,19 @@ A structured workflow plugin for any code project.
 
 **Commands:**
 - `/gps start <feature>` — Begin a feature
+- `/gps handoff` — Save an in-flight checkpoint before stopping
+- `/gps resume` — Catch up on a session using its checkpoint plus live state
 - `/gps write` — Save the current phase's output (brainstorm resume, or plan + tickets) to disk
 - `/gps plan` — Create tickets
 - `/gps ticket <N>` — Implement one ticket by hand
 - `/gps ship` — Implement every remaining ticket in order, one commit each
 - `/gps finish` — Archive session
+
+## Workflow Visualization
+
+<img src="docs/gps-workflow.svg" alt="Diagram of GPS workflow phases: GRILL, PLAN, SHIP/IMPLEMENT, and FINISH with command, activity, and output columns." />
+
+GPS phases and outputs at a glance, including `/gps write` checkpoints after GRILL and PLAN.
 
 ## Installation
 
@@ -67,6 +75,8 @@ Restart Claude Code.
 ## Token Usage
 
 Every phase output (`01-grill/resume.md`, `02-plan/plan.md`, each ticket's `03-implement/NN-*/commit-log.md`) ends with a `## Token Usage` section reporting that phase's real input/output/cache token totals, parsed from Claude Code's own session transcripts. If the transcript can't be found or parsed, the section reads `unavailable` instead of blocking the write.
+
+Totals include sub-agent transcripts and count each API response once. This relies on Claude Code's undocumented transcript layout (`~/.claude/projects/<cwd with non-alphanumerics as ->/<session-id>.jsonl` and `<session-id>/subagents/*.jsonl`), so `unavailable` is a known possible outcome if that layout changes.
 
 ## Example Session
 

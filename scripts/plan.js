@@ -3,51 +3,47 @@
 /**
  * /gps plan
  *
- * Reads resume.md, creates 02-plan/ + ticket templates
+ * Reads resume.md, creates 02-plan/ + ticket templates.
+ * Refuses to run if 02-plan/plan.md already exists (in progress or
+ * written), so an existing plan and its tickets are never overwritten.
  */
 
 const fs = require('fs');
 const path = require('path');
 const { loadTemplate, renderTemplate } = require('./lib/templates');
-const { getCurrentSessionId, markPhaseCompleted } = require('./lib/session-store');
+const { resolveSession } = require('./lib/session-store');
+const { resolveWriteTarget, placeholderTester } = require('./lib/write-target');
 const { touchPhase } = require('./lib/token-usage');
+const { GpsError, writeJsonAtomic, runCli } = require('./lib/guard');
 
 function createPlan() {
-  const projectRoot = process.cwd();
-  const sessionsDir = path.join(projectRoot, '.work', 'sessions');
-
-  if (!fs.existsSync(sessionsDir)) {
-    console.error('No sessions found. Run /gps start first.');
-    process.exit(1);
-  }
-
-  const currentSession = getCurrentSessionId(sessionsDir);
-  if (!currentSession) {
-    console.error('No sessions found. Run /gps start first.');
-    process.exit(1);
-  }
-
-  const sessionDir = path.join(sessionsDir, currentSession);
+  const { sessionId, sessionDir, configPath, config } = resolveSession(process.cwd());
   const resumePath = path.join(sessionDir, '01-grill', 'resume.md');
 
   if (!fs.existsSync(resumePath)) {
-    console.error(`resume.md not found. Run /gps start first.`);
-    process.exit(1);
+    throw new GpsError(`resume.md not found for ${sessionId}.`, 'Run /gps start <feature-name> first.');
+  }
+
+  const planDir = path.join(sessionDir, '02-plan');
+  const planPath = path.join(planDir, 'plan.md');
+  if (fs.existsSync(planPath)) {
+    const pending = resolveWriteTarget(sessionDir).target === 'plan';
+    throw new GpsError(
+      `A plan already exists for ${sessionId}; nothing was changed.`,
+      pending
+        ? 'Run /gps write to save the approved plan and tickets.'
+        : 'The plan is written. Run /gps ship to implement its tickets, or /gps status.'
+    );
   }
 
   const resumeContent = fs.readFileSync(resumePath, 'utf-8');
-  if (/\{\{[^}]+\}\}/.test(resumeContent)) {
-    console.error(
-      `resume.md still contains unfilled {{ ... }} placeholders.\n` +
-      `Complete the grill phase (fill in ${resumePath}) before running /gps plan.`
+  if (placeholderTester(sessionDir)(resumeContent)) {
+    throw new GpsError(
+      'resume.md still contains unfilled placeholders.',
+      `Complete the grill phase with /gps write (fills ${resumePath}) before running /gps plan.`
     );
-    process.exit(1);
   }
 
-  const configPath = path.join(sessionDir, '.session-config.json');
-  const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
-
-  const planDir = path.join(sessionDir, '02-plan');
   const ticketsDir = path.join(planDir, 'tickets');
   fs.mkdirSync(ticketsDir, { recursive: true });
 
@@ -55,7 +51,7 @@ function createPlan() {
     'feature-name': config.feature_name,
     timestamp: new Date().toISOString(),
   });
-  fs.writeFileSync(path.join(planDir, 'plan.md'), planContent);
+  fs.writeFileSync(planPath, planContent);
 
   const ticketTemplate = loadTemplate('02-ticket.md');
   for (let i = 1; i <= 4; i++) {
@@ -64,20 +60,17 @@ function createPlan() {
       N: ticketNum,
       slug: '[slug]',
     });
-    const ticketPath = path.join(ticketsDir, `${ticketNum}-[slug].md`);
-    fs.writeFileSync(ticketPath, ticketContent);
+    fs.writeFileSync(path.join(ticketsDir, `${ticketNum}-[slug].md`), ticketContent);
   }
 
   touchPhase(config, 'plan');
-  markPhaseCompleted(config, 'grill');
-  config.status = 'plan-in-progress';
-  fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
+  writeJsonAtomic(configPath, config);
 
-  console.log(`Plan directory created`);
+  console.log(`✅ Plan directory created`);
   console.log(`Path: ${planDir}`);
   console.log(`\nNext: the writing-plans conversation begins now, followed by an unslop pass`);
   console.log(`on each ticket. Once approved, run /gps write to save the plan + tickets to disk,`);
-  console.log(`then /gps ticket 01 to start implementing.`);
+  console.log(`then /gps ship (or /gps ticket 01) to start implementing.`);
 }
 
-createPlan();
+runCli(createPlan);

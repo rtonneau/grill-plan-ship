@@ -1,24 +1,23 @@
 # Ticket {{ N }}: {{ slug }}
 
 **Acceptance Criteria:**
-- [ ] {{ Criterion 1 (testable) }}
-- [ ] {{ Criterion 2 (testable) }}
-- [ ] {{ Criterion 3 (testable) }}
+- [ ] <!-- gps:fill Criterion 1 (testable) -->
+- [ ] <!-- gps:fill Criterion 2 (testable) -->
+- [ ] <!-- gps:fill Criterion 3 (testable) -->
 
 **Files to Touch:**
-- `{{ path }}`
-- `{{ path }}`
+- `<!-- gps:fill path -->`
 
 **Verification Step:**
 
 Run:
 ```bash
-{{ command }}
+<!-- gps:fill command -->
 ```
 
 Expected:
-{{ output }}
+<!-- gps:fill output -->
 
 **Notes:**
 
-{{ Anything Claude Code should know before implementing }}
+<!-- gps:fill Anything Claude Code should know before implementing -->
