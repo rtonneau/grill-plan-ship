@@ -70,6 +70,8 @@ Restart Claude Code.
 
 Every phase output (`01-grill/resume.md`, `02-plan/plan.md`, each ticket's `03-implement/NN-*/commit-log.md`) ends with a `## Token Usage` section reporting that phase's real input/output/cache token totals, parsed from Claude Code's own session transcripts. If the transcript can't be found or parsed, the section reads `unavailable` instead of blocking the write.
 
+Totals include sub-agent transcripts and count each API response once. This relies on Claude Code's undocumented transcript layout (`~/.claude/projects/<cwd with non-alphanumerics as ->/<session-id>.jsonl` and `<session-id>/subagents/*.jsonl`), so `unavailable` is a known possible outcome if that layout changes.
+
 ## Example Session
 
 See `examples/` for real-world sessions:
