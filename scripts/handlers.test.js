@@ -84,4 +84,70 @@ function currentSession(root) {
   assert.match(none.err, /Usage: \/gps start/);
 }
 
+// Simulates the grill-phase /gps write: fills resume.md.
+function writeResume(root) {
+  const id = currentSession(root);
+  fs.writeFileSync(path.join(sessionsDir(root), id, '01-grill', 'resume.md'), '# Resume\n\nApproved.\n');
+}
+
+// Simulates the plan-phase /gps write: real plan.md, stubs replaced by
+// real tickets, then mark-plan-written.js.
+function writePlan(root, slugs) {
+  const planDir = path.join(sessionsDir(root), currentSession(root), '02-plan');
+  fs.writeFileSync(path.join(planDir, 'plan.md'), '# Plan\n\nREAL PLAN\n');
+  const ticketsDir = path.join(planDir, 'tickets');
+  for (const f of fs.readdirSync(ticketsDir)) fs.unlinkSync(path.join(ticketsDir, f));
+  slugs.forEach((slug, i) => {
+    const num = String(i + 1).padStart(2, '0');
+    fs.writeFileSync(path.join(ticketsDir, `${num}-${slug}.md`), `# Ticket ${num}: ${slug}\n\nDo ${slug}.\n`);
+  });
+  assert.strictEqual(run(root, 'mark-plan-written.js').code, 0);
+}
+
+// Marks a ticket's commit-log.md as done, as /gps ship does on success.
+function markDone(root, implName) {
+  const log = path.join(sessionsDir(root), currentSession(root), '03-implement', implName, 'commit-log.md');
+  const content = fs.readFileSync(log, 'utf-8').replace(/^\*\*Status:\*\*.*$/m, '**Status:** ✅ Done');
+  fs.writeFileSync(log, content + '\nCOMMIT abc123\n');
+  return log;
+}
+
+// ----------------------------------------------------------------- plan
+
+{
+  const root = tempProject();
+  run(root, 'start-session.js', 'planned');
+
+  // plan before grill is written -> rejected
+  const early = run(root, 'plan.js');
+  assert.strictEqual(early.code, 1);
+  assert.match(early.err, /placeholders/);
+
+  writeResume(root);
+  assert.strictEqual(run(root, 'plan.js').code, 0);
+
+  // re-running while the plan is still pending -> rejected, points at /gps write
+  const pending = run(root, 'plan.js');
+  assert.strictEqual(pending.code, 1);
+  assert.match(pending.err, /\/gps write/);
+
+  // F-003: re-running after the plan is written -> rejected, nothing changes
+  writePlan(root, ['a']);
+  const planDir = path.join(sessionsDir(root), currentSession(root), '02-plan');
+  const again = run(root, 'plan.js');
+  assert.strictEqual(again.code, 1);
+  assert.match(again.err, /already exists/);
+  assert.match(fs.readFileSync(path.join(planDir, 'plan.md'), 'utf-8'), /REAL PLAN/);
+  assert.deepStrictEqual(fs.readdirSync(path.join(planDir, 'tickets')), ['01-a.md']);
+}
+
+{
+  // No .work/sessions at all -> clear error, no stack trace
+  const root = tempProject();
+  const res = run(root, 'plan.js');
+  assert.strictEqual(res.code, 1);
+  assert.match(res.err, /No sessions found/);
+  assert.doesNotMatch(res.err, /\n\s+at /);
+}
+
 console.log('handlers.test.js: all assertions passed');

@@ -1,6 +1,7 @@
 // scripts/lib/session-store.js
 const fs = require('fs');
 const path = require('path');
+const { GpsError, readJson } = require('./guard');
 
 const CURRENT_SESSION_FILENAME = '.current-session';
 
@@ -56,9 +57,26 @@ function getCurrentSessionId(sessionsDir) {
 }
 
 function markPhaseCompleted(config, phase) {
+  if (!Array.isArray(config.phases_completed)) config.phases_completed = [];
   if (!config.phases_completed.includes(phase)) {
     config.phases_completed.push(phase);
   }
+}
+
+// Resolves the current session for a handler, or throws a GpsError with a
+// recovery hint. Returns paths plus the parsed config.
+function resolveSession(projectRoot) {
+  const sessionsDir = path.join(projectRoot, '.work', 'sessions');
+  const noSessions = new GpsError('No sessions found.', 'Run /gps start <feature-name> first.');
+  if (!fs.existsSync(sessionsDir)) throw noSessions;
+
+  const sessionId = getCurrentSessionId(sessionsDir);
+  if (!sessionId) throw noSessions;
+
+  const sessionDir = path.join(sessionsDir, sessionId);
+  const configPath = path.join(sessionDir, '.session-config.json');
+  const config = readJson(configPath, `.session-config.json of ${sessionId}`);
+  return { sessionsDir, sessionId, sessionDir, configPath, config };
 }
 
 module.exports = {
@@ -67,4 +85,5 @@ module.exports = {
   listSessionDirs,
   getCurrentSessionId,
   markPhaseCompleted,
+  resolveSession,
 };
