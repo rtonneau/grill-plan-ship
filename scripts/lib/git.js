@@ -19,7 +19,7 @@ function readRecentCommits(projectRoot, sessionDir) {
 function readGitStatusSummary(projectRoot, sessionDir) {
   const relPath = path.relative(projectRoot, sessionDir).replace(/\\/g, '/');
   try {
-    const output = execSync('git status --porcelain --untracked-files=all', {
+    const output = execSync(`git status --porcelain --untracked-files=all -- "${relPath}"`, {
       cwd: projectRoot,
       encoding: 'utf-8',
       stdio: ['ignore', 'pipe', 'ignore'],
@@ -31,8 +31,7 @@ function readGitStatusSummary(projectRoot, sessionDir) {
         indexStatus: line[0],
         worktreeStatus: line[1],
         path: line.slice(3),
-      }))
-      .filter((entry) => entry.path.startsWith(relPath + '/') || entry.path === relPath);
+      }));
   } catch (_err) {
     return [];
   }
