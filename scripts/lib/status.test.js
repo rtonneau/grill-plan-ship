@@ -89,5 +89,14 @@ report = buildStatusReport(sessionsDir, projectRoot);
 assert.strictEqual(report.current.gitLog.length, 1);
 assert.ok(report.current.gitLog[0].includes('seed session fixtures'));
 
+// No handoff saved yet -> hasHandoff is false.
+report = buildStatusReport(sessionsDir, projectRoot);
+assert.strictEqual(report.current.hasHandoff, false);
+
+// Saving one flips it to true.
+fs.writeFileSync(path.join(newSessionDir, 'HANDOFF.md'), '# Handoff\n');
+report = buildStatusReport(sessionsDir, projectRoot);
+assert.strictEqual(report.current.hasHandoff, true);
+
 fs.rmSync(projectRoot, { recursive: true, force: true });
 console.log('status.test.js: all assertions passed');
