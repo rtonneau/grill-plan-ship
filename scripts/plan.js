@@ -11,7 +11,7 @@
 const fs = require('fs');
 const path = require('path');
 const { loadTemplate, renderTemplate } = require('./lib/templates');
-const { resolveSession, markPhaseCompleted } = require('./lib/session-store');
+const { resolveSession } = require('./lib/session-store');
 const { resolveWriteTarget } = require('./lib/write-target');
 const { touchPhase } = require('./lib/token-usage');
 const { GpsError, writeJsonAtomic, runCli } = require('./lib/guard');
@@ -64,8 +64,6 @@ function createPlan() {
   }
 
   touchPhase(config, 'plan');
-  markPhaseCompleted(config, 'grill');
-  config.status = 'plan-in-progress';
   writeJsonAtomic(configPath, config);
 
   console.log(`✅ Plan directory created`);

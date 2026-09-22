@@ -65,9 +65,6 @@ function startSession(featureName) {
     feature_name: featureName,
     scratch_dir: scratchDir,
     created_at: now.toISOString(),
-    phases_completed: [],
-    tickets: [],
-    status: 'grill-in-progress',
   };
 
   touchPhase(config, 'grill');

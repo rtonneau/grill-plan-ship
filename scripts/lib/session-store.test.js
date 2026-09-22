@@ -10,7 +10,6 @@ const {
   pointerError,
   resolveSession,
   isSafeSessionName,
-  markPhaseCompleted,
 } = require('./session-store');
 const { GpsError } = require('./guard');
 
@@ -84,12 +83,6 @@ fs.mkdirSync(path.join(noMarkerDir, 'scout-reports'));
 fs.writeFileSync(path.join(noMarkerDir, 'scout-reports', 'some-report.html'), '<html></html>');
 assert.strictEqual(getCurrentSessionId(noMarkerDir), null);
 fs.rmSync(noMarkerDir, { recursive: true, force: true });
-
-// markPhaseCompleted only pushes a phase once
-const config = { phases_completed: [] };
-markPhaseCompleted(config, 'grill');
-markPhaseCompleted(config, 'grill');
-assert.deepStrictEqual(config.phases_completed, ['grill']);
 
 fs.rmSync(sessionsDir, { recursive: true, force: true });
 console.log('session-store.test.js: all assertions passed');

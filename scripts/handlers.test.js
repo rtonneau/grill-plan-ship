@@ -131,6 +131,16 @@ function markDone(root, implName) {
   assert.strictEqual(pending.code, 1);
   assert.match(pending.err, /\/gps write/);
 
+  // mark-plan-written refuses while stubs remain
+  const notYet = run(root, 'mark-plan-written.js');
+  assert.strictEqual(notYet.code, 1);
+  assert.match(notYet.err, /not fully written/);
+
+  // config no longer carries derived fields
+  const cfg = JSON.parse(fs.readFileSync(path.join(sessionsDir(root), currentSession(root), '.session-config.json'), 'utf-8'));
+  assert.strictEqual(cfg.status, undefined);
+  assert.strictEqual(cfg.phases_completed, undefined);
+
   // F-003: re-running after the plan is written -> rejected, nothing changes
   writePlan(root, ['a']);
   const planDir = path.join(sessionsDir(root), currentSession(root), '02-plan');

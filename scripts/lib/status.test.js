@@ -68,8 +68,15 @@ assert.deepStrictEqual(
   [newSessionId, oldSessionId].sort()
 );
 
+// Phases are computed from files: the old session is finished (legacy
+// status "completed"), the new one is in grill regardless of its status field.
+assert.strictEqual(report.sessions.find((s) => s.sessionId === oldSessionId).phase, 'finished');
+assert.strictEqual(report.sessions.find((s) => s.sessionId === newSessionId).phase, 'grill');
+
 // Current session detail: grill still has placeholders -> pending 'grill'
 assert.strictEqual(report.current.sessionId, newSessionId);
+assert.strictEqual(report.current.phase, 'grill');
+assert.strictEqual(report.current.suggestedNext.command, '/gps write');
 assert.strictEqual(report.current.writeTarget.target, 'grill');
 assert.deepStrictEqual(report.current.tickets, []);
 assert.strictEqual(report.current.nextPending, null);
@@ -87,6 +94,8 @@ report = buildStatusReport(sessionsDir, projectRoot);
 assert.strictEqual(report.current.writeTarget.target, 'none');
 assert.strictEqual(report.current.tickets.length, 1);
 assert.strictEqual(report.current.nextPending.num, '01');
+assert.strictEqual(report.current.phase, 'ship');
+assert.strictEqual(report.current.suggestedNext.command, '/gps ship');
 
 // Recent commits are read from git when the project is a repo; the test
 // sandbox is a plain tempdir (no .git), so this stays an empty array

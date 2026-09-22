@@ -18,7 +18,7 @@
 const fs = require('fs');
 const path = require('path');
 const {
-  resolveSession, isFinished, markPhaseCompleted, clearCurrentSession, listUnfinishedSessions,
+  resolveSession, isFinished, clearCurrentSession, listUnfinishedSessions,
 } = require('./lib/session-store');
 const { resolveWriteTarget } = require('./lib/write-target');
 const { listTickets } = require('./lib/ticket-queue');
@@ -86,10 +86,6 @@ function finishSession() {
   fs.writeFileSync(path.join(sessionDir, 'INDEX.md'), buildIndex(config, finishedAt, tickets, bounded));
 
   config.finished_at = finishedAt;
-  config.status = 'completed';
-  markPhaseCompleted(config, 'grill');
-  if (!bounded) markPhaseCompleted(config, 'plan');
-  markPhaseCompleted(config, 'implement');
   writeJsonAtomic(configPath, config);
 
   clearCurrentSession(sessionsDir);

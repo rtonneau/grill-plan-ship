@@ -2,6 +2,7 @@
 const fs = require('fs');
 const path = require('path');
 const { GpsError, readJson } = require('./guard');
+const { isFinishedConfig } = require('./phase');
 
 const CURRENT_SESSION_FILENAME = '.current-session';
 
@@ -30,9 +31,7 @@ function readConfigOrNull(sessionsDir, sessionId) {
   }
 }
 
-function isFinished(config) {
-  return Boolean(config && (config.finished_at || config.status === 'completed'));
-}
+const isFinished = isFinishedConfig;
 
 // Sessions that /gps finish has not closed, newest first.
 function listUnfinishedSessions(sessionsDir) {
@@ -105,13 +104,6 @@ function pointerError(sessionsDir, { problem, pointer }) {
   return new GpsError(message, hint);
 }
 
-function markPhaseCompleted(config, phase) {
-  if (!Array.isArray(config.phases_completed)) config.phases_completed = [];
-  if (!config.phases_completed.includes(phase)) {
-    config.phases_completed.push(phase);
-  }
-}
-
 // Resolves the current session for a handler, or throws a GpsError with a
 // recovery hint. Returns paths plus the parsed config.
 function resolveSession(projectRoot) {
@@ -137,6 +129,5 @@ module.exports = {
   resolveCurrentPointer,
   pointerError,
   getCurrentSessionId,
-  markPhaseCompleted,
   resolveSession,
 };

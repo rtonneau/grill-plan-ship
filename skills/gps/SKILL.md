@@ -130,17 +130,18 @@ If `brainstorming` or `writing-plans` is not available, stop and tell the user t
 **What it does:**
 
 1. Runs `node $CLAUDE_PLUGIN_ROOT/scripts/status.js`, which:
-   - Lists every session under `.work/sessions/` with its feature name, creation date, status, and completed phases.
+   - Lists every session under `.work/sessions/` with its feature name, creation date, `finishedAt`, and `phase` (computed from the session's files: `grill`, `plan-not-started`, `plan`, `ship`, `finish-pending`, `plan-complete` or `finished`; old `status` / `phases_completed` config fields are ignored).
    - Resolves the current session from `.work/sessions/.current-session` (same logic as every other command — there is no fallback to "the most recent session"). If the pointer is missing, invalid, points at a deleted session or at a finished one, `current` is `null` and `currentProblem` explains why and lists the unfinished sessions: show that to the user, ask which session to use, and only after they confirm run `node $CLAUDE_PLUGIN_ROOT/scripts/set-current.js <session-id>`.
    - Otherwise, for the current session only, adds:
+     - `phase` and `suggestedNext` (`{ command, why }`) — the next command to run and why.
      - `writeTarget` — whether `/gps write` has something pending (`grill`, `plan`, or `none`), same detection `/gps write` itself uses.
-     - `tickets` / `nextPending` — the ticket queue, same detection `/gps ship` itself uses.
+     - `tickets` / `nextPending` — the ticket queue, same detection `/gps ship` itself uses; `skippedTicketFiles` lists files in `02-plan/tickets/` that aren't named `NN-<slug>.md` and are ignored.
      - `gitLog` — up to 10 project-wide commits (oneline) made since the session was created, so recent implementation activity is visible even without opening `commit-log.md` files.
      - `hasHandoff` — whether a saved checkpoint exists for this session (`HANDOFF.md` present). When true, Claude Code's rendered report should mention `/gps resume` is available for full context.
 2. Claude Code renders that JSON as a short human-readable report:
-   - One line per session: feature name, status, phases completed.
+   - One line per session: feature name and phase.
    - For the current session: which phase is pending and why, ticket progress (`X/Y done`, next pending ticket if any), and the recent commits.
-   - Ends with an explicit suggested next command, using the same phase logic `/gps write` and `/gps ship` already use: grill pending → `/gps write`; plan not started → `/gps plan`; plan pending write → `/gps write`; tickets pending → `/gps ship` (or `/gps ticket <N>`); everything done → `/gps finish`.
+   - Ends with `suggestedNext.command` and its `why`, verbatim — do not work out the next command yourself.
 
 **Output:** A status report printed in chat. No files are created or changed.
 
@@ -178,7 +179,7 @@ If `brainstorming` or `writing-plans` is not available, stop and tell the user t
 
 1. Runs `node $CLAUDE_PLUGIN_ROOT/scripts/resume.js`, which resolves the current session, reads `HANDOFF.md` if one exists, and independently recomputes live state (ticket queue, git log, git status) the same way `/gps handoff` does — so it never trusts stale narrative for facts it can verify itself. If the handoff's recorded phase or active ticket disagrees with the freshly computed values, it's reported as `drift`.
 2. If no `HANDOFF.md` exists, `live` is still fully populated and `handoff` is `null` — the command degrades gracefully rather than failing.
-3. Claude Code renders the result as one combined briefing in chat: the handoff's narrative sections (if present), the live facts, any drift warning, and the same suggested next command `/gps status` uses.
+3. Claude Code renders the result as one combined briefing in chat: the handoff's narrative sections (if present), the live facts, any drift warning, and `live.suggestedNext` (the same next command `/gps status` gives).
 
 **Output:** A catch-up briefing printed in chat. No files are created or changed.
 
@@ -203,7 +204,7 @@ If `brainstorming` or `writing-plans` is not available, stop and tell the user t
    - Otherwise → nothing pending.
    - When a phase is pending, it also computes that phase's real token usage (parsed from Claude Code's own session transcripts) and includes it as `tokenUsage` in its JSON output — either `{ available: true, input, output, cacheRead, cacheCreation, total }` or `{ available: false }`.
 2. **If grill is pending:** Claude Code synthesizes the brainstorming conversation into `01-grill/resume.md`, filling in every template section (Problem Statement, Context & Constraints, Success Metrics, Architecture & Approach, Assumptions & Trade-offs, Open Questions, Notes, Token Usage) — leaving no `{{ ... }}` placeholders. For Token Usage, use the `tokenUsage` values from step 1's output verbatim; if `available` is `false`, write `unavailable` for each line instead of a number.
-3. **If plan is pending:** Claude Code synthesizes the most recent writing-plans output into `02-plan/plan.md` (including its Token Usage section, filled the same way as grill's), then replaces the placeholder ticket stubs in `02-plan/tickets/` with one real `NN-<slug>.md` file per actual ticket (the ticket count is whatever writing-plans produced, not fixed at 4). It then runs `node $CLAUDE_PLUGIN_ROOT/scripts/mark-plan-written.js` to record the plan phase as complete.
+3. **If plan is pending:** Claude Code synthesizes the most recent writing-plans output into `02-plan/plan.md` (including its Token Usage section, filled the same way as grill's), then replaces the placeholder ticket stubs in `02-plan/tickets/` with one real `NN-<slug>.md` file per actual ticket (the ticket count is whatever writing-plans produced, not fixed at 4). It then runs `node $CLAUDE_PLUGIN_ROOT/scripts/mark-plan-written.js`, which checks that the plan is fully written (no placeholders, no `[slug]` stubs, at least one valid ticket). If it fails, fix what it lists and run it again.
 4. **If nothing is pending:** reports that and suggests the next command (`/gps plan`, `/gps ticket <N>`, or `/gps finish`).
 
 **Output:** The pending phase's files written to disk with real content, ready for the next command.
