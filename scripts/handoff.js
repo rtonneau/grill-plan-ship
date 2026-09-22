@@ -40,7 +40,8 @@ function main() {
     timestamp: data.timestamp,
     'current-phase': data.currentPhase,
     'active-ticket': data.activeTicket || 'none',
-    'git-status-summary': formatGitStatus(data.gitStatus),
+    'git-status-project': formatGitStatus(data.gitStatus.project),
+    'git-status-session': formatGitStatus(data.gitStatus.session),
     'ticket-queue-summary': formatList(data.ticketQueueSummary, 'no tickets yet'),
     'git-log': formatList(data.gitLog, 'no commits yet'),
   });

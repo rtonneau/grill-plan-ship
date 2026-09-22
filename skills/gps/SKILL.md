@@ -135,7 +135,7 @@ If `brainstorming` or `writing-plans` is not available, stop and tell the user t
    - Otherwise, for the current session only, adds:
      - `writeTarget` — whether `/gps write` has something pending (`grill`, `plan`, or `none`), same detection `/gps write` itself uses.
      - `tickets` / `nextPending` — the ticket queue, same detection `/gps ship` itself uses.
-     - `gitLog` — the last 5 commits (oneline) touching that session's directory, so recent implementation activity is visible even without opening `commit-log.md` files.
+     - `gitLog` — up to 10 project-wide commits (oneline) made since the session was created, so recent implementation activity is visible even without opening `commit-log.md` files.
      - `hasHandoff` — whether a saved checkpoint exists for this session (`HANDOFF.md` present). When true, Claude Code's rendered report should mention `/gps resume` is available for full context.
 2. Claude Code renders that JSON as a short human-readable report:
    - One line per session: feature name, status, phases completed.
@@ -158,8 +158,8 @@ If `brainstorming` or `writing-plans` is not available, stop and tell the user t
 
 **What it does:**
 
-1. Runs `node $CLAUDE_PLUGIN_ROOT/scripts/handoff.js`, which resolves the current session and auto-fills everything derivable from disk/git into `HANDOFF.md` at the session root: current phase, active ticket, ticket-queue state, recent commits, and a summary of uncommitted changes. It prints this data as JSON.
-2. Claude Code then fills in `HANDOFF.md`'s remaining narrative placeholders directly (Edit tool, not the script): where work stopped, the reasoning behind the current approach (including alternatives tried and rejected), the next concrete action to take, open questions only the user can resolve, decisions already settled (so a future session doesn't re-ask), and — only if the git-status summary isn't "clean" — why the changes aren't committed yet.
+1. Runs `node $CLAUDE_PLUGIN_ROOT/scripts/handoff.js`, which resolves the current session and auto-fills everything derivable from disk/git into `HANDOFF.md` at the session root: current phase, active ticket, ticket-queue state, project-wide commits since the session started, and uncommitted changes shown separately for the whole project and for the session directory. It prints this data as JSON.
+2. Claude Code then fills in `HANDOFF.md`'s remaining narrative placeholders directly (Edit tool, not the script): where work stopped, the reasoning behind the current approach (including alternatives tried and rejected), the next concrete action to take, open questions only the user can resolve, decisions already settled (so a future session doesn't re-ask), and — only if either git status isn't "clean" — why the changes aren't committed yet.
 3. `HANDOFF.md` is a single file: each run overwrites the previous one. There is no history log.
 
 **Output:** `HANDOFF.md` written to the session root with full narrative context.

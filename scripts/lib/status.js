@@ -40,7 +40,8 @@ function buildStatusReport(sessionsDir, projectRoot) {
   const sessionDir = path.join(sessionsDir, currentSessionId);
   const writeTarget = resolveWriteTarget(sessionDir);
   const { tickets, nextPending } = listTickets(sessionDir);
-  const gitLog = readRecentCommits(projectRoot, sessionDir);
+  const config = readConfig(sessionsDir, currentSessionId);
+  const gitLog = readRecentCommits(projectRoot, config ? config.created_at : null);
   const hasHandoff = fs.existsSync(path.join(sessionDir, 'HANDOFF.md'));
 
   return {

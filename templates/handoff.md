@@ -27,8 +27,9 @@
 
 ## Uncommitted Work
 
-- **Git status:** {{ git-status-summary }}
-- **Why not committed:** {{ reason, or "n/a" if git status is clean }}
+- **Git status (project):** {{ git-status-project }}
+- **Git status (session dir):** {{ git-status-session }}
+- **Why not committed:** {{ reason, or "n/a" if both git statuses are clean }}
 
 ## Machine State (auto-filled)
 

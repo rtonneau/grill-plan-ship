@@ -3,7 +3,7 @@ const fs = require('fs');
 const path = require('path');
 const { resolveWriteTarget } = require('./write-target');
 const { listTickets } = require('./ticket-queue');
-const { readRecentCommits, readGitStatusSummary } = require('./git');
+const { readRecentCommits, readGitStatus } = require('./git');
 
 function derivePhaseLabel(writeTarget, ticketQueue) {
   if (writeTarget.target === 'grill') return 'grill';
@@ -33,8 +33,8 @@ function buildHandoffData(sessionDir, projectRoot) {
     currentPhase,
     activeTicket,
     ticketQueueSummary,
-    gitLog: readRecentCommits(projectRoot, sessionDir),
-    gitStatus: readGitStatusSummary(projectRoot, sessionDir),
+    gitLog: readRecentCommits(projectRoot, config.created_at),
+    gitStatus: readGitStatus(projectRoot, sessionDir),
     timestamp: new Date().toISOString(),
   };
 }
