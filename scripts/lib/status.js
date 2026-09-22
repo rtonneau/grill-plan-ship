@@ -1,7 +1,7 @@
 // scripts/lib/status.js
 const fs = require('fs');
 const path = require('path');
-const { listSessionDirs, getCurrentSessionId } = require('./session-store');
+const { listSessionDirs, resolveCurrentPointer, pointerError } = require('./session-store');
 const { resolveWriteTarget } = require('./write-target');
 const { listTickets } = require('./ticket-queue');
 const { readRecentCommits } = require('./git');
@@ -30,10 +30,12 @@ function buildStatusReport(sessionsDir, projectRoot) {
   const sessionIds = listSessionDirs(sessionsDir);
   const sessions = sessionIds.map((sessionId) => summarizeSession(sessionsDir, sessionId));
 
-  const currentSessionId = getCurrentSessionId(sessionsDir);
-  if (!currentSessionId) {
-    return { sessions, current: null };
+  const pointer = resolveCurrentPointer(sessionsDir);
+  if (pointer.problem) {
+    const { message, hint } = pointerError(sessionsDir, pointer);
+    return { sessions, current: null, currentProblem: { code: pointer.problem, message, hint } };
   }
+  const currentSessionId = pointer.sessionId;
 
   const sessionDir = path.join(sessionsDir, currentSessionId);
   const writeTarget = resolveWriteTarget(sessionDir);

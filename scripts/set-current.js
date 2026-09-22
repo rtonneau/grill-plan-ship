@@ -11,18 +11,19 @@
 
 const fs = require('fs');
 const path = require('path');
-const { setCurrentSession, isFinished, listUnfinishedSessions } = require('./lib/session-store');
-const { GpsError, isSlug, readJson, runCli } = require('./lib/guard');
+const {
+  setCurrentSession, isFinished, isSafeSessionName, listUnfinishedSessions,
+} = require('./lib/session-store');
+const { GpsError, readJson, runCli } = require('./lib/guard');
 
 runCli(() => {
   const sessionId = process.argv[2];
   const sessionsDir = path.join(process.cwd(), '.work', 'sessions');
   const available = () => listUnfinishedSessions(sessionsDir).map((s) => s.sessionId).join(', ') || 'none';
 
-  const match = typeof sessionId === 'string' && sessionId.match(/^\d{4}-\d{2}-\d{2}__(.+)$/);
-  if (!match || !isSlug(match[1])) {
+  if (!isSafeSessionName(sessionId)) {
     throw new GpsError(`Invalid session id: ${JSON.stringify(sessionId)}`,
-      `Usage: node set-current.js <YYYY-MM-DD__slug>. Unfinished sessions: ${available()}`);
+      `Usage: node set-current.js <session-id>. Unfinished sessions: ${available()}`);
   }
 
   const configPath = path.join(sessionsDir, sessionId, '.session-config.json');

@@ -131,7 +131,8 @@ If `brainstorming` or `writing-plans` is not available, stop and tell the user t
 
 1. Runs `node $CLAUDE_PLUGIN_ROOT/scripts/status.js`, which:
    - Lists every session under `.work/sessions/` with its feature name, creation date, status, and completed phases.
-   - Resolves the current session (same logic as every other command) and, for it only, adds:
+   - Resolves the current session from `.work/sessions/.current-session` (same logic as every other command — there is no fallback to "the most recent session"). If the pointer is missing, invalid, points at a deleted session or at a finished one, `current` is `null` and `currentProblem` explains why and lists the unfinished sessions: show that to the user, ask which session to use, and only after they confirm run `node $CLAUDE_PLUGIN_ROOT/scripts/set-current.js <session-id>`.
+   - Otherwise, for the current session only, adds:
      - `writeTarget` — whether `/gps write` has something pending (`grill`, `plan`, or `none`), same detection `/gps write` itself uses.
      - `tickets` / `nextPending` — the ticket queue, same detection `/gps ship` itself uses.
      - `gitLog` — the last 5 commits (oneline) touching that session's directory, so recent implementation activity is visible even without opening `commit-log.md` files.

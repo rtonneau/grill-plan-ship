@@ -343,8 +343,34 @@ function markDone(root, implName) {
   fs.writeFileSync(path.join(sessionsDir(root), '.current-session'), 'zzz');
   const res = run(root, 'write-target.js');
   assert.strictEqual(res.code, 1);
-  assert.match(res.err, /\.session-config\.json of zzz not found/);
+  assert.match(res.err, /No sessions found/);
   assert.doesNotMatch(res.err, /\n\s+at /);
+
+  // With a real session present, a stale pointer is reported (not followed) with a set-current hint
+  run(root, 'start-session.js', 'real');
+  const realId = currentSession(root);
+  fs.writeFileSync(path.join(sessionsDir(root), '.current-session'), 'zzz');
+  const stale = run(root, 'write-target.js');
+  assert.strictEqual(stale.code, 1);
+  assert.match(stale.err, /current session zzz no longer exists/);
+  assert.match(stale.err, new RegExp(`Unfinished sessions: ${realId}`));
+  assert.match(stale.err, /set-current\.js/);
+
+  // No pointer at all -> no fallback to the only session
+  fs.unlinkSync(path.join(sessionsDir(root), '.current-session'));
+  const none = run(root, 'ticket-queue.js');
+  assert.strictEqual(none.code, 1);
+  assert.match(none.err, /No current session is selected/);
+
+  // status stays read-only and still lists sessions
+  const status = run(root, 'status.js');
+  assert.strictEqual(status.code, 0, status.err);
+  assert.strictEqual(JSON.parse(status.out).currentProblem.code, 'no-pointer');
+  assert.ok(!fs.existsSync(path.join(sessionsDir(root), '.current-session')));
+
+  // set-current recovers
+  assert.strictEqual(run(root, 'set-current.js', realId).code, 0);
+  assert.strictEqual(run(root, 'write-target.js').code, 0);
 }
 
 console.log('handlers.test.js: all assertions passed');

@@ -48,36 +48,61 @@ function listUnfinishedSessions(sessionsDir) {
     .sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
 }
 
-function mostRecentByCreatedAt(sessionsDir) {
-  // Finished sessions are never picked implicitly.
-  const sessions = listSessionDirs(sessionsDir)
-    .filter((name) => !isFinished(readConfigOrNull(sessionsDir, name)));
-  if (sessions.length === 0) return null;
+// A session id must be a single plain directory name (no separators, not
+// "." or ".."). Sessions created before slug cleaning may not match the
+// strict slug rule, so this only rules out path tricks.
+function isSafeSessionName(sessionId) {
+  return typeof sessionId === 'string'
+    && sessionId !== '' && sessionId !== '.' && sessionId !== '..'
+    && !/[\\/]/.test(sessionId)
+    && path.basename(sessionId) === sessionId;
+}
 
-  const withTimestamps = sessions.map((name) => {
-    const config = readConfigOrNull(sessionsDir, name);
-    return { name, createdAt: config ? config.created_at || null : null };
-  });
+// Reads .current-session and checks it. Never falls back to another
+// session. Returns { sessionId, problem } where problem is one of
+// null | 'no-sessions' | 'no-pointer' | 'invalid-pointer' |
+// 'missing-session' | 'finished-session'.
+function resolveCurrentPointer(sessionsDir) {
+  if (!fs.existsSync(sessionsDir) || listSessionDirs(sessionsDir).length === 0) {
+    return { sessionId: null, problem: 'no-sessions' };
+  }
+  const pointerPath = path.join(sessionsDir, CURRENT_SESSION_FILENAME);
+  if (!fs.existsSync(pointerPath)) return { sessionId: null, problem: 'no-pointer' };
 
-  withTimestamps.sort((a, b) => {
-    if (a.createdAt && b.createdAt) return a.createdAt < b.createdAt ? 1 : -1;
-    if (a.createdAt) return -1;
-    if (b.createdAt) return 1;
-    return a.name < b.name ? 1 : -1;
-  });
-
-  return withTimestamps[0].name;
+  const sessionId = fs.readFileSync(pointerPath, 'utf-8').trim();
+  if (!isSafeSessionName(sessionId)) return { sessionId: null, problem: 'invalid-pointer', pointer: sessionId };
+  if (!fs.existsSync(path.join(sessionsDir, sessionId, '.session-config.json'))) {
+    return { sessionId: null, problem: 'missing-session', pointer: sessionId };
+  }
+  if (isFinished(readConfigOrNull(sessionsDir, sessionId))) {
+    return { sessionId: null, problem: 'finished-session', pointer: sessionId };
+  }
+  return { sessionId, problem: null };
 }
 
 function getCurrentSessionId(sessionsDir) {
-  const pointerPath = path.join(sessionsDir, CURRENT_SESSION_FILENAME);
-  if (fs.existsSync(pointerPath)) {
-    const sessionId = fs.readFileSync(pointerPath, 'utf-8').trim();
-    if (sessionId && fs.existsSync(path.join(sessionsDir, sessionId))) {
-      return sessionId;
-    }
-  }
-  return mostRecentByCreatedAt(sessionsDir);
+  return resolveCurrentPointer(sessionsDir).sessionId;
+}
+
+const POINTER_MESSAGES = {
+  'no-sessions': () => 'No sessions found.',
+  'no-pointer': () => 'No current session is selected.',
+  'invalid-pointer': (p) => `.work/sessions/.current-session holds an invalid session id: ${JSON.stringify(p)}.`,
+  'missing-session': (p) => `The current session ${p} no longer exists (no .session-config.json).`,
+  'finished-session': (p) => `The current session ${p} is already finished.`,
+};
+
+// Turns a resolveCurrentPointer() problem into a GpsError with a recovery hint.
+function pointerError(sessionsDir, { problem, pointer }) {
+  const message = POINTER_MESSAGES[problem](pointer);
+  if (problem === 'no-sessions') return new GpsError(message, 'Run /gps start <feature-name> first.');
+
+  const unfinished = listUnfinishedSessions(sessionsDir).map((s) => s.sessionId);
+  const hint = unfinished.length === 0
+    ? 'There are no unfinished sessions. Run /gps start <feature-name>.'
+    : `Unfinished sessions: ${unfinished.join(', ')}. Ask the user which one to use, then run ` +
+      'node $CLAUDE_PLUGIN_ROOT/scripts/set-current.js <session-id> (or /gps start <feature-name> for a new one).';
+  return new GpsError(message, hint);
 }
 
 function markPhaseCompleted(config, phase) {
@@ -91,11 +116,9 @@ function markPhaseCompleted(config, phase) {
 // recovery hint. Returns paths plus the parsed config.
 function resolveSession(projectRoot) {
   const sessionsDir = path.join(projectRoot, '.work', 'sessions');
-  const noSessions = new GpsError('No sessions found.', 'Run /gps start <feature-name> first.');
-  if (!fs.existsSync(sessionsDir)) throw noSessions;
-
-  const sessionId = getCurrentSessionId(sessionsDir);
-  if (!sessionId) throw noSessions;
+  const pointer = resolveCurrentPointer(sessionsDir);
+  if (pointer.problem) throw pointerError(sessionsDir, pointer);
+  const { sessionId } = pointer;
 
   const sessionDir = path.join(sessionsDir, sessionId);
   const configPath = path.join(sessionDir, '.session-config.json');
@@ -110,6 +133,9 @@ module.exports = {
   isFinished,
   listUnfinishedSessions,
   listSessionDirs,
+  isSafeSessionName,
+  resolveCurrentPointer,
+  pointerError,
   getCurrentSessionId,
   markPhaseCompleted,
   resolveSession,

@@ -12,7 +12,12 @@ const sessionsDir = path.join(projectRoot, '.work', 'sessions');
 fs.mkdirSync(sessionsDir, { recursive: true });
 
 // No sessions at all -> empty list, no current session
-assert.deepStrictEqual(buildStatusReport(sessionsDir, projectRoot), { sessions: [], current: null });
+{
+  const empty = buildStatusReport(sessionsDir, projectRoot);
+  assert.deepStrictEqual(empty.sessions, []);
+  assert.strictEqual(empty.current, null);
+  assert.strictEqual(empty.currentProblem.code, 'no-sessions');
+}
 
 // Two sessions: an older completed one, and a newer one still in grill
 const oldSessionId = '2026-09-10__old-feature';
@@ -43,6 +48,16 @@ fs.writeFileSync(
   })
 );
 fs.writeFileSync(path.join(newSessionDir, '01-grill', 'resume.md'), '# {{ feature-name }}\n');
+
+// No pointer yet -> sessions listed, current is null with a recovery hint (read-only, no fallback)
+{
+  const noPointer = buildStatusReport(sessionsDir, projectRoot);
+  assert.strictEqual(noPointer.sessions.length, 2);
+  assert.strictEqual(noPointer.current, null);
+  assert.strictEqual(noPointer.currentProblem.code, 'no-pointer');
+  assert.match(noPointer.currentProblem.hint, /2026-09-16__new-feature/);
+  assert.ok(!fs.existsSync(path.join(sessionsDir, '.current-session')));
+}
 
 setCurrentSession(sessionsDir, newSessionId);
 
