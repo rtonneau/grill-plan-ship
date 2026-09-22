@@ -332,6 +332,12 @@ If `brainstorming` or `writing-plans` is not available, stop and tell the user t
 /plugin install grill-plan-ship
 ```
 
+## Update
+
+```
+/plugin marketplace update rtonneau/grill-plan-ship
+```
+
 ## Restart Claude Code
 
 Then in any project:
