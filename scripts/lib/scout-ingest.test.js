@@ -68,22 +68,63 @@ assert.strictEqual(
 );
 assert.strictEqual(getSeed(sessionsDir, 'runconfig-resolver').sourceReport, result1.sourceReport);
 
-// Attempting to ingest again at the exact same timestamp as an existing report
-// throws instead of silently overwriting it (immutability guarantee)
-assert.throws(() => {
-  ingestScoutReport({
-    sessionsDir,
-    tempReportPath,
-    sourceDirection: null,
-    candidates: [{ slug: 'duplicate-timestamp', strength: 'Speculative', problem: 'p4', solution: 's4' }],
-    now: now1,
-  });
+// Ingesting again at the exact same timestamp writes a suffixed copy
+// instead of overwriting the existing report (immutability guarantee)
+const otherReportPath = path.join(os.tmpdir(), `scout-ingest-test-report-b-${Date.now()}.html`);
+fs.writeFileSync(otherReportPath, '<html>second</html>');
+const collision = ingestScoutReport({
+  sessionsDir,
+  tempReportPath: otherReportPath,
+  sourceDirection: null,
+  candidates: [{ slug: 'duplicate-timestamp', strength: 'Speculative', problem: 'p4', solution: 's4' }],
+  now: now1,
 });
-// The collision attempt must not have mutated the original report file
+assert.strictEqual(collision.sourceReport, 'scout-reports/architecture-review-2026-09-17T14-23-01-000Z-2.html');
+assert.strictEqual(fs.readFileSync(collision.reportDestPath, 'utf-8'), '<html>second</html>');
+// The collision must not have mutated the original report file
 assert.strictEqual(
   fs.readFileSync(result1.reportDestPath, 'utf-8'),
   '<html><body>fake report</body></html>'
 );
+fs.rmSync(otherReportPath, { force: true });
+
+// Duplicate slugs in one run: first kept, warning returned
+const dup = ingestScoutReport({
+  sessionsDir,
+  tempReportPath,
+  sourceDirection: null,
+  candidates: [
+    { slug: 'dup-slug', strength: 'Strong', problem: 'first', solution: 's' },
+    { slug: 'dup-slug', strength: 'Strong', problem: 'second', solution: 's' },
+  ],
+  now: new Date('2026-09-17T17:00:00.000Z'),
+});
+assert.strictEqual(dup.seeded.length, 1);
+assert.strictEqual(getSeed(sessionsDir, 'dup-slug').problem, 'first');
+assert.strictEqual(dup.warnings.length, 1);
+assert.match(dup.warnings[0], /Duplicate slug "dup-slug"/);
+
+// Invalid candidates are rejected before any file is written
+const reportsBefore = fs.readdirSync(path.join(sessionsDir, 'scout-reports')).length;
+const seedsBefore = fs.readFileSync(path.join(sessionsDir, '.pending-seeds.json'), 'utf-8');
+for (const bad of [
+  { slug: 'no-strength', problem: 'p', solution: 's' },
+  { slug: 'bad-strength', strength: 'Huge', problem: 'p', solution: 's' },
+  { slug: 'no-problem', strength: 'Strong', solution: 's' },
+  { slug: 'no-solution', strength: 'Strong', problem: 'p' },
+  { slug: 'bad-files', strength: 'Strong', problem: 'p', solution: 's', files: 'sim.cc' },
+  { slug: '../escape', strength: 'Strong', problem: 'p', solution: 's' },
+]) {
+  assert.throws(() => ingestScoutReport({
+    sessionsDir,
+    tempReportPath,
+    sourceDirection: null,
+    candidates: [{ slug: 'valid-one', strength: 'Strong', problem: 'p', solution: 's' }, bad],
+    now: new Date('2026-09-17T18:00:00.000Z'),
+  }), `accepted ${JSON.stringify(bad)}`);
+}
+assert.strictEqual(fs.readdirSync(path.join(sessionsDir, 'scout-reports')).length, reportsBefore);
+assert.strictEqual(fs.readFileSync(path.join(sessionsDir, '.pending-seeds.json'), 'utf-8'), seedsBefore);
 
 // Missing report file -> throws before touching anything
 assert.throws(() => {

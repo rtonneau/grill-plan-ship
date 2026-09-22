@@ -204,6 +204,54 @@ function markDone(root, implName) {
   assert.match(run(root, 'ticket.js', '1').out, /Do y\./);
 }
 
+// ---------------------------------------------------------------- scout
+
+{
+  const root = tempProject();
+  const report = path.join(root, 'report.html');
+  fs.writeFileSync(report, '<html>r</html>');
+  const entries = path.join(root, 'entries.json');
+
+  // Bad JSON -> clear error, no stack trace
+  fs.writeFileSync(entries, '{');
+  const badJson = run(root, 'scout-merge.js', report, entries);
+  assert.strictEqual(badJson.code, 1);
+  assert.match(badJson.err, /not valid JSON/);
+  assert.doesNotMatch(badJson.err, /\n\s+at /);
+
+  // F-008: a corrupt seeds file is kept aside, not overwritten
+  const seedsFile = path.join(sessionsDir(root), '.pending-seeds.json');
+  fs.mkdirSync(sessionsDir(root), { recursive: true });
+  fs.writeFileSync(seedsFile, '{bad');
+  fs.writeFileSync(entries, JSON.stringify({
+    candidates: [
+      { slug: 'a-b', strength: 'Strong', problem: 'p', solution: 's' },
+      { slug: 'a-b', strength: 'Strong', problem: 'p2', solution: 's' },
+    ],
+  }));
+  const ok = run(root, 'scout-merge.js', report, entries);
+  assert.strictEqual(ok.code, 0, ok.err);
+  assert.match(ok.err, /moved to \.pending-seeds\.json\.corrupt-/);
+  assert.match(ok.err, /Duplicate slug "a-b"/);
+  const quarantined = fs.readdirSync(sessionsDir(root)).find((f) => f.includes('.corrupt-'));
+  assert.strictEqual(fs.readFileSync(path.join(sessionsDir(root), quarantined), 'utf-8'), '{bad');
+
+  // Invalid candidate -> exit 1
+  fs.writeFileSync(entries, JSON.stringify({ candidates: [{ slug: 'only-slug' }] }));
+  const invalid = run(root, 'scout-merge.js', report, entries);
+  assert.strictEqual(invalid.code, 1);
+  assert.match(invalid.err, /Invalid strength/);
+
+  // Seed consumed by /gps start; the report copy is untouched
+  const reportsDir = path.join(sessionsDir(root), 'scout-reports');
+  const reportCopy = path.join(reportsDir, fs.readdirSync(reportsDir)[0]);
+  const started = run(root, 'start-session.js', 'a-b');
+  assert.strictEqual(started.code, 0, started.err);
+  assert.match(started.out, /Scout seed found for "a-b"/);
+  assert.doesNotMatch(fs.readFileSync(seedsFile, 'utf-8'), /"a-b"/);
+  assert.strictEqual(fs.readFileSync(reportCopy, 'utf-8'), '<html>r</html>');
+}
+
 {
   // No .work/sessions at all -> clear error, no stack trace
   const root = tempProject();
