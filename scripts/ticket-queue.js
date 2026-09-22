@@ -8,35 +8,23 @@
  * Does not implement anything itself.
  */
 
-const fs = require('fs');
-const path = require('path');
 const { listTickets } = require('./lib/ticket-queue');
-const { getCurrentSessionId } = require('./lib/session-store');
+const { resolveSession } = require('./lib/session-store');
+const { resolveWriteTarget } = require('./lib/write-target');
+const { GpsError, runCli } = require('./lib/guard');
 
-function main() {
-  const projectRoot = process.cwd();
-  const sessionsDir = path.join(projectRoot, '.work', 'sessions');
+runCli(() => {
+  const { sessionId, sessionDir } = resolveSession(process.cwd());
 
-  if (!fs.existsSync(sessionsDir)) {
-    console.error('No sessions found. Run /gps start first.');
-    process.exit(1);
+  const writeTarget = resolveWriteTarget(sessionDir).target;
+  if (writeTarget === 'grill' || writeTarget === 'plan') {
+    throw new GpsError(`The ${writeTarget} phase is not written yet.`, 'Run /gps write first, then /gps ship.');
   }
 
-  const currentSession = getCurrentSessionId(sessionsDir);
-  if (!currentSession) {
-    console.error('No sessions found. Run /gps start first.');
-    process.exit(1);
-  }
-
-  const sessionDir = path.join(sessionsDir, currentSession);
   const { tickets, nextPending } = listTickets(sessionDir);
-
   if (tickets.length === 0) {
-    console.error('No tickets found. Run /gps plan, then /gps write, then /gps ship.');
-    process.exit(1);
+    throw new GpsError('No tickets found.', 'Run /gps plan, then /gps write, then /gps ship.');
   }
 
-  console.log(JSON.stringify({ sessionId: currentSession, sessionDir, tickets, nextPending }, null, 2));
-}
-
-main();
+  console.log(JSON.stringify({ sessionId, sessionDir, tickets, nextPending }, null, 2));
+});

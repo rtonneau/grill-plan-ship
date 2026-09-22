@@ -323,11 +323,27 @@ function markDone(root, implName) {
 }
 
 {
-  // No .work/sessions at all -> clear error, no stack trace
+  // F-010: no .work/sessions at all -> every handler gives a clear error, no stack trace
   const root = tempProject();
-  const res = run(root, 'plan.js');
+  for (const [script, ...args] of [
+    ['plan.js'], ['ticket.js', '1'], ['finish.js'], ['write-target.js'], ['ticket-queue.js'],
+    ['mark-plan-written.js'], ['status.js'], ['token-usage.js', 'grill'],
+  ]) {
+    const res = run(root, script, ...args);
+    assert.strictEqual(res.code, 1, script);
+    assert.match(res.err, /No sessions found/, script);
+    assert.doesNotMatch(res.err, /\n\s+at /, script);
+  }
+}
+
+{
+  // F-010/F-011: pointer to a directory without a config -> clear error, no stack trace
+  const root = tempProject();
+  fs.mkdirSync(path.join(sessionsDir(root), 'zzz'), { recursive: true });
+  fs.writeFileSync(path.join(sessionsDir(root), '.current-session'), 'zzz');
+  const res = run(root, 'write-target.js');
   assert.strictEqual(res.code, 1);
-  assert.match(res.err, /No sessions found/);
+  assert.match(res.err, /\.session-config\.json of zzz not found/);
   assert.doesNotMatch(res.err, /\n\s+at /);
 }
 
