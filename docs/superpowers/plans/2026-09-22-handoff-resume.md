@@ -983,3 +983,9 @@ Insert these two new sections into `skills/gps/SKILL.md`, right after the existi
 git add skills/gps/SKILL.md README.md
 git commit -m "docs: document /gps handoff and /gps resume"
 ```
+
+---
+
+## Status — 2026-09-22
+
+Tasks 1–8 above were completed on `worktree-handoff-resume`. The hardening decisions revise the design; see **Revision — 2026-09-22 hardening decisions** at the end of the spec (`docs/superpowers/specs/2026-09-22-handoff-resume-design.md`). Git scope, phase computation, placeholder markers and CLI error handling were updated during hardening M2. The remaining redesign (HANDOFF.json sidecar, backups capped at 10, staleness labelling) is milestone M4 and needs a new task list written against the current code, not this one.
