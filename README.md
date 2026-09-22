@@ -5,6 +5,7 @@ A structured workflow plugin for any code project.
 **Workflow:** brainstorm (grill) → plan → implement (ship)
 
 **Commands:**
+- `/gps scout [--from <review>]` — Turn an architecture scan, or a review you already have, into ready-to-run `/gps start` seeds
 - `/gps start <feature>` — Begin a feature
 - `/gps handoff` — Save an in-flight checkpoint before stopping
 - `/gps resume` — Catch up on a session using its checkpoint plus live state
@@ -48,6 +49,18 @@ Restart Claude Code.
 # Finish
 /gps finish
 ```
+
+### Start from an existing review
+
+Already have a code review or audit? Turn its findings into seeded sessions instead of retyping them:
+
+```
+/gps scout --from docs/reviews/2026-09-22-dotfiles-review.md
+# -> one candidate per group of related findings, e.g. "safe-bootstrap-linking  Critical · Strong"
+/gps start safe-bootstrap-linking   # brainstorming opens with those findings already loaded
+```
+
+Add a direction to narrow it: `/gps scout --from review.md only Critical and High`, or `… one candidate per finding`.
 
 ## Session Structure
 

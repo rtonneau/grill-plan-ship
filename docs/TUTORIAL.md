@@ -67,7 +67,21 @@ Scans the project for architecture candidates and prints ready-to-copy `/gps sta
 ```
 Brainstorming opens already seeded with that candidate's problem/solution — you're not starting from a blank page.
 
-## Example 4: Picking work back up later
+## Example 4: Turning an existing review into sessions
+
+You already have a review — say a dotfiles audit with findings C1, H1–H3, M1–M12, L1–L6 and an improvement plan:
+
+```
+/gps scout --from docs/reviews/2026-09-22-dotfiles-review.md
+```
+No architecture scan runs. Claude reads the review, groups related findings into one candidate per future session (following the review's own plan when it has one), and prints each with its severity and strength, e.g.:
+
+```
+/gps start safe-bootstrap-linking      Critical · Strong   C1, H1, M8, M9: installers delete config on failed links
+```
+The review is archived unchanged under `.work/sessions/scout-reports/`, and each seed records the original file's path. Want every finding as its own seed, or only the serious ones? Add a direction: `/gps scout --from review.md one candidate per finding` or `… only Critical and High`.
+
+## Example 5: Picking work back up later
 
 Stopping for the day mid-session:
 

@@ -1,6 +1,6 @@
 ---
 name: gps
-description: "grill-plan-ship: universal workflow plugin (brainstorm → plan → implement). Use for /gps scout, /gps start, /gps status, /gps write, /gps plan, /gps ticket, /gps ship, /gps finish, /gps handoff, /gps resume."
+description: "grill-plan-ship: universal workflow plugin (brainstorm → plan → implement). Use for /gps scout, /gps scout --from, /gps start, /gps status, /gps write, /gps plan, /gps ticket, /gps ship, /gps finish, /gps handoff, /gps resume."
 ---
 
 # grill-plan-ship
@@ -9,7 +9,7 @@ Universal workflow plugin: brainstorm → plan → implement.
 
 **Commands:**
 
-- `/gps scout [direction]` — Scan the codebase for architecture candidates and turn them into ready-to-use `/gps start` seeds
+- `/gps scout [--from <review-file>] [direction]` — Scan the codebase for architecture candidates, or read an existing review, and turn the result into ready-to-use `/gps start` seeds
 - `/gps start <feature-name>` — Begin a new feature
 - `/gps status` — Show every session's state and what's pending on the current one
 - `/gps write` — Write the current phase's output (brainstorm resume, or plan + tickets) to disk
@@ -31,7 +31,7 @@ This plugin orchestrates a repeatable, documented workflow for any code project:
 3. **Ship** (Session 3+) — Implement tickets one by one
 4. **Finish** — Close and summarize
 
-An optional `/gps scout` step can run before Grill to source feature candidates from an architecture review, instead of starting `/gps start` from a blank idea.
+An optional `/gps scout` step can run before Grill to source feature candidates from an architecture review (or, with `--from`, from a review you already have), instead of starting `/gps start` from a blank idea.
 
 All output lives in `.work/sessions/YYYY-MM-DD__<slug>/` with a standard structure (local date; `<slug>` is the feature name cleaned to lowercase `a-z 0-9 . _ -`).
 
@@ -49,7 +49,7 @@ All output lives in `.work/sessions/YYYY-MM-DD__<slug>/` with a standard structu
 
 `/gps` invokes these automatically as part of its own commands — you never run them yourself:
 
-- **Architecture review** — invoked by `/gps scout`. Use the first one available: `improve-codebase-architecture`, then `mattpocock-skills:codebase-design`. If neither is available, stop and tell the user to install the `mattpocock-skills` plugin.
+- **Architecture review** — invoked by `/gps scout` (not by `/gps scout --from`, which reads your review instead). Use the first one available: `improve-codebase-architecture`, then `mattpocock-skills:codebase-design`. If neither is available, stop and tell the user to install the `mattpocock-skills` plugin.
 - **brainstorming** (superpowers) — invoked by `/gps start` for ideation and spec clarification
 - **writing-plans** (superpowers) — invoked by `/gps plan` to turn the approved resume into tickets
 - **unslop** — invoked by `/gps plan` on each generated ticket for crisp language. If it isn't available, skip that step and tell the user it was skipped.
@@ -60,7 +60,7 @@ If `brainstorming` or `writing-plans` is not available, stop and tell the user t
 
 ## Commands
 
-### /gps scout [direction]
+### /gps scout [--from <review-file>] [direction]
 
 **When:** Before you know what feature to build — you want the codebase itself to suggest candidates.
 
@@ -86,6 +86,32 @@ If `brainstorming` or `writing-plans` is not available, stop and tell the user t
 /gps scout only review sim.cc
 ```
 
+#### With `--from <review-file>`
+
+**When:** A review already exists — a code review, audit or hardening report, in Markdown or any other text format — and you want its findings turned into sessions instead of retyping them.
+
+**Syntax:** `/gps scout --from <review-file> [direction]`. `--from` comes first and takes exactly one path (relative to the project root, or absolute). Everything after it is `[direction]`, e.g. `only Critical and High` or `one candidate per finding`.
+
+**What it does instead of steps 1–4 above:**
+
+1. Invokes **no** architecture-review skill and writes no HTML report — `mattpocock-skills` is not needed.
+2. Reads the review file with the Read tool. If it can't be read, stop and tell the user; never guess its content.
+3. Synthesizes seed entries with the same fields as step 3 above, plus the optional `severity`:
+   - **Group related findings into one candidate** — one candidate per future session, clustering findings that touch the same files or share a fix. If the review has its own improvement plan or grouping, follow it. If `[direction]` asks for one candidate per finding, do that instead; `[direction]` can also filter which findings count.
+   - Start each `problem` with the finding IDs it covers when the review has IDs (e.g. `C1, H1, M8, M9: …`).
+   - `severity`: the highest severity among the grouped findings, in the review's own words (`Critical`, `P0`, …; non-empty, max 32 characters). Omit it if the review has no severity scale.
+   - `strength`: your confidence the change is worth doing, informed by the review's certainty ("tested", "confirmed" → `Strong`; "plausible, verify" → `Worth exploring` or `Speculative`).
+   - `files`: the paths the review names for those findings.
+   - Open decisions the review lists go into the `problem` or `solution` of the seed they affect, so brainstorming raises them.
+4. Writes `{ "sourceDirection": "<direction>" | null, "candidates": [ ... ] }` to a temp JSON file and runs `node $CLAUDE_PLUGIN_ROOT/scripts/scout-merge.js --from <review-file> <entriesJsonPath>`. It validates and merges exactly as above, but archives the review byte-for-byte as `.work/sessions/scout-reports/review-<stem>-<timestamp><ext>` (original extension kept, write-once) and records `severity` and `sourcePath` (the original review's path, project-relative when inside the project) on every seed.
+5. Presents the summary as in step 5 above, showing `severity · strength` as the badges (just the strength when a seed has no severity).
+
+**Example:**
+
+```
+/gps scout --from docs/reviews/2026-09-22-dotfiles-review.md
+```
+
 ---
 
 ### /gps start <feature-name>
@@ -102,7 +128,7 @@ If `brainstorming` or `writing-plans` is not available, stop and tell the user t
 3. Creates `.work/sessions/YYYY-MM-DD__<slug>/01-grill/` directory
 4. Creates empty `resume.md` and `notes.md` templates
 5. Writes `.work/sessions/.current-session` pointing at this session, so later commands operate on it regardless of what other sessions exist
-6. Looks up `.work/sessions/.pending-seeds.json` for an entry whose slug matches this session's slug (e.g. `/gps start runconfig-resolver` matches a seed keyed `runconfig-resolver`, written earlier by `/gps scout`). If found, removes that entry from the seeds file — consumed seeds don't linger — and carries its `problem`/`solution`/`files`/`sourceReport` forward as the starting context for brainstorming. If no match, brainstorming starts from zero as it always has.
+6. Looks up `.work/sessions/.pending-seeds.json` for an entry whose slug matches this session's slug (e.g. `/gps start runconfig-resolver` matches a seed keyed `runconfig-resolver`, written earlier by `/gps scout`). If found, removes that entry from the seeds file — consumed seeds don't linger — and carries its `problem`/`solution`/`files`/`sourceReport` (plus `severity` and `sourcePath` for seeds from `/gps scout --from`) forward as the starting context for brainstorming. If no match, brainstorming starts from zero as it always has.
 7. Immediately invokes the `brainstorming` skill for this feature to begin the grill conversation — do not wait for or ask the user to run `/brainstorming` themselves. If a seed was found in step 6, open with that context already summarized rather than asking the user to restate it.
 
 **If brainstorming classifies the work as "bounded"** (a short in-chat design instead of a full spec/plan doc):
@@ -318,7 +344,7 @@ If `brainstorming` or `writing-plans` is not available, stop and tell the user t
 
 `/gps` commands invoke these automatically — you never run them directly:
 
-- `improve-codebase-architecture` or `mattpocock-skills:codebase-design` — invoked by `/gps scout`
+- `improve-codebase-architecture` or `mattpocock-skills:codebase-design` — invoked by `/gps scout` (skipped with `--from`)
 - `brainstorming` (superpowers) — invoked by `/gps start`
 - `writing-plans` (superpowers) — invoked by `/gps plan`
 - `unslop` — invoked by `/gps plan`, after writing-plans, for crisp language (skipped with a notice if unavailable)
