@@ -54,7 +54,7 @@ assert.strictEqual(data.currentPhase, 'grill');
 assert.strictEqual(data.activeTicket, null);
 assert.deepStrictEqual(data.ticketQueueSummary, []);
 assert.deepStrictEqual(data.gitLog, []);
-assert.deepStrictEqual(data.gitStatus, []);
+assert.deepStrictEqual(data.gitStatus, { project: [], session: [] });
 assert.ok(typeof data.timestamp === 'string' && data.timestamp.length > 0);
 
 // Fill grill, add one pending ticket -> phase is 'ship'.

@@ -9,31 +9,15 @@
  * hang this off of (unlike grill/plan, which get it from write-target.js).
  */
 
-const fs = require('fs');
-const path = require('path');
 const { computeUsage } = require('./lib/token-usage');
-const { getCurrentSessionId } = require('./lib/session-store');
+const { resolveSession } = require('./lib/session-store');
+const { GpsError, runCli } = require('./lib/guard');
 
-function main() {
+runCli(() => {
   const phaseKey = process.argv[2];
   if (!phaseKey) {
-    console.error('Usage: node token-usage.js <phaseKey>');
-    process.exit(1);
+    throw new GpsError('Missing phase key.', 'Usage: node token-usage.js <phaseKey>  (e.g. 03-01-add-thing)');
   }
-
-  const projectRoot = process.cwd();
-  const sessionsDir = path.join(projectRoot, '.work', 'sessions');
-  const currentSession = getCurrentSessionId(sessionsDir);
-
-  if (!currentSession) {
-    console.error('No sessions found. Run /gps start first.');
-    process.exit(1);
-  }
-
-  const configPath = path.join(sessionsDir, currentSession, '.session-config.json');
-  const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
-
+  const { config } = resolveSession(process.cwd());
   console.log(JSON.stringify(computeUsage(config, phaseKey), null, 2));
-}
-
-main();
+});

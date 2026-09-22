@@ -12,7 +12,12 @@ const sessionsDir = path.join(projectRoot, '.work', 'sessions');
 fs.mkdirSync(sessionsDir, { recursive: true });
 
 // No sessions at all -> empty list, no current session
-assert.deepStrictEqual(buildStatusReport(sessionsDir, projectRoot), { sessions: [], current: null });
+{
+  const empty = buildStatusReport(sessionsDir, projectRoot);
+  assert.deepStrictEqual(empty.sessions, []);
+  assert.strictEqual(empty.current, null);
+  assert.strictEqual(empty.currentProblem.code, 'no-sessions');
+}
 
 // Two sessions: an older completed one, and a newer one still in grill
 const oldSessionId = '2026-09-10__old-feature';
@@ -44,6 +49,16 @@ fs.writeFileSync(
 );
 fs.writeFileSync(path.join(newSessionDir, '01-grill', 'resume.md'), '# {{ feature-name }}\n');
 
+// No pointer yet -> sessions listed, current is null with a recovery hint (read-only, no fallback)
+{
+  const noPointer = buildStatusReport(sessionsDir, projectRoot);
+  assert.strictEqual(noPointer.sessions.length, 2);
+  assert.strictEqual(noPointer.current, null);
+  assert.strictEqual(noPointer.currentProblem.code, 'no-pointer');
+  assert.match(noPointer.currentProblem.hint, /2026-09-16__new-feature/);
+  assert.ok(!fs.existsSync(path.join(sessionsDir, '.current-session')));
+}
+
 setCurrentSession(sessionsDir, newSessionId);
 
 let report = buildStatusReport(sessionsDir, projectRoot);
@@ -53,8 +68,15 @@ assert.deepStrictEqual(
   [newSessionId, oldSessionId].sort()
 );
 
+// Phases are computed from files: the old session is finished (legacy
+// status "completed"), the new one is in grill regardless of its status field.
+assert.strictEqual(report.sessions.find((s) => s.sessionId === oldSessionId).phase, 'finished');
+assert.strictEqual(report.sessions.find((s) => s.sessionId === newSessionId).phase, 'grill');
+
 // Current session detail: grill still has placeholders -> pending 'grill'
 assert.strictEqual(report.current.sessionId, newSessionId);
+assert.strictEqual(report.current.phase, 'grill');
+assert.strictEqual(report.current.suggestedNext.command, '/gps write');
 assert.strictEqual(report.current.writeTarget.target, 'grill');
 assert.deepStrictEqual(report.current.tickets, []);
 assert.strictEqual(report.current.nextPending, null);
@@ -72,6 +94,8 @@ report = buildStatusReport(sessionsDir, projectRoot);
 assert.strictEqual(report.current.writeTarget.target, 'none');
 assert.strictEqual(report.current.tickets.length, 1);
 assert.strictEqual(report.current.nextPending.num, '01');
+assert.strictEqual(report.current.phase, 'ship');
+assert.strictEqual(report.current.suggestedNext.command, '/gps ship');
 
 // Recent commits are read from git when the project is a repo; the test
 // sandbox is a plain tempdir (no .git), so this stays an empty array

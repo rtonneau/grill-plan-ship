@@ -7,28 +7,29 @@
 
 ## Where I Stopped
 
-{{ One or two sentences: what were you doing the moment you stopped? }}
+<!-- gps:fill One or two sentences: what were you doing the moment you stopped? -->
 
 ## Reasoning So Far
 
-{{ Approach taken, alternatives considered and rejected, and why }}
+<!-- gps:fill Approach taken, alternatives considered and rejected, and why -->
 
 ## Next Step
 
-{{ The exact, concrete action to take first when resuming }}
+<!-- gps:fill The exact, concrete action to take first when resuming -->
 
 ## Open Questions
 
-{{ Anything blocked on user input, or unresolved choices }}
+<!-- gps:fill Anything blocked on user input, or unresolved choices -->
 
 ## Settled Decisions (do not re-litigate)
 
-{{ Choices already made and why }}
+<!-- gps:fill Choices already made and why -->
 
 ## Uncommitted Work
 
-- **Git status:** {{ git-status-summary }}
-- **Why not committed:** {{ reason, or "n/a" if git status is clean }}
+- **Git status (project):** {{ git-status-project }}
+- **Git status (session dir):** {{ git-status-session }}
+- **Why not committed:** <!-- gps:fill reason, or "n/a" if both git statuses are clean -->
 
 ## Machine State (auto-filled)
 

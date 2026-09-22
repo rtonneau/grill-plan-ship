@@ -16,8 +16,9 @@
 const fs = require('fs');
 const path = require('path');
 const { loadTemplate, renderTemplate } = require('./lib/templates');
-const { getCurrentSessionId } = require('./lib/session-store');
+const { resolveSession } = require('./lib/session-store');
 const { buildHandoffData } = require('./lib/handoff');
+const { runCli } = require('./lib/guard');
 
 function formatGitStatus(gitStatus) {
   if (gitStatus.length === 0) return 'clean';
@@ -30,15 +31,7 @@ function formatList(items, emptyText) {
 
 function main() {
   const projectRoot = process.cwd();
-  const sessionsDir = path.join(projectRoot, '.work', 'sessions');
-  const currentSession = getCurrentSessionId(sessionsDir);
-
-  if (!currentSession) {
-    console.error('No sessions found. Run /gps start first.');
-    process.exit(1);
-  }
-
-  const sessionDir = path.join(sessionsDir, currentSession);
+  const { sessionDir } = resolveSession(projectRoot);
   const data = buildHandoffData(sessionDir, projectRoot);
 
   const rendered = renderTemplate(loadTemplate('handoff.md'), {
@@ -47,7 +40,8 @@ function main() {
     timestamp: data.timestamp,
     'current-phase': data.currentPhase,
     'active-ticket': data.activeTicket || 'none',
-    'git-status-summary': formatGitStatus(data.gitStatus),
+    'git-status-project': formatGitStatus(data.gitStatus.project),
+    'git-status-session': formatGitStatus(data.gitStatus.session),
     'ticket-queue-summary': formatList(data.ticketQueueSummary, 'no tickets yet'),
     'git-log': formatList(data.gitLog, 'no commits yet'),
   });
@@ -55,7 +49,7 @@ function main() {
   const handoffPath = path.join(sessionDir, 'HANDOFF.md');
   fs.writeFileSync(handoffPath, rendered);
 
-  console.log(`Handoff saved: ${handoffPath}`);
+  console.log(`✅ Handoff saved: ${handoffPath}`);
   console.log(JSON.stringify(data, null, 2));
   console.log(
     '\nFill in the remaining sections directly in HANDOFF.md before ending this session: ' +
@@ -64,4 +58,4 @@ function main() {
   );
 }
 
-main();
+runCli(main);

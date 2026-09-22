@@ -5,9 +5,16 @@ const os = require('os');
 const path = require('path');
 const { mangleCwd, touchPhase, computeUsage } = require('./token-usage');
 
-// mangleCwd replaces each :, \, / with -
+// mangleCwd replaces every non-alphanumeric character with - (matches the
+// folder names Claude Code actually creates under ~/.claude/projects)
 assert.strictEqual(mangleCwd('C:\\DEV\\AICODE\\grill-plan-ship'), 'C--DEV-AICODE-grill-plan-ship');
 assert.strictEqual(mangleCwd('/home/user/project'), '-home-user-project');
+assert.strictEqual(
+  mangleCwd('C:\\DEV\\AICODE\\grill-plan-ship\\.claude\\worktrees\\handoff-resume'),
+  'C--DEV-AICODE-grill-plan-ship--claude-worktrees-handoff-resume'
+);
+assert.strictEqual(mangleCwd('C:\\DEV\\geant4-v11.4.1-source'), 'C--DEV-geant4-v11-4-1-source');
+assert.strictEqual(mangleCwd('D:\\Université de Namur\\x_y'), 'D--Universit--de-Namur-x-y');
 
 // touchPhase: first touch sets startedAt and records the session id
 const originalSessionId = process.env.CLAUDE_CODE_SESSION_ID;
@@ -83,6 +90,47 @@ assert.deepStrictEqual(result, {
   cacheCreation: 1,
   total: 10 + 3 + 100 + 20 + 4 + 5 + 1,
 });
+
+// computeUsage: lines repeating the same message.id are counted once, and
+// sub-agent transcripts under <sessionId>/subagents/ are included
+function idLine(id, timestamp, usage) {
+  return JSON.stringify({ type: 'assistant', timestamp, message: { id, usage } });
+}
+const u = (input, output) => ({ input_tokens: input, output_tokens: output, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 });
+fs.writeFileSync(
+  path.join(transcriptsDir, 'session-c.jsonl'),
+  [
+    idLine('msg_1', '2026-09-18T09:01:00.000Z', u(10, 5)),
+    idLine('msg_1', '2026-09-18T09:01:01.000Z', u(10, 5)), // same response, second content block
+    idLine('msg_1', '2026-09-18T09:01:02.000Z', u(10, 5)),
+    idLine('msg_2', '2026-09-18T09:02:00.000Z', u(1, 1)),
+  ].join('\n')
+);
+fs.mkdirSync(path.join(transcriptsDir, 'session-c', 'subagents'), { recursive: true });
+fs.writeFileSync(
+  path.join(transcriptsDir, 'session-c', 'subagents', 'agent-x.jsonl'),
+  [
+    idLine('msg_sub', '2026-09-18T09:03:00.000Z', u(100, 50)),
+    idLine('msg_sub', '2026-09-18T09:03:01.000Z', u(100, 50)),
+  ].join('\n')
+);
+fs.writeFileSync(path.join(transcriptsDir, 'session-c', 'subagents', 'agent-x.meta.json'), '{}');
+const deduped = computeUsage(
+  { usage: { plan: { startedAt: '2026-09-18T09:00:00.000Z', sessionIds: ['session-c'] } } },
+  'plan',
+  transcriptsDir
+);
+assert.deepStrictEqual(deduped, {
+  available: true, input: 111, output: 56, cacheRead: 0, cacheCreation: 0, total: 167,
+});
+
+// a session with only sub-agent transcripts still reports usage
+fs.mkdirSync(path.join(transcriptsDir, 'session-d', 'subagents'), { recursive: true });
+fs.writeFileSync(path.join(transcriptsDir, 'session-d', 'subagents', 'agent-y.jsonl'), idLine('m', '2026-09-18T09:03:00.000Z', u(2, 2)));
+assert.strictEqual(
+  computeUsage({ usage: { plan: { startedAt: '2026-09-18T09:00:00.000Z', sessionIds: ['session-d'] } } }, 'plan', transcriptsDir).total,
+  4
+);
 
 fs.rmSync(transcriptsDir, { recursive: true, force: true });
 console.log('token-usage.test.js: all assertions passed');

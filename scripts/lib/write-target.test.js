@@ -3,7 +3,7 @@ const assert = require('assert');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-const { resolveWriteTarget } = require('./write-target');
+const { resolveWriteTarget, placeholderTester } = require('./write-target');
 
 const sessionDir = fs.mkdtempSync(path.join(os.tmpdir(), 'gps-write-target-'));
 const grillDir = path.join(sessionDir, '01-grill');
@@ -47,4 +47,30 @@ assert.strictEqual(result.target, 'none');
 assert.strictEqual(result.reason, 'complete');
 
 fs.rmSync(sessionDir, { recursive: true, force: true });
+
+// template_version 2: only <!-- gps:fill --> markers count; legitimate
+// {{ ... }} content (Vue, Jinja, ...) no longer blocks the phase.
+{
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'gps-write-target-v2-'));
+  fs.mkdirSync(path.join(dir, '01-grill'), { recursive: true });
+  fs.writeFileSync(path.join(dir, '.session-config.json'), JSON.stringify({ template_version: 2 }));
+  const resume = path.join(dir, '01-grill', 'resume.md');
+
+  fs.writeFileSync(resume, '## Problem\n\n<!-- gps:fill What are we solving? -->\n');
+  assert.strictEqual(resolveWriteTarget(dir).target, 'grill');
+
+  fs.writeFileSync(resume, '## Problem\n\nRender `{{ user.name }}` in the Vue header.\n');
+  assert.strictEqual(resolveWriteTarget(dir).target, 'none');
+
+  // A plain HTML comment is not a placeholder either
+  fs.writeFileSync(resume, '## Problem\n\n<!-- reviewer note -->\nDone.\n');
+  assert.strictEqual(resolveWriteTarget(dir).target, 'none');
+
+  const tester = placeholderTester(dir);
+  assert.ok(tester('<!--gps:fill x-->'));
+  assert.ok(!tester('{{ x }}'));
+  assert.ok(placeholderTester(path.join(dir, 'no-config'))('{{ x }}')); // legacy default
+  fs.rmSync(dir, { recursive: true, force: true });
+}
+
 console.log('write-target.test.js: all assertions passed');
