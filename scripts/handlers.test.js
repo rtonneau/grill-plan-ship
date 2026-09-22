@@ -141,6 +141,69 @@ function markDone(root, implName) {
   assert.deepStrictEqual(fs.readdirSync(path.join(planDir, 'tickets')), ['01-a.md']);
 }
 
+// --------------------------------------------------------------- ticket
+
+{
+  const root = tempProject();
+  run(root, 'start-session.js', 'tickets');
+
+  // F-010: no plan yet -> clear error, no stack trace
+  const noPlan = run(root, 'ticket.js', '1');
+  assert.strictEqual(noPlan.code, 1);
+  assert.match(noPlan.err, /no tickets yet/);
+  assert.doesNotMatch(noPlan.err, /\n\s+at /);
+
+  writeResume(root);
+  run(root, 'plan.js');
+
+  // F-006: stubs exist but plan not written -> refuse instead of picking 01-[slug]
+  const stub = run(root, 'ticket.js', '1');
+  assert.strictEqual(stub.code, 1);
+  assert.match(stub.err, /\/gps write/);
+
+  writePlan(root, ['a', 'b']);
+
+  // invalid numbers
+  assert.strictEqual(run(root, 'ticket.js', 'abc').code, 1);
+  assert.strictEqual(run(root, 'ticket.js').code, 1);
+  assert.match(run(root, 'ticket.js', '9').err, /Ticket 9 not found/);
+
+  // "001" and "1" both find ticket 01
+  const first = run(root, 'ticket.js', '001');
+  assert.strictEqual(first.code, 0, first.err);
+  assert.match(first.out, /Do a\./);
+
+  // unfinished ticket: existing log is kept, spec printed again
+  const logPath = path.join(sessionsDir(root), currentSession(root), '03-implement', '01-a', 'commit-log.md');
+  fs.appendFileSync(logPath, '\nWORK IN PROGRESS NOTES\n');
+  const resumeTicket = run(root, 'ticket.js', '1');
+  assert.strictEqual(resumeTicket.code, 0, resumeTicket.err);
+  assert.match(resumeTicket.out, /existing log kept/);
+  assert.match(fs.readFileSync(logPath, 'utf-8'), /WORK IN PROGRESS NOTES/);
+
+  // F-004: a Done ticket is never reset
+  markDone(root, '01-a');
+  const doneBefore = fs.readFileSync(logPath, 'utf-8');
+  const again = run(root, 'ticket.js', '1');
+  assert.strictEqual(again.code, 0, again.err);
+  assert.match(again.out, /already Done/);
+  assert.strictEqual(fs.readFileSync(logPath, 'utf-8'), doneBefore);
+}
+
+{
+  // Duplicate numbers: all valid; first not-done in alphabetical order is picked
+  const root = tempProject();
+  run(root, 'start-session.js', 'dups');
+  writeResume(root);
+  run(root, 'plan.js');
+  writePlan(root, ['x']);
+  const ticketsDir = path.join(sessionsDir(root), currentSession(root), '02-plan', 'tickets');
+  fs.writeFileSync(path.join(ticketsDir, '01-y.md'), '# Ticket 01: y\n\nDo y.\n');
+  assert.match(run(root, 'ticket.js', '1').out, /Do x\./);
+  markDone(root, '01-x');
+  assert.match(run(root, 'ticket.js', '1').out, /Do y\./);
+}
+
 {
   // No .work/sessions at all -> clear error, no stack trace
   const root = tempProject();

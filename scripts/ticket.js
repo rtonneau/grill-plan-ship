@@ -3,86 +3,109 @@
 /**
  * /gps ticket <number>
  *
- * Reads ticket spec, creates implementation directory, prints spec
+ * Reads ticket spec, creates implementation directory, prints spec.
+ *
+ * - Refuses to run until the plan phase is written (no stub tickets).
+ * - An existing commit-log.md is never overwritten: a Done ticket is
+ *   reported and left alone; an unfinished one keeps its log and the spec
+ *   is printed again.
+ * - Several files with the same number are all valid tickets; the first
+ *   not-yet-done one (alphabetical filename order) is picked.
  */
 
 const fs = require('fs');
 const path = require('path');
 const { loadTemplate, renderTemplate } = require('./lib/templates');
-const { getCurrentSessionId } = require('./lib/session-store');
-const { parseTicketFilename } = require('./lib/ticket-queue');
+const { resolveSession } = require('./lib/session-store');
+const { parseTicketFilename, isTicketDone } = require('./lib/ticket-queue');
+const { resolveWriteTarget } = require('./lib/write-target');
 const { touchPhase } = require('./lib/token-usage');
 const { ensureScratchDir } = require('./lib/scratch-dir');
+const { GpsError, isSlug, writeJsonAtomic, runCli } = require('./lib/guard');
 
-function getTicket(ticketNum) {
-  const projectRoot = process.cwd();
-  const sessionsDir = path.join(projectRoot, '.work', 'sessions');
-  const currentSession = getCurrentSessionId(sessionsDir);
-
-  if (!currentSession) {
-    console.error('No sessions found. Run /gps start first.');
-    process.exit(1);
+function findTicket(sessionDir, ticketNum) {
+  const ticketsDir = path.join(sessionDir, '02-plan', 'tickets');
+  if (!fs.existsSync(ticketsDir)) {
+    throw new GpsError('This session has no tickets yet.', 'Run /gps plan, then /gps write, then /gps ticket <N>.');
   }
 
-  const ticketsDir = path.join(sessionsDir, currentSession, '02-plan', 'tickets');
-
-  const ticketFiles = fs.readdirSync(ticketsDir)
-    .filter((f) => f.startsWith(ticketNum.toString().padStart(2, '0') + '-'))
-    .sort();
-
-  if (ticketFiles.length === 0) {
-    console.error(`Ticket ${ticketNum} not found.`);
-    process.exit(1);
+  const writeTarget = resolveWriteTarget(sessionDir).target;
+  if (writeTarget === 'grill') {
+    throw new GpsError('The grill phase is not written yet.', 'Run /gps write, then /gps plan.');
+  }
+  if (writeTarget === 'plan') {
+    throw new GpsError('The plan and tickets are not written yet.', 'Run /gps write to save them, then /gps ticket <N>.');
   }
 
-  const ticketPath = path.join(ticketsDir, ticketFiles[0]);
-  const ticketContent = fs.readFileSync(ticketPath, 'utf-8');
-  const { slug } = parseTicketFilename(ticketFiles[0]);
+  const candidates = fs.readdirSync(ticketsDir)
+    .filter((f) => f.endsWith('.md'))
+    .sort()
+    .map((fileName) => ({ fileName, parsed: parseTicketFilename(fileName) }))
+    .filter(({ parsed }) => parsed && isSlug(parsed.slug) && Number(parsed.num) === ticketNum)
+    .map(({ fileName, parsed }) => {
+      const implName = `${parsed.num}-${parsed.slug}`;
+      const implDir = path.join(sessionDir, '03-implement', implName);
+      return {
+        fileName,
+        ...parsed,
+        ticketPath: path.join(ticketsDir, fileName),
+        implDir,
+        commitLogPath: path.join(implDir, 'commit-log.md'),
+      };
+    });
 
-  return { ticketContent, slug, currentSession };
+  if (candidates.length === 0) {
+    throw new GpsError(`Ticket ${ticketNum} not found.`, 'Run /gps ship or /gps status to list the tickets.');
+  }
+  return candidates.find((t) => !isTicketDone(t.commitLogPath)) || candidates[0];
 }
 
 function implementTicket(ticketNum) {
   const projectRoot = process.cwd();
-  const { ticketContent, slug, currentSession } = getTicket(ticketNum);
+  const { sessionId, sessionDir, configPath, config } = resolveSession(projectRoot);
+  const ticket = findTicket(sessionDir, ticketNum);
+  const phaseKey = `03-${ticket.num}-${ticket.slug}`;
 
-  const sessionDir = path.join(projectRoot, '.work', 'sessions', currentSession);
-  const ticketNumPadded = ticketNum.toString().padStart(2, '0');
-  const phaseKey = `03-${ticketNumPadded}-${slug}`;
-  const implDir = path.join(sessionDir, '03-implement', `${ticketNumPadded}-${slug}`);
+  if (isTicketDone(ticket.commitLogPath)) {
+    console.log(`✅ Ticket ${ticket.num} (${ticket.slug}) is already Done; nothing was changed.`);
+    console.log(`Log file: ${ticket.commitLogPath}`);
+    return;
+  }
 
-  fs.mkdirSync(implDir, { recursive: true });
+  fs.mkdirSync(ticket.implDir, { recursive: true });
 
-  const configPath = path.join(sessionDir, '.session-config.json');
-  const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
   touchPhase(config, phaseKey);
-  // Sessions started before scratch dirs existed have no scratch_dir; backfill.
-  const scratchDir = ensureScratchDir(projectRoot, currentSession);
+  if (!config.scratch_dir) {
+    console.error(`⚠️  ${sessionId} predates scratch dirs; adding scratch_dir to its config.`);
+  }
+  const scratchDir = ensureScratchDir(projectRoot, sessionId);
   config.scratch_dir = scratchDir;
-  fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
+  writeJsonAtomic(configPath, config);
 
-  const logContent = renderTemplate(loadTemplate('03-implement-log.md'), {
-    N: ticketNumPadded,
-  });
-  fs.writeFileSync(path.join(implDir, 'commit-log.md'), logContent);
+  const logExisted = fs.existsSync(ticket.commitLogPath);
+  if (!logExisted) {
+    const logContent = renderTemplate(loadTemplate('03-implement-log.md'), { N: ticket.num });
+    fs.writeFileSync(ticket.commitLogPath, logContent);
+  }
 
+  const ticketContent = fs.readFileSync(ticket.ticketPath, 'utf-8');
   console.log('\n' + '='.repeat(70));
-  console.log(`TICKET SPEC - ${ticketNumPadded}`);
+  console.log(`TICKET SPEC - ${ticket.num}`);
   console.log('='.repeat(70) + '\n');
   console.log(ticketContent);
   console.log('\n' + '='.repeat(70));
-  console.log(`Working directory: ${implDir}`);
-  console.log(`Scratch dir: ${scratchDir}  (all build/run/test output goes here; prefix files with ${ticketNumPadded}-)`);
-  console.log(`Log file: ${path.join(implDir, 'commit-log.md')}`);
+  console.log(`Working directory: ${ticket.implDir}`);
+  console.log(`Scratch dir: ${scratchDir}  (all build/run/test output goes here; prefix files with ${ticket.num}-)`);
+  console.log(`Log file: ${ticket.commitLogPath}${logExisted ? '  (existing log kept — resume from it)' : ''}`);
   console.log(`Token usage phase key: ${phaseKey}`);
   console.log('\nImplement in Claude Code, test locally, save results to commit-log.md');
   console.log('='.repeat(70) + '\n');
 }
 
-const ticketNum = process.argv[2];
-if (!ticketNum) {
-  console.error('Usage: /gps ticket <number>');
-  process.exit(1);
-}
-
-implementTicket(ticketNum);
+runCli(() => {
+  const arg = process.argv[2];
+  if (!arg || !/^\d+$/.test(arg)) {
+    throw new GpsError('Missing or invalid ticket number.', 'Usage: /gps ticket <number>  (e.g. /gps ticket 3)');
+  }
+  implementTicket(Number(arg));
+});
