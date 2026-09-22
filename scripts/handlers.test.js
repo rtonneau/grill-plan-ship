@@ -204,6 +204,76 @@ function markDone(root, implName) {
   assert.match(run(root, 'ticket.js', '1').out, /Do y\./);
 }
 
+// --------------------------------------------------------------- finish
+
+{
+  const root = tempProject();
+  run(root, 'start-session.js', 'older');
+  const olderId = currentSession(root);
+  run(root, 'start-session.js', 'fin');
+  const id = currentSession(root);
+  const sessionDir = path.join(sessionsDir(root), id);
+  const indexPath = path.join(sessionDir, 'INDEX.md');
+
+  // grill not written -> refused
+  assert.match(run(root, 'finish.js').err, /grill phase is not written/);
+
+  writeResume(root);
+  run(root, 'plan.js');
+  // plan pending -> refused
+  assert.match(run(root, 'finish.js').err, /plan and tickets are not written/);
+
+  writePlan(root, ['a', 'b']);
+  run(root, 'ticket.js', '1');
+  markDone(root, '01-a');
+
+  // F-005: pending tickets -> refused, nothing changed
+  const indexBefore = fs.readFileSync(indexPath, 'utf-8');
+  const pending = run(root, 'finish.js');
+  assert.strictEqual(pending.code, 1);
+  assert.match(pending.err, /1 of 2 ticket\(s\) not Done: 02-b/);
+  assert.strictEqual(fs.readFileSync(indexPath, 'utf-8'), indexBefore);
+  assert.strictEqual(currentSession(root), id);
+
+  run(root, 'ticket.js', '2');
+  markDone(root, '02-b');
+  const done = run(root, 'finish.js');
+  assert.strictEqual(done.code, 0, done.err);
+  const index = fs.readFileSync(indexPath, 'utf-8');
+  assert.match(index, /✅ 01 a/);
+  assert.match(index, /✅ 02 b/);
+  const config = JSON.parse(fs.readFileSync(path.join(sessionDir, '.session-config.json'), 'utf-8'));
+  assert.ok(config.finished_at);
+  // pointer cleared, unfinished sessions listed
+  assert.ok(!fs.existsSync(path.join(sessionsDir(root), '.current-session')));
+  const listed = JSON.parse(done.out.match(/UNFINISHED_SESSIONS (.*)/)[1]);
+  assert.deepStrictEqual(listed.map((s) => s.sessionId), [olderId]);
+
+  // finished session is not picked implicitly; finishing it again is an error
+  assert.strictEqual(run(root, 'set-current.js', id).code, 1);
+  fs.writeFileSync(path.join(sessionsDir(root), '.current-session'), id);
+  const twice = run(root, 'finish.js');
+  assert.strictEqual(twice.code, 1);
+  assert.match(twice.err, /already finished/);
+
+  // set-current switches to an unfinished session and rejects bad ids
+  const switched = run(root, 'set-current.js', olderId);
+  assert.strictEqual(switched.code, 0, switched.err);
+  assert.strictEqual(currentSession(root), olderId);
+  assert.strictEqual(run(root, 'set-current.js', '../../x').code, 1);
+  assert.strictEqual(run(root, 'set-current.js', '2026-01-01__missing').code, 1);
+}
+
+{
+  // Bounded session: resume written, no plan -> may finish
+  const root = tempProject();
+  run(root, 'start-session.js', 'bounded');
+  writeResume(root);
+  const res = run(root, 'finish.js');
+  assert.strictEqual(res.code, 0, res.err);
+  assert.match(fs.readFileSync(path.join(sessionsDir(root), fs.readdirSync(sessionsDir(root)).find((f) => f.endsWith('__bounded')), 'INDEX.md'), 'utf-8'), /bounded/);
+}
+
 // ---------------------------------------------------------------- scout
 
 {

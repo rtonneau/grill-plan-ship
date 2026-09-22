@@ -9,6 +9,10 @@ function setCurrentSession(sessionsDir, sessionId) {
   fs.writeFileSync(path.join(sessionsDir, CURRENT_SESSION_FILENAME), sessionId, 'utf-8');
 }
 
+function clearCurrentSession(sessionsDir) {
+  fs.rmSync(path.join(sessionsDir, CURRENT_SESSION_FILENAME), { force: true });
+}
+
 function listSessionDirs(sessionsDir) {
   return fs.readdirSync(sessionsDir, { withFileTypes: true })
     .filter((entry) => entry.isDirectory())
@@ -16,24 +20,44 @@ function listSessionDirs(sessionsDir) {
     .map((entry) => entry.name);
 }
 
-function readCreatedAt(sessionsDir, sessionId) {
+function readConfigOrNull(sessionsDir, sessionId) {
   const configPath = path.join(sessionsDir, sessionId, '.session-config.json');
   if (!fs.existsSync(configPath)) return null;
   try {
-    return JSON.parse(fs.readFileSync(configPath, 'utf-8')).created_at || null;
+    return JSON.parse(fs.readFileSync(configPath, 'utf-8'));
   } catch (_err) {
     return null;
   }
 }
 
+function isFinished(config) {
+  return Boolean(config && (config.finished_at || config.status === 'completed'));
+}
+
+// Sessions that /gps finish has not closed, newest first.
+function listUnfinishedSessions(sessionsDir) {
+  if (!fs.existsSync(sessionsDir)) return [];
+  return listSessionDirs(sessionsDir)
+    .map((sessionId) => ({ sessionId, config: readConfigOrNull(sessionsDir, sessionId) }))
+    .filter(({ config }) => !isFinished(config))
+    .map(({ sessionId, config }) => ({
+      sessionId,
+      featureName: config ? config.feature_name : null,
+      createdAt: config ? config.created_at : null,
+    }))
+    .sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
+}
+
 function mostRecentByCreatedAt(sessionsDir) {
-  const sessions = listSessionDirs(sessionsDir);
+  // Finished sessions are never picked implicitly.
+  const sessions = listSessionDirs(sessionsDir)
+    .filter((name) => !isFinished(readConfigOrNull(sessionsDir, name)));
   if (sessions.length === 0) return null;
 
-  const withTimestamps = sessions.map((name) => ({
-    name,
-    createdAt: readCreatedAt(sessionsDir, name),
-  }));
+  const withTimestamps = sessions.map((name) => {
+    const config = readConfigOrNull(sessionsDir, name);
+    return { name, createdAt: config ? config.created_at || null : null };
+  });
 
   withTimestamps.sort((a, b) => {
     if (a.createdAt && b.createdAt) return a.createdAt < b.createdAt ? 1 : -1;
@@ -82,6 +106,9 @@ function resolveSession(projectRoot) {
 module.exports = {
   CURRENT_SESSION_FILENAME,
   setCurrentSession,
+  clearCurrentSession,
+  isFinished,
+  listUnfinishedSessions,
   listSessionDirs,
   getCurrentSessionId,
   markPhaseCompleted,
