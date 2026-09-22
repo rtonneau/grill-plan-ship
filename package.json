@@ -10,6 +10,12 @@
   ],
   "author": "rtonneau",
   "license": "MIT",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "test": "node scripts/run-tests.js"
+  },
   "peerDependencies": {
     "superpowers:brainstorming": "*",
     "superpowers:writing-plans": "*",
