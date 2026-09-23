@@ -36,6 +36,23 @@ function readSeeds(sessionsDir) {
   return seeds;
 }
 
+// Read-only variant for /gps status: never quarantines. Returns
+// { seeds, problem } where problem is null or why the file was unreadable.
+function peekSeeds(sessionsDir) {
+  const filePath = seedsPath(sessionsDir);
+  if (!fs.existsSync(filePath)) return { seeds: {}, problem: null };
+  let seeds;
+  try {
+    seeds = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
+  } catch (err) {
+    return { seeds: {}, problem: err.message };
+  }
+  if (!seeds || typeof seeds !== 'object' || Array.isArray(seeds)) {
+    return { seeds: {}, problem: 'not a JSON object' };
+  }
+  return { seeds, problem: null };
+}
+
 function writeSeeds(sessionsDir, seeds) {
   fs.mkdirSync(sessionsDir, { recursive: true });
   writeJsonAtomic(seedsPath(sessionsDir), seeds);
@@ -63,4 +80,4 @@ function removeSeed(sessionsDir, slug) {
   return true;
 }
 
-module.exports = { SEEDS_FILENAME, mergeSeeds, getSeed, removeSeed };
+module.exports = { SEEDS_FILENAME, mergeSeeds, getSeed, removeSeed, peekSeeds };
