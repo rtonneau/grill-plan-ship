@@ -73,6 +73,19 @@ const PLAN_PAYLOAD = [
   assert.deepStrictEqual(parsePayload(PLAN_PAYLOAD.replace(/\n/g, '\r\n')), p);
 }
 
+// Fences: an unclosed fence is an error; mixed or longer fences don't close early
+{
+  const unclosed = parsePayload('## Strategy\nx\n--- ticket: 01-a ---\n```bash\nrun\n--- ticket: 02-b ---\nDo b.\n');
+  assert.ok(unclosed.errors.some((e) => /Unclosed code fence opened at payload line 4/.test(e)), unclosed.errors);
+
+  const mixed = parsePayload('--- ticket: 01-a ---\n```\n~~~\n--- ticket: 02-b ---\n```\n--- ticket: 03-c ---\nc\n');
+  assert.deepStrictEqual(mixed.tickets.map((t) => t.name), ['01-a', '03-c']);
+  assert.deepStrictEqual(mixed.errors, []);
+
+  const nested = splitSections('## A\n````md\n```\n## inside\n```\n````\n## B\nb\n');
+  assert.deepStrictEqual(nested.sections.map((s) => s.heading), ['A', 'B']);
+}
+
 // parsePayload: invalid ticket name
 {
   const p = parsePayload('## Strategy\nx\n--- ticket: Add Parser ---\nbody\n');

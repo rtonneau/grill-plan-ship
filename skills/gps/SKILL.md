@@ -33,7 +33,7 @@ All output lives in `.work/sessions/YYYY-MM-DD__<slug>/` (local date; `<slug>` i
 ## Rules for every command
 
 - Every command runs its handler script with the exact `node $CLAUDE_PLUGIN_ROOT/scripts/<name>.js` line given in its references file. **Never create, edit or delete session state by hand** (`.session-config.json`, `.current-session`, `.pending-seeds.json`, directories) to stand in for a handler.
-- If a handler exits non-zero, it prints `❌ <what failed>` and a recovery hint on the next line. Show both to the user and stop that command — do not retry with different arguments or work around it.
+- If a handler exits non-zero, it prints `❌ <what failed>` and a recovery hint on the next line. Show both to the user and stop that command — do not retry with different arguments or work around it, unless its references file says how to recover (e.g. `/gps write` payload errors).
 - Handlers never overwrite existing work: re-running `/gps start`, `/gps plan`, `/gps ticket` or `/gps finish` against existing output either refuses (changing nothing) or resumes, as described per command.
 
 ## Switching the current session (internal, no `/gps` command)

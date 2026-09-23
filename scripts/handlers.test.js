@@ -585,6 +585,8 @@ function markDone(root, implName) {
   }
 
   assert.ok(skill.includes('references/<command>.md'), 'SKILL.md must route to references/<command>.md');
+  // the stop-on-❌ rule must leave room for write.md's fix-the-payload-and-rerun step
+  assert.match(skill, /unless its references file says how to recover/);
   assert.ok(skill.split('\n').length <= 70, 'SKILL.md router must stay short');
   assert.ok(fs.readFileSync(path.join(refsDir, 'write.md'), 'utf-8').split('\n').length <= 50, 'write.md must stay short');
 }

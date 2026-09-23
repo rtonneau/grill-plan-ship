@@ -18,7 +18,8 @@ const TOKEN_USAGE_HEADING = 'Token Usage';
 
 const HEADING_RE = /^## (.+?)\s*$/;
 const TICKET_SEPARATOR_RE = /^--- ticket: (.*?) ---\s*$/;
-const FENCE_RE = /^\s*(```|~~~)/;
+const FENCE_OPEN_RE = /^\s*(`{3,}|~{3,})/;
+const FENCE_CLOSE_RE = /^\s*(`{3,}|~{3,})\s*$/;
 // "**Label:** value" lines above the first heading, e.g. "**Estimated effort:**".
 const FIELD_RE = /^\*\*([^*]+?):\*\*\s*(.*)$/;
 const UNFILLED_RE = /<!--\s*gps:fill\b|\{\{[^}]+\}\}/;
@@ -32,6 +33,29 @@ function toLines(text) {
   return text.replace(/\r\n/g, '\n').split('\n');
 }
 
+// Tracks fenced code blocks the CommonMark way: a fence closes only on a
+// bare line of the same character, at least as long as the opening one,
+// so "~~~" inside a ``` block or ``` inside a ```` block stays content.
+function fenceTracker() {
+  let open = null;
+  return {
+    // True when the line is a fence line or inside a fenced block.
+    inCode(line, lineNumber) {
+      if (open) {
+        const close = line.match(FENCE_CLOSE_RE);
+        if (close && close[1][0] === open.char && close[1].length >= open.length) open = null;
+        return true;
+      }
+      const start = line.match(FENCE_OPEN_RE);
+      if (start) open = { char: start[1][0], length: start[1].length, lineNumber };
+      return Boolean(start);
+    },
+    get open() {
+      return open;
+    },
+  };
+}
+
 // Splits markdown into the text before the first "## " heading and one
 // { heading, body } per heading. Headings inside fenced code blocks are
 // content, not headings.
@@ -39,11 +63,10 @@ function splitSections(text) {
   const preamble = [];
   const sections = [];
   let current = null;
-  let inFence = false;
+  const fence = fenceTracker();
 
   for (const line of toLines(text)) {
-    if (FENCE_RE.test(line)) inFence = !inFence;
-    const heading = !inFence && line.match(HEADING_RE);
+    const heading = !fence.inCode(line) && line.match(HEADING_RE);
     if (heading) {
       current = { heading: heading[1], lines: [] };
       sections.push(current);
@@ -68,11 +91,10 @@ function parsePayload(text) {
   const head = [];
   const tickets = [];
   let ticket = null;
-  let inFence = false;
+  const fence = fenceTracker();
 
-  for (const line of toLines(text)) {
-    if (FENCE_RE.test(line)) inFence = !inFence;
-    const separator = !inFence && line.match(TICKET_SEPARATOR_RE);
+  toLines(text).forEach((line, index) => {
+    const separator = !fence.inCode(line, index + 1) && line.match(TICKET_SEPARATOR_RE);
     if (separator) {
       const name = separator[1].trim();
       if (!parseTicketFilename(`${name}.md`)) {
@@ -85,6 +107,12 @@ function parsePayload(text) {
     } else {
       head.push(line);
     }
+  });
+
+  // An unclosed fence would silently swallow every later ticket.
+  if (fence.open) {
+    const { char, length, lineNumber } = fence.open;
+    errors.push(`Unclosed code fence opened at payload line ${lineNumber}: close it with ${char.repeat(length)}.`);
   }
 
   const { preamble, sections } = splitSections(head.join('\n'));
