@@ -28,7 +28,11 @@ GPS phases and outputs at a glance, including `/gps write` checkpoints after GRI
 /plugin install grill-plan-ship
 ```
 
-Restart Claude Code.
+Restart Claude Code. To update later:
+
+```
+/plugin marketplace update rtonneau/grill-plan-ship
+```
 
 ## Quick Start
 

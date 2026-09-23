@@ -555,4 +555,38 @@ function markDone(root, implName) {
   assert.strictEqual(JSON.parse(run(root, 'ticket-queue.js').out).nextPending.slug, 'a');
 }
 
+{
+  // SKILL.md router: every command has a references file carrying its handler lines
+  const skillDir = path.join(SCRIPTS, '..', 'skills', 'gps');
+  const skill = fs.readFileSync(path.join(skillDir, 'SKILL.md'), 'utf-8');
+  const listed = [...skill.matchAll(/^- `\/gps (\w+)/gm)].map((m) => m[1]).sort();
+  const refsDir = path.join(skillDir, 'references');
+  const files = fs.readdirSync(refsDir).map((f) => f.replace(/\.md$/, '')).sort();
+  assert.deepStrictEqual(files, listed);
+
+  const handlers = {
+    scout: ['scout-merge.js'],
+    start: ['start-session.js'],
+    status: ['status.js'],
+    handoff: ['handoff.js'],
+    resume: ['resume.js'],
+    write: ['write-target.js', 'write-apply.js'],
+    plan: ['plan.js'],
+    ticket: ['ticket.js'],
+    ship: ['ticket-queue.js', 'ticket.js', 'token-usage.js'],
+    finish: ['finish.js', 'set-current.js'],
+  };
+  assert.deepStrictEqual(Object.keys(handlers).sort(), listed);
+  for (const [command, scripts] of Object.entries(handlers)) {
+    const doc = fs.readFileSync(path.join(refsDir, `${command}.md`), 'utf-8');
+    for (const script of scripts) {
+      assert.ok(doc.includes(`node $CLAUDE_PLUGIN_ROOT/scripts/${script}`), `${command}.md must reference ${script}`);
+    }
+  }
+
+  assert.ok(skill.includes('references/<command>.md'), 'SKILL.md must route to references/<command>.md');
+  assert.ok(skill.split('\n').length <= 70, 'SKILL.md router must stay short');
+  assert.ok(fs.readFileSync(path.join(refsDir, 'write.md'), 'utf-8').split('\n').length <= 50, 'write.md must stay short');
+}
+
 console.log('handlers.test.js: all assertions passed');
