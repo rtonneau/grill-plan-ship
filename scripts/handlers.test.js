@@ -394,6 +394,21 @@ function markDone(root, implName) {
 }
 
 {
+  // Scouted ideas but no session -> status succeeds and lists them
+  const root = tempProject();
+  fs.mkdirSync(sessionsDir(root), { recursive: true });
+  fs.writeFileSync(
+    path.join(sessionsDir(root), '.pending-seeds.json'),
+    JSON.stringify({ 'safe-linking': { strength: 'Strong', problem: 'C1: data loss', solution: 's' } })
+  );
+  const res = run(root, 'status.js');
+  assert.strictEqual(res.code, 0, res.err);
+  const report = JSON.parse(res.out);
+  assert.deepStrictEqual(report.ideas.map((i) => i.slug), ['safe-linking']);
+  assert.strictEqual(report.suggestedNext.command, '/gps start safe-linking');
+}
+
+{
   // F-010/F-011: pointer to a directory without a config -> clear error, no stack trace
   const root = tempProject();
   fs.mkdirSync(path.join(sessionsDir(root), 'zzz'), { recursive: true });

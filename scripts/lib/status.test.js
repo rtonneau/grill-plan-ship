@@ -17,6 +17,38 @@ fs.mkdirSync(sessionsDir, { recursive: true });
   assert.deepStrictEqual(empty.sessions, []);
   assert.strictEqual(empty.current, null);
   assert.strictEqual(empty.currentProblem.code, 'no-sessions');
+  assert.deepStrictEqual(empty.ideas, []);
+  assert.strictEqual(empty.ideasProblem, null);
+  assert.strictEqual(empty.suggestedNext, undefined);
+}
+
+// Scouted ideas but no session -> ideas listed strongest first, next command is the top idea
+{
+  const seedsFile = path.join(sessionsDir, '.pending-seeds.json');
+  const seeds = {
+    'maybe-later': { strength: 'Speculative', problem: 'M4: drift', sourceReport: 'scout-reports/r.md' },
+    'second-strong': { strength: 'Strong', problem: 'H2: mixed config' },
+    'test-harness': { strength: 'Worth exploring', problem: 'L6: no CI' },
+    'safe-linker': { strength: 'Strong', severity: 'Critical', problem: 'C1, H1: data loss', sourcePath: 'docs/review.md' },
+  };
+  fs.writeFileSync(seedsFile, JSON.stringify(seeds));
+  const scouted = buildStatusReport(sessionsDir, projectRoot);
+  assert.deepStrictEqual(scouted.sessions, []);
+  assert.deepStrictEqual(scouted.ideas.map((i) => i.slug), ['second-strong', 'safe-linker', 'test-harness', 'maybe-later']);
+  const safe = scouted.ideas[1];
+  assert.strictEqual(safe.severity, 'Critical');
+  assert.strictEqual(safe.sourcePath, 'docs/review.md');
+  assert.strictEqual(safe.startCommand, '/gps start safe-linker');
+  assert.strictEqual(scouted.suggestedNext.command, '/gps start second-strong');
+  assert.match(scouted.suggestedNext.why, /4 scouted idea/);
+
+  // An unreadable seeds file is reported, never moved aside (status is read-only)
+  fs.writeFileSync(seedsFile, '{ nope');
+  const corrupt = buildStatusReport(sessionsDir, projectRoot);
+  assert.deepStrictEqual(corrupt.ideas, []);
+  assert.match(corrupt.ideasProblem, /unreadable/);
+  assert.strictEqual(fs.readFileSync(seedsFile, 'utf-8'), '{ nope');
+  fs.unlinkSync(seedsFile);
 }
 
 // Two sessions: an older completed one, and a newer one still in grill
