@@ -90,18 +90,28 @@ function writeResume(root) {
   fs.writeFileSync(path.join(sessionsDir(root), id, '01-grill', 'resume.md'), '# Resume\n\nApproved.\n');
 }
 
-// Simulates the plan-phase /gps write: real plan.md, stubs replaced by
-// real tickets, then mark-plan-written.js.
+const PLAN_SECTIONS = ['Strategy', 'Tickets Overview', 'Sequencing Rationale', 'Risks & Mitigation', 'Assumptions'];
+const GRILL_SECTIONS = [
+  'Problem Statement', 'Context & Constraints', 'Success Metrics', 'Architecture & Approach',
+  'Assumptions & Trade-offs', 'Open Questions', 'Notes',
+];
+
+function payloadPath(root) {
+  return path.join(sessionsDir(root), currentSession(root), '.write-payload.md');
+}
+
+function sectionsPayload(headings) {
+  return headings.map((h) => `## ${h}\n\n${h} content.\n`).join('\n');
+}
+
+// Simulates the plan-phase /gps write: payload -> write-apply.js.
 function writePlan(root, slugs) {
-  const planDir = path.join(sessionsDir(root), currentSession(root), '02-plan');
-  fs.writeFileSync(path.join(planDir, 'plan.md'), '# Plan\n\nREAL PLAN\n');
-  const ticketsDir = path.join(planDir, 'tickets');
-  for (const f of fs.readdirSync(ticketsDir)) fs.unlinkSync(path.join(ticketsDir, f));
-  slugs.forEach((slug, i) => {
-    const num = String(i + 1).padStart(2, '0');
-    fs.writeFileSync(path.join(ticketsDir, `${num}-${slug}.md`), `# Ticket ${num}: ${slug}\n\nDo ${slug}.\n`);
-  });
-  assert.strictEqual(run(root, 'mark-plan-written.js').code, 0);
+  const tickets = slugs
+    .map((slug, i) => `--- ticket: ${String(i + 1).padStart(2, '0')}-${slug} ---\nDo ${slug}.\n`)
+    .join('\n');
+  fs.writeFileSync(payloadPath(root), `**Estimated effort:** 1 day\n\n${sectionsPayload(PLAN_SECTIONS)}\n${tickets}`);
+  const res = run(root, 'write-apply.js');
+  assert.strictEqual(res.code, 0, res.err);
 }
 
 // Marks a ticket's commit-log.md as done, as /gps ship does on success.
@@ -131,10 +141,10 @@ function markDone(root, implName) {
   assert.strictEqual(pending.code, 1);
   assert.match(pending.err, /\/gps write/);
 
-  // mark-plan-written refuses while stubs remain
-  const notYet = run(root, 'mark-plan-written.js');
+  // write-apply refuses without a payload and changes nothing
+  const notYet = run(root, 'write-apply.js');
   assert.strictEqual(notYet.code, 1);
-  assert.match(notYet.err, /not fully written/);
+  assert.match(notYet.err, /No payload at/);
 
   // config no longer carries derived fields
   const cfg = JSON.parse(fs.readFileSync(path.join(sessionsDir(root), currentSession(root), '.session-config.json'), 'utf-8'));
@@ -147,7 +157,7 @@ function markDone(root, implName) {
   const again = run(root, 'plan.js');
   assert.strictEqual(again.code, 1);
   assert.match(again.err, /already exists/);
-  assert.match(fs.readFileSync(path.join(planDir, 'plan.md'), 'utf-8'), /REAL PLAN/);
+  assert.match(fs.readFileSync(path.join(planDir, 'plan.md'), 'utf-8'), /Strategy content./);
   assert.deepStrictEqual(fs.readdirSync(path.join(planDir, 'tickets')), ['01-a.md']);
 }
 
@@ -384,7 +394,7 @@ function markDone(root, implName) {
   const root = tempProject();
   for (const [script, ...args] of [
     ['plan.js'], ['ticket.js', '1'], ['finish.js'], ['write-target.js'], ['ticket-queue.js'],
-    ['mark-plan-written.js'], ['status.js'], ['token-usage.js', 'grill'], ['handoff.js'], ['resume.js'],
+    ['write-apply.js'], ['status.js'], ['token-usage.js', 'grill'], ['handoff.js'], ['resume.js'],
   ]) {
     const res = run(root, script, ...args);
     assert.strictEqual(res.code, 1, script);
@@ -443,6 +453,106 @@ function markDone(root, implName) {
   // set-current recovers
   assert.strictEqual(run(root, 'set-current.js', realId).code, 0);
   assert.strictEqual(run(root, 'write-target.js').code, 0);
+}
+
+{
+  // write-target prints the payload contract (and the template's headings if resume.md is gone)
+  const root = tempProject();
+  run(root, 'start-session.js', 'contract');
+  const sessionDir = path.join(sessionsDir(root), currentSession(root));
+  const grill = JSON.parse(run(root, 'write-target.js').out);
+  assert.strictEqual(grill.target, 'grill');
+  assert.strictEqual(grill.payloadPath, path.join(sessionDir, '.write-payload.md'));
+  assert.deepStrictEqual(grill.sections, [
+    'Problem Statement', 'Context & Constraints', 'Success Metrics', 'Architecture & Approach',
+    'Assumptions & Trade-offs', 'Open Questions', 'Notes',
+  ]);
+  assert.strictEqual(grill.tokenUsage, undefined);
+  assert.strictEqual(grill.ticketSeparator, undefined);
+
+  fs.unlinkSync(path.join(sessionDir, '01-grill', 'resume.md'));
+  const missing = JSON.parse(run(root, 'write-target.js').out);
+  assert.strictEqual(missing.target, 'grill');
+  assert.strictEqual(missing.sections.length, 7);
+}
+
+{
+  // write-apply: grill phase
+  const root = tempProject();
+  run(root, 'start-session.js', 'applied');
+  const sessionDir = path.join(sessionsDir(root), currentSession(root));
+  const resume = path.join(sessionDir, '01-grill', 'resume.md');
+
+  fs.writeFileSync(payloadPath(root), sectionsPayload(GRILL_SECTIONS).replace(/\n/g, '\r\n'));
+  const res = run(root, 'write-apply.js');
+  assert.strictEqual(res.code, 0, res.err);
+  assert.match(res.out, /✅ Grill written for .*applied\. Next: \/gps plan/);
+  const text = fs.readFileSync(resume, 'utf-8');
+  assert.match(text, /^# Session: applied/);
+  assert.match(text, /## Problem Statement\n\nProblem Statement content\./);
+  assert.match(text, /- \*\*Total:\*\* unavailable/);
+  assert.doesNotMatch(text, /gps:fill/);
+  assert.ok(!fs.existsSync(payloadPath(root)));
+  assert.strictEqual(JSON.parse(run(root, 'write-target.js').out).reason, 'plan-not-started');
+
+  // nothing pending -> clear error
+  const again = run(root, 'write-apply.js');
+  assert.strictEqual(again.code, 1);
+  assert.match(again.err, /Nothing to write/);
+  assert.match(again.err, /\/gps plan/);
+}
+
+{
+  // write-apply: a bad payload writes nothing and is kept; the fixed payload then succeeds
+  const root = tempProject();
+  run(root, 'start-session.js', 'retry');
+  const sessionDir = path.join(sessionsDir(root), currentSession(root));
+  const resume = path.join(sessionDir, '01-grill', 'resume.md');
+  const before = fs.readFileSync(resume, 'utf-8');
+
+  fs.writeFileSync(payloadPath(root), '## Problem Statement\n\nOnly one.\n## Bogus\n\nx\n');
+  const bad = run(root, 'write-apply.js');
+  assert.strictEqual(bad.code, 1);
+  assert.match(bad.err, /nothing was written/);
+  assert.match(bad.err, /Missing section "## Notes"/);
+  assert.match(bad.err, /Unknown section "## Bogus"/);
+  assert.doesNotMatch(bad.err, /\n\s+at /);
+  assert.strictEqual(fs.readFileSync(resume, 'utf-8'), before);
+  assert.ok(fs.existsSync(payloadPath(root)));
+
+  fs.writeFileSync(payloadPath(root), sectionsPayload(GRILL_SECTIONS));
+  assert.strictEqual(run(root, 'write-apply.js').code, 0);
+}
+
+{
+  // write-apply: plan phase writes tickets, removes stubs, refuses leftover hand-written tickets
+  const root = tempProject();
+  run(root, 'start-session.js', 'planned-apply');
+  writeResume(root);
+  run(root, 'plan.js');
+  const planDir = path.join(sessionsDir(root), currentSession(root), '02-plan');
+  const ticketsDir = path.join(planDir, 'tickets');
+
+  const leftover = path.join(ticketsDir, '07-old.md');
+  fs.writeFileSync(leftover, '# Ticket 07: old\n\nHand-written.\n');
+  fs.writeFileSync(payloadPath(root), `**Estimated effort:** 1 day\n\n${sectionsPayload(PLAN_SECTIONS)}\n--- ticket: 01-a ---\nDo a.\n`);
+  assert.deepStrictEqual(JSON.parse(run(root, 'write-target.js').out).fields, ['Estimated effort']);
+  const refused = run(root, 'write-apply.js');
+  assert.strictEqual(refused.code, 1);
+  assert.match(refused.err, /07-old\.md already exists/);
+  assert.strictEqual(fs.readFileSync(leftover, 'utf-8'), '# Ticket 07: old\n\nHand-written.\n');
+  assert.ok(fs.readdirSync(ticketsDir).some((f) => f.includes('[slug]')), 'stubs must survive a refused run');
+
+  fs.unlinkSync(leftover);
+  writePlan(root, ['a', 'b']);
+  assert.deepStrictEqual(fs.readdirSync(ticketsDir).sort(), ['01-a.md', '02-b.md']);
+  assert.strictEqual(fs.readFileSync(path.join(ticketsDir, '01-a.md'), 'utf-8'), '# Ticket 01: a\n\nDo a.\n');
+  const plan = fs.readFileSync(path.join(planDir, 'plan.md'), 'utf-8');
+  assert.match(plan, /^# Implementation Plan/);
+  assert.match(plan, /\*\*Estimated effort:\*\* 1 day/);
+  assert.match(plan, /## Strategy\n\nStrategy content\./);
+  assert.doesNotMatch(plan, /gps:fill/);
+  assert.strictEqual(JSON.parse(run(root, 'ticket-queue.js').out).nextPending.slug, 'a');
 }
 
 console.log('handlers.test.js: all assertions passed');

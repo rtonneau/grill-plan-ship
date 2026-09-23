@@ -19,6 +19,9 @@ const TOKEN_USAGE_HEADING = 'Token Usage';
 const HEADING_RE = /^## (.+?)\s*$/;
 const TICKET_SEPARATOR_RE = /^--- ticket: (.*?) ---\s*$/;
 const FENCE_RE = /^\s*(```|~~~)/;
+// "**Label:** value" lines above the first heading, e.g. "**Estimated effort:**".
+const FIELD_RE = /^\*\*([^*]+?):\*\*\s*(.*)$/;
+const UNFILLED_RE = /<!--\s*gps:fill\b|\{\{[^}]+\}\}/;
 
 const PHASE_FILES = {
   grill: { dir: '01-grill', file: 'resume.md', template: '01-grill-resume.md' },
@@ -84,11 +87,30 @@ function parsePayload(text) {
     }
   }
 
+  const { preamble, sections } = splitSections(head.join('\n'));
   return {
-    sections: splitSections(head.join('\n')).sections,
+    sections,
+    fields: parseFields(preamble),
     tickets: tickets.map((t) => ({ name: t.name, fileName: t.fileName, body: t.lines.join('\n').trim() })),
     errors,
   };
+}
+
+function parseFields(preamble) {
+  const fields = {};
+  for (const line of toLines(preamble)) {
+    const match = line.match(FIELD_RE);
+    if (match) fields[match[1]] = match[2].trim();
+  }
+  return fields;
+}
+
+// Labels of the header fields the phase file still leaves unfilled.
+function expectedFields(phaseFileText) {
+  return toLines(splitSections(phaseFileText).preamble)
+    .map((line) => line.match(FIELD_RE))
+    .filter((match) => match && UNFILLED_RE.test(match[2]))
+    .map((match) => match[1]);
 }
 
 function expectedHeadings(phaseFileText) {
@@ -97,8 +119,14 @@ function expectedHeadings(phaseFileText) {
     .filter((heading) => heading !== TOKEN_USAGE_HEADING);
 }
 
-function validatePayload(payload, { expectedHeadings: expected, phase, isUnfilled }) {
+function validatePayload(payload, { expectedHeadings: expected, expectedFields: fields = [], phase, isUnfilled }) {
   const errors = [...payload.errors];
+
+  for (const label of fields) {
+    const value = payload.fields[label];
+    if (!value) errors.push(`Missing field "**${label}:**": put it on its own line before the first ## heading.`);
+    else if (isUnfilled(value)) errors.push(`Field "**${label}:**" still has a placeholder.`);
+  }
   const seen = new Set();
 
   for (const { heading, body } of payload.sections) {
@@ -165,12 +193,17 @@ function renderTokenUsage(usage) {
   ].join('\n');
 }
 
-// Keeps the current file's preamble (title, date) and heading order, puts
-// each payload body under its heading, and appends a generated Token Usage.
-function renderPhaseFile(currentText, sections, usage) {
+// Keeps the current file's preamble (title, date) with its header fields
+// filled in, keeps its heading order, puts each payload body under its
+// heading, and appends a generated Token Usage.
+function renderPhaseFile(currentText, sections, usage, fields = {}) {
   const { preamble, sections: current } = splitSections(currentText);
   const bodies = new Map(sections.map((s) => [s.heading, s.body]));
-  const parts = [preamble.trim()];
+  const header = toLines(preamble).map((line) => {
+    const match = line.match(FIELD_RE);
+    return match && fields[match[1]] ? `**${match[1]}:** ${fields[match[1]]}` : line;
+  });
+  const parts = [header.join('\n').trim()];
   for (const { heading } of current) {
     if (heading === TOKEN_USAGE_HEADING) continue;
     parts.push(`## ${heading}\n\n${bodies.get(heading)}`);
@@ -190,6 +223,7 @@ module.exports = {
   splitSections,
   parsePayload,
   expectedHeadings,
+  expectedFields,
   validatePayload,
   phaseFilePath,
   loadPhaseFile,

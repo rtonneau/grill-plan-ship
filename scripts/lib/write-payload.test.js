@@ -8,6 +8,7 @@ const {
   splitSections,
   parsePayload,
   expectedHeadings,
+  expectedFields,
   validatePayload,
   phaseFilePath,
   loadPhaseFile,
@@ -142,6 +143,25 @@ assert.match(renderTokenUsage({ available: false }), /- \*\*Input:\*\* unavailab
     '# Plan\n\n**Date:** d\n\n## Strategy\n\nOrder.\n\n## Assumptions\n\nNone.\n\n' +
       '## Token Usage\n\n- **Input:** unavailable\n- **Output:** unavailable\n- **Cache read:** unavailable\n- **Cache creation:** unavailable\n- **Total:** unavailable\n'
   );
+  assert.ok(!isUnfilled(out));
+}
+
+// Header fields: "**Label:** <!-- gps:fill -->" lines above the first heading
+{
+  const current = '# Plan\n\n**Session:** demo\n**Estimated effort:** <!-- gps:fill N hours/days -->\n\n## Strategy\n\n<!-- gps:fill -->\n';
+  assert.deepStrictEqual(expectedFields(current), ['Estimated effort']);
+  assert.deepStrictEqual(expectedFields('# Resume\n\n**Date:** d\n\n## A\n'), []);
+
+  const payload = parsePayload('**Estimated effort:** 2 days\n\n## Strategy\nOrder.\n--- ticket: 01-a ---\nt\n');
+  assert.deepStrictEqual(payload.fields, { 'Estimated effort': '2 days' });
+  const opts = { expectedHeadings: ['Strategy'], expectedFields: ['Estimated effort'], phase: 'plan', isUnfilled };
+  assert.deepStrictEqual(validatePayload(payload, opts), []);
+
+  const missing = validatePayload(parsePayload('## Strategy\nOrder.\n--- ticket: 01-a ---\nt\n'), opts);
+  assert.ok(missing.some((e) => /Missing field "\*\*Estimated effort:\*\*"/.test(e)), missing);
+
+  const out = renderPhaseFile(current, payload.sections, { available: false }, payload.fields);
+  assert.match(out, /^# Plan\n\n\*\*Session:\*\* demo\n\*\*Estimated effort:\*\* 2 days\n\n## Strategy\n\nOrder\./);
   assert.ok(!isUnfilled(out));
 }
 
