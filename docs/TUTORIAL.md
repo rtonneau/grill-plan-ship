@@ -1,6 +1,6 @@
 # GPS Tutorial
 
-A walkthrough of `grill-plan-ship` (`/gps`) using short, concrete examples. See `README.md` for install steps and `skills/gps/SKILL.md` for the full command reference.
+A walkthrough of `grill-plan-ship` (`/gps`) using short, concrete examples. See `README.md` for install steps and `skills/gps/references/<command>.md` for the full reference of each command.
 
 ## The mental model
 
@@ -108,4 +108,4 @@ Lists every session with its phase, and for the current one, what's pending and 
 
 - `/gps write` figures out on its own whether grill or plan is pending — you never have to say which.
 - Re-running `/gps start`, `/gps plan`, `/gps ticket`, or `/gps finish` against existing output never overwrites work; it refuses or resumes.
-- See `README.md#session-structure` for what the on-disk session layout looks like, and `skills/gps/SKILL.md` for exact behavior of every command.
+- See `README.md#session-structure` for what the on-disk session layout looks like, and `skills/gps/references/` for exact behavior of every command.

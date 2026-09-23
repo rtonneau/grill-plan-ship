@@ -74,8 +74,10 @@ const sessionDir = path.join(root, '.work', 'sessions', sessionId);
 expectStatus('grill', '/gps write');
 
 // write (grill)
-assert.strictEqual(JSON.parse(ok('write-target.js').out).target, 'grill');
-fs.writeFileSync(path.join(sessionDir, '01-grill', 'resume.md'), '# Resume\n\nApproved design.\n');
+const grillTarget = JSON.parse(ok('write-target.js').out);
+assert.strictEqual(grillTarget.target, 'grill');
+fs.writeFileSync(grillTarget.payloadPath, grillTarget.sections.map((h) => `## ${h}\n\n${h}: approved.\n`).join('\n'));
+ok('write-apply.js');
 expectStatus('plan-not-started', '/gps plan');
 
 // plan
@@ -84,13 +86,15 @@ expectStatus('plan', '/gps write');
 assert.strictEqual(run('ticket.js', '1').code, 1, 'ticket must refuse while stubs exist');
 
 // write (plan)
-assert.strictEqual(JSON.parse(ok('write-target.js').out).target, 'plan');
-const ticketsDir = path.join(sessionDir, '02-plan', 'tickets');
-fs.writeFileSync(path.join(sessionDir, '02-plan', 'plan.md'), '# Plan\n\nTwo tickets.\n');
-for (const f of fs.readdirSync(ticketsDir)) fs.unlinkSync(path.join(ticketsDir, f));
-fs.writeFileSync(path.join(ticketsDir, '01-toggle.md'), '# Ticket 01: toggle\n\nAdd the toggle.\n');
-fs.writeFileSync(path.join(ticketsDir, '02-persist.md'), '# Ticket 02: persist\n\nPersist the choice.\n');
-ok('mark-plan-written.js');
+const planTarget = JSON.parse(ok('write-target.js').out);
+assert.strictEqual(planTarget.target, 'plan');
+fs.writeFileSync(
+  planTarget.payloadPath,
+  planTarget.fields.map((label) => `**${label}:** 1 day\n`).join('') + '\n' +
+  planTarget.sections.map((h) => `## ${h}\n\n${h}: two tickets.\n`).join('\n') +
+    '\n--- ticket: 01-toggle ---\nAdd the toggle.\n\n--- ticket: 02-persist ---\nPersist the choice.\n'
+);
+ok('write-apply.js');
 let report = expectStatus('ship', '/gps ship');
 assert.strictEqual(report.current.nextPending.slug, 'toggle');
 

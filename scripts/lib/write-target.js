@@ -1,6 +1,8 @@
 // scripts/lib/write-target.js
 const fs = require('fs');
 const path = require('path');
+const { listTickets } = require('./ticket-queue');
+const { GpsError } = require('./guard');
 
 // Current templates mark unfilled content with <!-- gps:fill ... -->, so
 // legitimate "{{ ... }}" in user content (Vue, Jinja, Handlebars, Go
@@ -60,4 +62,29 @@ function resolveWriteTarget(sessionDir) {
   return { target: 'none', reason: 'complete' };
 }
 
-module.exports = { TEMPLATE_VERSION, placeholderTester, resolveWriteTarget };
+// Verifies the plan phase is fully written: no placeholders, no [slug]
+// stubs, at least one NN-<slug>.md ticket. Returns the tickets and any
+// skipped (badly named) files; throws a GpsError listing what is missing.
+function checkPlanWritten(sessionDir) {
+  const writeTarget = resolveWriteTarget(sessionDir);
+  if (writeTarget.target === 'grill') {
+    throw new GpsError('The grill phase is not written yet.', 'Run /gps write for the grill phase first.');
+  }
+  if (writeTarget.reason === 'plan-not-started') {
+    throw new GpsError('This session has no plan yet.', 'Run /gps plan first.');
+  }
+  if (writeTarget.target === 'plan') {
+    throw new GpsError(
+      `The plan is not fully written: plan.md or a ticket still has placeholders, or a [slug] stub remains (${writeTarget.existingStubs.join(', ') || 'no ticket files'}).`,
+      'Fix the payload and run /gps write again.'
+    );
+  }
+
+  const { tickets, skipped } = listTickets(sessionDir);
+  if (tickets.length === 0) {
+    throw new GpsError('The plan has no valid ticket files.', 'Write at least one 02-plan/tickets/NN-<slug>.md.');
+  }
+  return { tickets, skipped };
+}
+
+module.exports = { TEMPLATE_VERSION, placeholderTester, resolveWriteTarget, checkPlanWritten };

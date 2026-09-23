@@ -27,16 +27,18 @@ grill-plan-ship/
 ├── .claude-plugin/
 │   ├── plugin.json          ← Plugin manifest
 │   └── marketplace.json     ← Self-hosted marketplace entry
-├── skills/gps/SKILL.md      ← Entry point (Claude Code reads this)
+├── skills/gps/
+│   ├── SKILL.md             ← Router: command table + shared rules (Claude Code loads this)
+│   └── references/          ← One <command>.md per command, read on demand
 ├── scripts/                 ← JavaScript handlers that do the work
 │   ├── start-session.js     ← Creates .work/sessions/YYYYMMDD__feature/
 │   ├── write-target.js      ← Detects pending phase for /gps write
-│   ├── mark-plan-written.js ← Records plan phase complete after /gps write
+│   ├── write-apply.js       ← Applies the /gps write payload (resume or plan + tickets)
 │   ├── plan.js               ← Creates 02-plan/ + ticket templates
 │   ├── ticket.js             ← Creates 03-implement/NN-*/ workspace
 │   ├── ticket-queue.js       ← Lists tickets + next pending one for /gps ship
 │   ├── finish.js             ← Generates INDEX.md
-│   └── lib/                 ← Shared helpers (session-store, templates, write-target, ticket-queue) + tests
+│   └── lib/                 ← Shared helpers (session-store, templates, write-target, write-payload, ticket-queue) + tests
 ├── templates/                ← Markdown templates (01-grill, 02-plan, 02-ticket, 03-implement)
 ├── examples/                 ← Real session examples (geant4, react, python)
 ├── README.md                 ← User documentation
@@ -77,9 +79,9 @@ Each command follows this same pattern: SKILL.md → handler → file creation.
 ## Key Files to Edit
 
 ### SKILL.md
-Entry point. Describes all 4 commands and their handlers. Claude Code reads this to register `/gps` commands.
+Router. Lists the commands, the shared rules and where each command's instructions live. Claude Code loads it on every `/gps` call, so keep it short.
 
-**Edit when:** Adding/renaming commands or changing handler paths.
+**Edit when:** Adding/renaming commands or changing a shared rule. Per-command behavior goes in `skills/gps/references/<command>.md`.
 
 ### scripts/*.js
 The actual logic. Each handler:
@@ -153,10 +155,9 @@ This plugin orchestrates:
 ## Context for Claude Code
 
 ### When working on SKILL.md
-- Keep it short and declarative (Claude Code uses it as a reference)
-- List exactly 4 commands: start, plan, ticket, finish
-- Include example usage
-- Link to handler file paths
+- Keep SKILL.md a router: command table, shared rules, routing line
+- Put each command's details, handler line and example in `references/<command>.md`
+- `scripts/handlers.test.js` checks every listed command has a references file with its handler lines
 
 ### When working on handlers (*.js)
 - Use Node.js fs module (cross-platform)
