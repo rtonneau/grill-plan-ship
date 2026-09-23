@@ -9,7 +9,7 @@
 1. Run `node $CLAUDE_PLUGIN_ROOT/scripts/write-target.js`. Its JSON `target` is:
    - `none`: nothing to write. If `reason` is `plan-not-started`, suggest `/gps plan`. If it is `complete`, suggest `/gps status`. Stop.
    - `grill` or `plan`: continue with its `payloadPath`, `fields` and `sections`.
-2. Write the payload to `payloadPath` in a single Write call:
+2. Write the payload to `payloadPath` in a single Write call (if `existingPayload` is true, it's left from an earlier run: Read it first so the Write can replace it):
    - First, one `**<field>:** <value>` line per entry of `fields` (e.g. `**Estimated effort:** 2 days`).
    - Then one `## <heading>` block per entry of `sections`, in that order, holding the agreed content. Leave out Token Usage; the script fills it.
    - **Plan only:** after the sections, one block per approved ticket, each opened by its own line `--- ticket: NN-<slug> ---` (e.g. `--- ticket: 01-add-parser ---`; the slug is lowercase `a-z 0-9` with `-`, `_` or `.` between). Ticket body:

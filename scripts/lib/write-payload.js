@@ -30,7 +30,14 @@ const PHASE_FILES = {
 };
 
 function toLines(text) {
-  return text.replace(/\r\n/g, '\n').split('\n');
+  return text.replace(/^\uFEFF/, '').replace(/\r\n/g, '\n').split('\n');
+}
+
+// Placeholder error text; in pre-v2 sessions "{{ … }}" alone (e.g. Vue or
+// Jinja code) also counts, which is worth saying since it looks legitimate.
+function placeholderError(what, text) {
+  const legacyOnly = !/<!--\s*gps:fill\b/.test(text);
+  return `${what} still has a placeholder.${legacyOnly ? ' ({{ … }} counts as a placeholder in sessions created before template version 2.)' : ''}`;
 }
 
 // Tracks fenced code blocks the CommonMark way: a fence closes only on a
@@ -153,7 +160,7 @@ function validatePayload(payload, { expectedHeadings: expected, expectedFields: 
   for (const label of fields) {
     const value = payload.fields[label];
     if (!value) errors.push(`Missing field "**${label}:**": put it on its own line before the first ## heading.`);
-    else if (isUnfilled(value)) errors.push(`Field "**${label}:**" still has a placeholder.`);
+    else if (isUnfilled(value)) errors.push(placeholderError(`Field "**${label}:**"`, value));
   }
   const seen = new Set();
 
@@ -166,7 +173,7 @@ function validatePayload(payload, { expectedHeadings: expected, expectedFields: 
     if (seen.has(heading)) errors.push(`Duplicate section "## ${heading}".`);
     seen.add(heading);
     if (!body) errors.push(`Section "## ${heading}" is empty.`);
-    else if (isUnfilled(body)) errors.push(`Section "## ${heading}" still has a placeholder.`);
+    else if (isUnfilled(body)) errors.push(placeholderError(`Section "## ${heading}"`, body));
   }
   for (const heading of expected) {
     if (!seen.has(heading)) errors.push(`Missing section "## ${heading}".`);
@@ -187,7 +194,7 @@ function validatePayload(payload, { expectedHeadings: expected, expectedFields: 
     if (names.has(name)) errors.push(`Duplicate ticket "${name}".`);
     names.add(name);
     if (!body) errors.push(`Ticket "${name}" is empty.`);
-    else if (isUnfilled(body)) errors.push(`Ticket "${name}" still has a placeholder.`);
+    else if (isUnfilled(body)) errors.push(placeholderError(`Ticket "${name}"`, body));
   }
   return errors;
 }
@@ -229,7 +236,8 @@ function renderPhaseFile(currentText, sections, usage, fields = {}) {
   const bodies = new Map(sections.map((s) => [s.heading, s.body]));
   const header = toLines(preamble).map((line) => {
     const match = line.match(FIELD_RE);
-    return match && fields[match[1]] ? `**${match[1]}:** ${fields[match[1]]}` : line;
+    const expected = match && UNFILLED_RE.test(match[2]);
+    return expected && fields[match[1]] ? `**${match[1]}:** ${fields[match[1]]}` : line;
   });
   const parts = [header.join('\n').trim()];
   for (const { heading } of current) {

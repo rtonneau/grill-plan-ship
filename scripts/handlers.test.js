@@ -556,6 +556,50 @@ function markDone(root, implName) {
 }
 
 {
+  // write-apply: a placeholder the payload can't reach (hand-edited header) is caught before anything is written
+  const root = tempProject();
+  run(root, 'start-session.js', 'atomic');
+  writeResume(root);
+  run(root, 'plan.js');
+  const planDir = path.join(sessionsDir(root), currentSession(root), '02-plan');
+  const planPath = path.join(planDir, 'plan.md');
+  fs.writeFileSync(planPath, fs.readFileSync(planPath, 'utf-8').replace('# Implementation Plan', '# Implementation Plan\n\nOwner: <!-- gps:fill someone -->'));
+  const planBefore = fs.readFileSync(planPath, 'utf-8');
+  const stubsBefore = fs.readdirSync(path.join(planDir, 'tickets')).sort();
+
+  fs.writeFileSync(payloadPath(root), `**Estimated effort:** 1 day\n\n${sectionsPayload(PLAN_SECTIONS)}\n--- ticket: 01-a ---\nDo a.\n`);
+  const res = run(root, 'write-apply.js');
+  assert.strictEqual(res.code, 1);
+  assert.match(res.err, /plan\.md would still have a placeholder outside the payload's reach/);
+  assert.strictEqual(fs.readFileSync(planPath, 'utf-8'), planBefore);
+  assert.deepStrictEqual(fs.readdirSync(path.join(planDir, 'tickets')).sort(), stubsBefore);
+  assert.ok(fs.existsSync(payloadPath(root)));
+}
+
+{
+  // write-target flags a payload left over from an earlier run
+  const root = tempProject();
+  run(root, 'start-session.js', 'leftover');
+  assert.strictEqual(JSON.parse(run(root, 'write-target.js').out).existingPayload, false);
+  fs.writeFileSync(payloadPath(root), '## Problem Statement\n\nOld.\n');
+  assert.strictEqual(JSON.parse(run(root, 'write-target.js').out).existingPayload, true);
+}
+
+{
+  // write-apply recreates a deleted resume.md from the template
+  const root = tempProject();
+  run(root, 'start-session.js', 'recreated');
+  const resume = path.join(sessionsDir(root), currentSession(root), '01-grill', 'resume.md');
+  fs.unlinkSync(resume);
+  fs.writeFileSync(payloadPath(root), sectionsPayload(GRILL_SECTIONS));
+  const res = run(root, 'write-apply.js');
+  assert.strictEqual(res.code, 0, res.err);
+  const text = fs.readFileSync(resume, 'utf-8');
+  assert.match(text, /^# Session: recreated/);
+  assert.match(text, /## Notes\n\nNotes content\./);
+}
+
+{
   // SKILL.md router: every command has a references file carrying its handler lines
   const skillDir = path.join(SCRIPTS, '..', 'skills', 'gps');
   const skill = fs.readFileSync(path.join(skillDir, 'SKILL.md'), 'utf-8');
@@ -587,6 +631,10 @@ function markDone(root, implName) {
   assert.ok(skill.includes('references/<command>.md'), 'SKILL.md must route to references/<command>.md');
   // the stop-on-❌ rule must leave room for write.md's fix-the-payload-and-rerun step
   assert.match(skill, /unless its references file says how to recover/);
+  // bounded work skips planning, so start.md must override write-apply's "Next: /gps plan"
+  assert.match(fs.readFileSync(path.join(refsDir, 'start.md'), 'utf-8'), /ignore write-apply's `Next: \/gps plan`/);
+  // a leftover payload must be read before it can be overwritten
+  assert.match(fs.readFileSync(path.join(refsDir, 'write.md'), 'utf-8'), /existingPayload/);
   assert.ok(skill.split('\n').length <= 70, 'SKILL.md router must stay short');
   assert.ok(fs.readFileSync(path.join(refsDir, 'write.md'), 'utf-8').split('\n').length <= 50, 'write.md must stay short');
 }

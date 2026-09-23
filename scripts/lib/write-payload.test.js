@@ -178,6 +178,30 @@ assert.match(renderTokenUsage({ available: false }), /- \*\*Input:\*\* unavailab
   assert.ok(!isUnfilled(out));
 }
 
+// Only unfilled header fields are replaced; filled ones (Session, Date) keep their value
+{
+  const current = '# Plan\n\n**Session:** demo\n**Estimated effort:** <!-- gps:fill -->\n\n## Strategy\n\nx\n';
+  const out = renderPhaseFile(current, [{ heading: 'Strategy', body: 'y' }], { available: false }, { Session: 'hijacked', 'Estimated effort': '2 days' });
+  assert.match(out, /\*\*Session:\*\* demo\n\*\*Estimated effort:\*\* 2 days/);
+}
+
+// A UTF-8 byte-order mark does not hide the first heading
+assert.deepStrictEqual(parsePayload('﻿## Strategy\nx\n').sections, [{ heading: 'Strategy', body: 'x' }]);
+
+// Legacy sessions: the placeholder error explains that {{ }} counts
+{
+  const errors = validatePayload(
+    parsePayload('## Strategy\nRender {{ user.name }}\n'),
+    { expectedHeadings: ['Strategy'], phase: 'grill', isUnfilled: legacyUnfilled }
+  );
+  assert.ok(errors.some((e) => /\{\{ … \}\} counts as a placeholder in sessions created before template version 2/.test(e)), errors);
+  const modern = validatePayload(
+    parsePayload('## Strategy\n<!-- gps:fill x -->\n'),
+    { expectedHeadings: ['Strategy'], phase: 'grill', isUnfilled: legacyUnfilled }
+  );
+  assert.ok(modern.every((e) => !/template version 2/.test(e)), modern);
+}
+
 // renderTicket
 assert.strictEqual(
   renderTicket({ name: '01-add-parser', fileName: '01-add-parser.md', body: 'Do it.' }),

@@ -9,6 +9,7 @@
  * into the phase's files.
  */
 
+const fs = require('fs');
 const path = require('path');
 const { resolveWriteTarget } = require('./lib/write-target');
 const { resolveSession } = require('./lib/session-store');
@@ -24,6 +25,7 @@ runCli(() => {
     touchPhase(config, result.target);
     writeJsonAtomic(configPath, config);
     result.payloadPath = path.join(sessionDir, PAYLOAD_FILENAME);
+    result.existingPayload = fs.existsSync(result.payloadPath);
     const phaseFile = loadPhaseFile(sessionDir, result.target, config);
     result.fields = expectedFields(phaseFile);
     result.sections = expectedHeadings(phaseFile);

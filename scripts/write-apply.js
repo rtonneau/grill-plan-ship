@@ -50,12 +50,19 @@ runCli(() => {
 
   const current = loadPhaseFile(sessionDir, target, config);
   const payload = parsePayload(fs.readFileSync(payloadPath, 'utf-8'));
+  const isUnfilled = placeholderTester(sessionDir);
   const errors = validatePayload(payload, {
     expectedHeadings: expectedHeadings(current),
     expectedFields: expectedFields(current),
     phase: target,
-    isUnfilled: placeholderTester(sessionDir),
+    isUnfilled,
   });
+
+  const targetPath = phaseFilePath(sessionDir, target);
+  const rendered = renderPhaseFile(current, payload.sections, computeUsage(config, target), payload.fields);
+  if (errors.length === 0 && isUnfilled(rendered)) {
+    errors.push(`${path.basename(targetPath)} would still have a placeholder outside the payload's reach (e.g. a hand-edited header line). Remove it from ${targetPath} by hand.`);
+  }
 
   const ticketsDir = path.join(sessionDir, '02-plan', 'tickets');
   const stubs = [];
@@ -73,14 +80,10 @@ runCli(() => {
     );
   }
 
-  const targetPath = phaseFilePath(sessionDir, target);
   fs.mkdirSync(path.dirname(targetPath), { recursive: true });
-  fs.writeFileSync(targetPath, renderPhaseFile(current, payload.sections, computeUsage(config, target), payload.fields));
+  fs.writeFileSync(targetPath, rendered);
 
   if (target === 'grill') {
-    if (resolveWriteTarget(sessionDir).target === 'grill') {
-      throw new GpsError(`${targetPath} still has placeholders.`, 'Remove them by hand, then run /gps plan.');
-    }
     fs.unlinkSync(payloadPath);
     console.log(`✅ Grill written for ${sessionId}. Next: /gps plan`);
     return;
