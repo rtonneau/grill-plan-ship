@@ -8,7 +8,7 @@
     {
       "name": "grill-plan-ship",
       "description": "Universal workflow plugin: grill → plan → ship",
-      "version": "1.2.0",
+      "version": "1.3.0",
       "source": "./",
       "author": {
         "name": "rtonneau"

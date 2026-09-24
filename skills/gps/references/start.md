@@ -18,7 +18,7 @@
 **If brainstorming classifies the work as "bounded"** (a short in-chat design instead of a full spec/plan doc):
 
 - Presenting the design and getting a "yes" are two different steps. Answering an open design question (e.g. "macro file first or order-independent?") is **not** approval to implement. The agent must ask a standalone, unambiguous question — e.g. *"Ready for me to implement this?"* — and wait for an explicit yes before writing any code.
-- Once approved, and **before touching any code**, the agent must save `01-grill/resume.md` by following the steps in `references/write.md` (write-target → payload → write-apply) — every grill phase leaves a trace on disk, bounded or not. Then ignore write-apply's `Next: /gps plan` line: bounded work doesn't plan.
+- Once approved, and **before touching any code**, the agent must save `01-grill/resume.md` by following the steps in `references/write.md` (write-target → payload → write-apply) — every grill phase leaves a trace on disk, bounded or not. On a GitHub project this also creates and checks out the session branch, so the implementation lands there. Then ignore write-apply's `Next: /gps plan` line: bounded work doesn't plan.
 - No `02-plan/plan.md`, no tickets: bounded work skips straight from the saved resume to implementation via the normal dev workflow. Run `/gps finish` when done.
 
 **Output:** The grill conversation begins right away.

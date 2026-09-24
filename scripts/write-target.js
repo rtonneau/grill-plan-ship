@@ -5,8 +5,9 @@
  *
  * Detects which phase (grill or plan) still needs its output written and,
  * when one is pending, prints where Claude writes the payload, which
- * "**Label:**" header fields and "## " sections it must contain. write-apply.js then turns the payload
- * into the phase's files.
+ * "**Label:**" header fields and "## " sections it must contain (plus a
+ * "**Branch:**" field for the grill phase of a GitHub project).
+ * write-apply.js then turns the payload into the phase's files.
  */
 
 const fs = require('fs');
@@ -15,6 +16,7 @@ const { resolveWriteTarget } = require('./lib/write-target');
 const { resolveSession } = require('./lib/session-store');
 const { touchPhase } = require('./lib/token-usage');
 const { PAYLOAD_FILENAME, loadPhaseFile, expectedHeadings, expectedFields } = require('./lib/write-payload');
+const { detectGithub, BRANCH_PATTERN } = require('./lib/github');
 const { writeJsonAtomic, runCli } = require('./lib/guard');
 
 runCli(() => {
@@ -28,6 +30,12 @@ runCli(() => {
     result.existingPayload = fs.existsSync(result.payloadPath);
     const phaseFile = loadPhaseFile(sessionDir, result.target, config);
     result.fields = expectedFields(phaseFile);
+    // GitHub projects: the grill payload also names the session branch,
+    // which write-apply.js creates (see lib/github.js).
+    if (result.target === 'grill' && detectGithub(process.cwd())) {
+      result.fields.push('Branch');
+      result.branchPattern = BRANCH_PATTERN;
+    }
     result.sections = expectedHeadings(phaseFile);
     if (result.target === 'plan') result.ticketSeparator = '--- ticket: NN-<slug> ---';
   }

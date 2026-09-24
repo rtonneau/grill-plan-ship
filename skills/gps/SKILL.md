@@ -26,7 +26,7 @@ Each command's full instructions live in `references/<command>.md` in this skill
 
 ## Workflow
 
-Grill (brainstorm, clarify the spec) → Plan (atomic tickets) → Ship (implement tickets one by one) → Finish (close and summarize). An optional `/gps scout` sources feature candidates before Grill.
+Grill (brainstorm, clarify the spec) → Plan (atomic tickets) → Ship (implement tickets one by one) → Finish (close and summarize). An optional `/gps scout` sources feature candidates before Grill. On GitHub projects, saving the grill resume creates the session's branch and `/gps finish` opens its pull request.
 
 All output lives in `.work/sessions/YYYY-MM-DD__<slug>/` (local date; `<slug>` is the feature name cleaned to lowercase `a-z 0-9 . _ -`).
 
