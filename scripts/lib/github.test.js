@@ -85,28 +85,47 @@ git('switch', '-q', '--detach');
 assert.match(validateBranchName(repo, 'feat/other').pop(), /HEAD is detached/);
 git('switch', '-q', 'feat/dark-mode');
 
-// openPullRequest with a stub gh.
-const ghLog = path.join(tmp, 'gh-args.json');
+// openPullRequest with a stub gh: every call is appended to ghLog;
+// "pr list" prints GH_STUB_OPEN_PR (an already-open PR) when set.
+const ghLog = path.join(tmp, 'gh-calls.jsonl');
 const ghStub = path.join(tmp, 'gh-stub.js');
 fs.writeFileSync(ghStub, `
 const fs = require('fs');
 const args = process.argv.slice(2);
-const body = fs.readFileSync(args[args.indexOf('--body-file') + 1], 'utf-8');
-fs.writeFileSync(${JSON.stringify(ghLog)}, JSON.stringify({ args, body }));
+const bodyAt = args.indexOf('--body-file');
+const body = bodyAt >= 0 ? fs.readFileSync(args[bodyAt + 1], 'utf-8') : null;
+fs.appendFileSync(${JSON.stringify(ghLog)}, JSON.stringify({ args, body }) + '\\n');
 if (process.env.GH_STUB_FAIL) { console.error('gh: not logged in'); process.exit(1); }
+if (args[1] === 'list') { if (process.env.GH_STUB_OPEN_PR) console.log(process.env.GH_STUB_OPEN_PR); process.exit(0); }
 console.log('Creating pull request...');
 console.log('https://github.com/acme/app/pull/7');
 `);
 process.env.GPS_GH_BIN = ghStub;
+const ghCalls = () => (fs.existsSync(ghLog) ? fs.readFileSync(ghLog, 'utf-8').trim().split('\n').map((l) => JSON.parse(l)) : []);
+const creates = () => ghCalls().filter((c) => c.args[1] === 'create');
 
 let pr = openPullRequest(repo, info, { title: 'feat: Dark mode', body: 'Body text\n' });
-assert.deepStrictEqual(pr, { ok: true, url: 'https://github.com/acme/app/pull/7' });
-const call = JSON.parse(fs.readFileSync(ghLog, 'utf-8'));
+assert.deepStrictEqual(pr, { ok: true, url: 'https://github.com/acme/app/pull/7', existing: false });
+assert.deepStrictEqual(ghCalls()[0].args.slice(0, 4), ['pr', 'list', '--head', 'feat/dark-mode']);
+assert.strictEqual(creates().length, 1);
+const call = creates()[0];
 assert.deepStrictEqual(call.args.slice(0, 8), ['pr', 'create', '--base', 'main', '--head', 'feat/dark-mode', '--title', 'feat: Dark mode']);
 assert.strictEqual(call.body, 'Body text\n');
 // The branch reached origin with its upstream set.
 assert.ok(execFileSync('git', ['--git-dir', bare, 'rev-parse', 'refs/heads/feat/dark-mode'], { encoding: 'utf-8' }).trim());
 assert.strictEqual(git('rev-parse', '--abbrev-ref', 'feat/dark-mode@{upstream}'), 'origin/feat/dark-mode');
+
+// Guard against a second PR: a known pr_url is reused without asking gh...
+fs.rmSync(ghLog);
+pr = openPullRequest(repo, { ...info, pr_url: 'https://github.com/acme/app/pull/7' }, { title: 't', body: 'b' });
+assert.deepStrictEqual(pr, { ok: true, url: 'https://github.com/acme/app/pull/7', existing: true });
+assert.deepStrictEqual(ghCalls(), []);
+// ...and a PR already open for the branch is found and reused.
+process.env.GH_STUB_OPEN_PR = 'https://github.com/acme/app/pull/9';
+pr = openPullRequest(repo, info, { title: 't', body: 'b' });
+assert.deepStrictEqual(pr, { ok: true, url: 'https://github.com/acme/app/pull/9', existing: true });
+assert.strictEqual(creates().length, 0);
+delete process.env.GH_STUB_OPEN_PR;
 
 // gh failure -> not thrown, gh command left to run by hand.
 process.env.GH_STUB_FAIL = '1';

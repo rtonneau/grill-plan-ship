@@ -52,7 +52,11 @@ After the existing checks, when `config.git` is set:
 
 1. Refuse (change nothing) if the current branch is not `git.branch`.
    Uncommitted changes print a `⚠️` (they won't be in the PR) but don't block.
-2. `git push -u origin <branch>`.
+2. `git push -u origin <branch>`. If a PR is already known — `git.pr_url` in
+   the config, or an open PR for the branch (`gh pr list --head <branch> --state open`)
+   — it is reused (the push updated it) and step 3 is skipped. `pr_url` is
+   saved to the config as soon as a PR is opened, so a finish interrupted
+   later never opens a second one on its re-run.
 3. `gh pr create --base <base_branch> --head <branch> --title <title> --body-file <tmp>`.
    - Title: `<type>: <feature name>`, `type` from the branch prefix.
    - Body: the resume's Problem Statement, the ticket list (or "bounded"), the

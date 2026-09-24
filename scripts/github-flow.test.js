@@ -22,8 +22,9 @@ fs.mkdirSync(root);
 fs.writeFileSync(ghStub, `
 const fs = require('fs');
 const args = process.argv.slice(2);
+if (args[1] === 'list') process.exit(0); // no PR open yet
 const body = fs.readFileSync(args[args.indexOf('--body-file') + 1], 'utf-8');
-fs.writeFileSync(${JSON.stringify(ghLog)}, JSON.stringify({ args, body }));
+fs.appendFileSync(${JSON.stringify(ghLog)}, JSON.stringify({ args, body }) + '\\n');
 console.log('https://github.com/acme/app/pull/12');
 `);
 
@@ -110,7 +111,9 @@ git('switch', '-q', 'feat/dark-mode-toggle');
 // Finish pushes and opens the PR.
 res = ok('finish.js');
 assert.match(res.out, /Pull request: https:\/\/github\.com\/acme\/app\/pull\/12/);
-const call = JSON.parse(fs.readFileSync(ghLog, 'utf-8'));
+const creates = () => fs.readFileSync(ghLog, 'utf-8').trim().split('\n').map((l) => JSON.parse(l));
+assert.strictEqual(creates().length, 1);
+const call = creates()[0];
 assert.deepStrictEqual(call.args.slice(0, 8),
   ['pr', 'create', '--base', 'main', '--head', 'feat/dark-mode-toggle', '--title', 'feat: Dark Mode']);
 assert.match(call.body, /Users want a dark theme\./);
@@ -130,6 +133,20 @@ const status = JSON.parse(ok('status.js').out);
 const summary = status.sessions.find((s) => s.sessionId === sessionId);
 assert.strictEqual(summary.branch, 'feat/dark-mode-toggle');
 assert.strictEqual(summary.prUrl, 'https://github.com/acme/app/pull/12');
+
+// A second finish is refused outright (the finished session is no longer current)...
+res = run('finish.js');
+assert.strictEqual(res.code, 1);
+assert.match(res.err, /No current session/);
+assert.strictEqual(creates().length, 1);
+// ...and a finish interrupted after the PR was opened (simulated: the
+// config keeps pr_url but not finished_at) reuses that PR on its re-run.
+delete config.finished_at;
+fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
+fs.writeFileSync(path.join(root, '.work', 'sessions', '.current-session'), sessionId);
+res = ok('finish.js');
+assert.match(res.out, /Pull request \(already open, updated by the push\): https:\/\/github\.com\/acme\/app\/pull\/12/);
+assert.strictEqual(creates().length, 1, 'no second PR');
 
 fs.rmSync(tmp, { recursive: true, force: true });
 console.log('# github-flow.test.js: all assertions passed');

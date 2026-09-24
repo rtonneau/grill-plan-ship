@@ -174,7 +174,12 @@ function finishSession() {
       console.error('⚠️  Uncommitted changes to tracked files will not be in the pull request.');
     }
     pr = openSessionPr(projectRoot, sessionDir, config, tickets, bounded);
-    config.git.pr_url = pr.ok ? pr.url : null;
+    if (pr.ok) {
+      // Saved at once, so a finish interrupted after this point reuses the
+      // PR on its next run instead of opening a second one.
+      config.git.pr_url = pr.url;
+      writeJsonAtomic(configPath, config);
+    }
   }
 
   const finishedAt = new Date().toISOString();
@@ -188,7 +193,7 @@ function finishSession() {
   console.log(`✅ Session complete: ${sessionId}`);
   console.log(`Summary: ${path.join(sessionDir, 'INDEX.md')}`);
   if (pr && pr.ok) {
-    console.log(`🔀 Pull request: ${pr.url}`);
+    console.log(`🔀 Pull request${pr.existing ? ' (already open, updated by the push)' : ''}: ${pr.url}`);
   } else if (pr) {
     console.error(`⚠️  Pull request not opened (${pr.step === 'push' ? 'git push' : 'gh pr create'} failed: ${pr.reason}). Run by hand:`);
     for (const command of pr.commands) console.error(`   ${command}`);

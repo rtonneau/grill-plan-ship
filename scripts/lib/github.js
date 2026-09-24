@@ -115,8 +115,32 @@ function manualCommands(gitInfo, title) {
   ];
 }
 
-// Pushes the session branch and opens a PR. Never throws: returns
-// { ok: true, url } or { ok: false, step, reason, commands }.
+function runGh(projectRoot, args) {
+  const gh = ghCommand();
+  return execFileSync(gh.file, [...gh.prefix, ...args], {
+    cwd: projectRoot, encoding: 'utf-8', stdio: ['ignore', 'pipe', 'pipe'],
+  });
+}
+
+function lastUrl(output) {
+  return String(output).split('\n').map((l) => l.trim()).filter((l) => /^https:\/\//.test(l)).pop() || null;
+}
+
+// URL of an open PR whose head is `branch`, or null (none, or gh failed).
+function findOpenPullRequest(projectRoot, branch) {
+  try {
+    return lastUrl(runGh(projectRoot, [
+      'pr', 'list', '--head', branch, '--state', 'open', '--json', 'url', '--jq', '.[].url',
+    ]));
+  } catch (_err) {
+    return null;
+  }
+}
+
+// Pushes the session branch and opens a PR, unless one is already known
+// (`gitInfo.pr_url`, saved by an earlier finish) or already open for the
+// branch: then the push just updates it. Never throws: returns
+// { ok: true, url, existing } or { ok: false, step, reason, commands }.
 function openPullRequest(projectRoot, gitInfo, { title, body }) {
   const commands = manualCommands(gitInfo, title);
   try {
@@ -125,18 +149,19 @@ function openPullRequest(projectRoot, gitInfo, { title, body }) {
     return { ok: false, step: 'push', reason: failureReason(err), commands };
   }
 
+  const existingUrl = gitInfo.pr_url || findOpenPullRequest(projectRoot, gitInfo.branch);
+  if (existingUrl) return { ok: true, url: existingUrl, existing: true };
+
   const bodyFile = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'gps-pr-')), 'body.md');
   fs.writeFileSync(bodyFile, body);
-  const gh = ghCommand();
   try {
-    const out = execFileSync(gh.file, [
-      ...gh.prefix, 'pr', 'create',
+    const url = lastUrl(runGh(projectRoot, [
+      'pr', 'create',
       '--base', gitInfo.base_branch, '--head', gitInfo.branch,
       '--title', title, '--body-file', bodyFile,
-    ], { cwd: projectRoot, encoding: 'utf-8', stdio: ['ignore', 'pipe', 'pipe'] });
-    const url = out.split('\n').map((l) => l.trim()).filter((l) => /^https:\/\//.test(l)).pop();
+    ]));
     if (!url) return { ok: false, step: 'gh', reason: 'gh printed no PR URL', commands: commands.slice(1) };
-    return { ok: true, url };
+    return { ok: true, url, existing: false };
   } catch (err) {
     return { ok: false, step: 'gh', reason: failureReason(err), commands: commands.slice(1) };
   } finally {
