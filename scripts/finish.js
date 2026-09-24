@@ -13,6 +13,11 @@
  * - the grill or plan phase is not written yet;
  * - any ticket is not Done.
  * A bounded session (resume written, no plan) may finish with no tickets.
+ *
+ * Sessions with a branch (`git` in the config, set by /gps write in a
+ * GitHub project) must have it checked out; finish pushes it and opens a
+ * PR against its base branch. A failed push or gh call does not fail the
+ * finish: INDEX.md and the output list the commands to run by hand.
  */
 
 const fs = require('fs');
@@ -22,9 +27,13 @@ const {
 } = require('./lib/session-store');
 const { resolveWriteTarget } = require('./lib/write-target');
 const { listTickets } = require('./lib/ticket-queue');
+const { splitSections } = require('./lib/write-payload');
+const {
+  PR_ATTRIBUTION, currentBranch, branchType, commitsBetween, hasUncommittedChanges, openPullRequest,
+} = require('./lib/github');
 const { GpsError, writeJsonAtomic, runCli } = require('./lib/guard');
 
-function buildIndex(config, finishedAt, tickets, bounded) {
+function buildIndex(config, finishedAt, tickets, bounded, pr) {
   const lines = [
     `# Session Summary: ${config.feature_name}`,
     '',
@@ -52,8 +61,77 @@ function buildIndex(config, finishedAt, tickets, bounded) {
       ''
     );
   }
+  if (config.git) lines.push(...branchSection(config.git, pr));
   lines.push('## Next', '', 'Start a new feature with /gps start <next-feature>', '');
   return lines.join('\n');
+}
+
+function branchSection(gitInfo, pr) {
+  const lines = [
+    '## Branch & PR',
+    '',
+    `- **Branch:** \`${gitInfo.branch}\``,
+    `- **Base:** \`${gitInfo.base_branch}\``,
+  ];
+  if (pr.ok) {
+    lines.push(`- **Pull request:** ${pr.url}`, '');
+  } else {
+    lines.push(
+      `- **Pull request:** not opened (${pr.step === 'push' ? 'push' : 'gh pr create'} failed: ${pr.reason})`,
+      '',
+      'Open it by hand:',
+      '',
+      '```bash',
+      ...pr.commands,
+      '```',
+      ''
+    );
+  }
+  return lines;
+}
+
+// "## Problem Statement" of the resume, or null.
+function problemStatement(sessionDir) {
+  try {
+    const text = fs.readFileSync(path.join(sessionDir, '01-grill', 'resume.md'), 'utf-8');
+    const section = splitSections(text).sections.find((s) => s.heading === 'Problem Statement');
+    return section && section.body ? section.body : null;
+  } catch (_err) {
+    return null;
+  }
+}
+
+function buildPrBody(projectRoot, sessionDir, config, tickets, bounded) {
+  const { branch, base_branch: base } = config.git;
+  const commits = commitsBetween(projectRoot, base, branch);
+  const lines = [
+    '## Summary',
+    '',
+    problemStatement(sessionDir) || config.feature_name,
+    '',
+    '## Tickets',
+    '',
+    ...(bounded
+      ? ['Bounded session: no plan or tickets.']
+      : tickets.map((t) => `- [x] ${t.num} ${t.slug}`)),
+    '',
+    '## Commits',
+    '',
+    ...(commits.length > 0 ? commits.map((c) => `- ${c}`) : ['None.']),
+    '',
+    `gps session: \`${config.session_id}\``,
+    '',
+    PR_ATTRIBUTION,
+    '',
+  ];
+  return lines.join('\n');
+}
+
+// Pushes the session branch and opens its PR (GitHub sessions only).
+function openSessionPr(projectRoot, sessionDir, config, tickets, bounded) {
+  const title = `${branchType(config.git.branch)}: ${config.feature_name}`;
+  const body = buildPrBody(projectRoot, sessionDir, config, tickets, bounded);
+  return openPullRequest(projectRoot, config.git, { title, body });
 }
 
 function finishSession() {
@@ -82,8 +160,25 @@ function finishSession() {
     );
   }
 
+  const projectRoot = process.cwd();
+  let pr = null;
+  if (config.git) {
+    const onBranch = currentBranch(projectRoot);
+    if (onBranch !== config.git.branch) {
+      throw new GpsError(
+        `The session's work is on branch ${config.git.branch}, but ${onBranch || 'a detached HEAD'} is checked out. Nothing was changed.`,
+        `Run git switch ${config.git.branch}, then /gps finish again.`
+      );
+    }
+    if (hasUncommittedChanges(projectRoot)) {
+      console.error('⚠️  Uncommitted changes to tracked files will not be in the pull request.');
+    }
+    pr = openSessionPr(projectRoot, sessionDir, config, tickets, bounded);
+    config.git.pr_url = pr.ok ? pr.url : null;
+  }
+
   const finishedAt = new Date().toISOString();
-  fs.writeFileSync(path.join(sessionDir, 'INDEX.md'), buildIndex(config, finishedAt, tickets, bounded));
+  fs.writeFileSync(path.join(sessionDir, 'INDEX.md'), buildIndex(config, finishedAt, tickets, bounded, pr));
 
   config.finished_at = finishedAt;
   writeJsonAtomic(configPath, config);
@@ -92,6 +187,12 @@ function finishSession() {
 
   console.log(`✅ Session complete: ${sessionId}`);
   console.log(`Summary: ${path.join(sessionDir, 'INDEX.md')}`);
+  if (pr && pr.ok) {
+    console.log(`🔀 Pull request: ${pr.url}`);
+  } else if (pr) {
+    console.error(`⚠️  Pull request not opened (${pr.step === 'push' ? 'git push' : 'gh pr create'} failed: ${pr.reason}). Run by hand:`);
+    for (const command of pr.commands) console.error(`   ${command}`);
+  }
 
   const unfinished = listUnfinishedSessions(sessionsDir);
   console.log(`\nUNFINISHED_SESSIONS ${JSON.stringify(unfinished)}`);

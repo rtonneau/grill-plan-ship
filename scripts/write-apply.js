@@ -8,6 +8,10 @@
  * plan.md (with a generated Token Usage section), writes the plan's
  * NN-<slug>.md tickets and removes the [slug] stubs, then deletes the
  * payload. Writes nothing unless every check passes.
+ *
+ * Grill phase in a GitHub project: also creates the session branch named
+ * by the payload's "**Branch:**" field (from the current HEAD) and records
+ * it in .session-config.json as `git`, for /gps finish to open the PR.
  */
 
 const fs = require('fs');
@@ -26,7 +30,8 @@ const {
   renderPhaseFile,
   renderTicket,
 } = require('./lib/write-payload');
-const { GpsError, runCli } = require('./lib/guard');
+const { detectGithub, validateBranchName, createSessionBranch } = require('./lib/github');
+const { GpsError, writeJsonAtomic, runCli } = require('./lib/guard');
 
 const NOTHING_PENDING_HINT = {
   'plan-not-started': 'Run /gps plan first.',
@@ -34,7 +39,7 @@ const NOTHING_PENDING_HINT = {
 };
 
 runCli(() => {
-  const { sessionId, sessionDir, config } = resolveSession(process.cwd());
+  const { sessionId, sessionDir, configPath, config } = resolveSession(process.cwd());
   const { target, reason } = resolveWriteTarget(sessionDir);
   if (target === 'none') {
     throw new GpsError('Nothing to write for this session.', NOTHING_PENDING_HINT[reason]);
@@ -64,6 +69,10 @@ runCli(() => {
     errors.push(`${path.basename(targetPath)} would still have a placeholder outside the payload's reach (e.g. a hand-edited header line). Remove it from ${targetPath} by hand.`);
   }
 
+  const projectRoot = process.cwd();
+  const branch = target === 'grill' && detectGithub(projectRoot) ? payload.fields.Branch || '' : null;
+  if (branch !== null) errors.push(...validateBranchName(projectRoot, branch));
+
   const ticketsDir = path.join(sessionDir, '02-plan', 'tickets');
   const stubs = [];
   if (target === 'plan' && fs.existsSync(ticketsDir)) {
@@ -80,12 +89,28 @@ runCli(() => {
     );
   }
 
+  // The branch is created first: if git refuses, nothing is written.
+  let gitInfo = null;
+  if (branch) {
+    try {
+      gitInfo = createSessionBranch(projectRoot, branch);
+    } catch (err) {
+      throw new GpsError(`${err.message} (nothing was written).`,
+        `Fix the problem (or change "**Branch:**" in ${payloadPath}) and run write-apply.js again.`);
+    }
+  }
+
   fs.mkdirSync(path.dirname(targetPath), { recursive: true });
   fs.writeFileSync(targetPath, rendered);
 
   if (target === 'grill') {
+    if (gitInfo) {
+      config.git = gitInfo;
+      writeJsonAtomic(configPath, config);
+    }
     fs.unlinkSync(payloadPath);
     console.log(`✅ Grill written for ${sessionId}. Next: /gps plan`);
+    if (gitInfo) console.log(`🌿 Working on branch ${gitInfo.branch} (from ${gitInfo.base_branch}); /gps finish opens the PR.`);
     return;
   }
 

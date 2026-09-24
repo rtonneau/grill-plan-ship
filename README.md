@@ -13,7 +13,7 @@ A structured workflow plugin for any code project.
 - `/gps plan` — Create tickets
 - `/gps ticket <N>` — Implement one ticket by hand
 - `/gps ship` — Implement every remaining ticket in order, one commit each
-- `/gps finish` — Archive session
+- `/gps finish` — Archive session (and open the session's pull request on GitHub projects)
 
 ## Workflow Visualization
 
@@ -80,6 +80,16 @@ Add a direction to narrow it: `/gps scout --from review.md only Critical and Hig
 ```
 
 `/gps start` creates the scratch directory, records it as `scratch_dir` in `.session-config.json`, and adds `.scratch/` to the project's `.gitignore` if missing. `/gps ticket` prints its path so agents keep build logs and run output there (prefixed with the ticket number, e.g. `03-build.log`). To enforce a stricter policy (capture stdout, never write to the source tree), add it to your project's CLAUDE.md.
+
+## Branches and Pull Requests
+
+When the project's `origin` remote is on GitHub, each session gets its own branch and ends with a pull request:
+
+- **`/gps write` (grill phase)** asks for a `**Branch:**` name shaped like `<feat|fix|refactor|docs|chore|perf|test>/<short-slug>` (e.g. `feat/dark-mode-toggle`), which Claude picks from the approved design. The branch is created from whatever is checked out (uncommitted changes come along), and that branch becomes the PR's base. Sessions abandoned mid-brainstorm never create a branch.
+- **`/gps finish`** must run on the session branch. It pushes it (`git push -u origin <branch>`) and runs `gh pr create` against the base branch, with the resume's problem statement, the tickets and the commits as the PR body. The PR link goes into `INDEX.md` (`## Branch & PR`), `.session-config.json` (`git.pr_url`) and `/gps status`.
+- If the push or `gh` fails (not installed, not logged in), the session still finishes and `INDEX.md` lists the commands to run by hand.
+
+Projects without a GitHub `origin` work exactly as before: no branch, no PR.
 
 ## Features
 

@@ -75,7 +75,7 @@ Sessions created before this feature, or in non-GitHub projects, have no
 - `github.test.js`: remote URL parsing, branch-name validation, `createSessionBranch`
   in a temp repo (base recorded, dirty changes carried, existing branch refused),
   `openPullRequest` with stub `gh` on PATH and a bare repo as `origin`.
-- `e2e`: a GitHub-origin session (origin URL set via `url.<bare>.insteadOf`)
+- `scripts/github-flow.test.js`: a GitHub-origin session (origin URL set via `url.<bare>.insteadOf`)
   going start → write(grill with Branch) → finish, with a stub `gh` that
   records its arguments and prints a PR URL; INDEX.md and config carry the URL.
 - Existing non-GitHub tests keep passing unchanged.

@@ -28,6 +28,8 @@ function summarizeSession(sessionsDir, sessionId) {
     createdAt: config ? config.created_at : null,
     finishedAt: config ? config.finished_at || null : null,
     phase,
+    branch: config && config.git ? config.git.branch || null : null,
+    prUrl: config && config.git ? config.git.pr_url || null : null,
     configReadable: Boolean(config),
   };
 }
