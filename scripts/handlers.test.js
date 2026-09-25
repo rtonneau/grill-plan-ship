@@ -744,6 +744,34 @@ function markDone(root, implName) {
 }
 
 {
+  // /gps issue: same session setup as start, marked kind "issue"; local when GitHub is off
+  const root = tempProject();
+  const noTitle = run(root, 'issue-session.js');
+  assert.strictEqual(noTitle.code, 1);
+  assert.match(noTitle.err, /Missing issue title/);
+  assert.match(noTitle.err, /Usage: \/gps issue <title>/);
+  assert.ok(!fs.existsSync(path.join(root, '.work')), 'a refused command creates nothing');
+
+  const created = run(root, 'issue-session.js', 'Crash on save');
+  assert.strictEqual(created.code, 0, created.err);
+  assert.match(created.err, /GitHub is not enabled for this project/);
+  const id = currentSession(root);
+  assert.match(id, /^\d{4}-\d{2}-\d{2}__crash-on-save$/);
+  const config = JSON.parse(fs.readFileSync(path.join(sessionsDir(root), id, '.session-config.json'), 'utf-8'));
+  assert.strictEqual(config.kind, 'issue');
+  assert.strictEqual(config.feature_name, 'Crash on save');
+  assert.strictEqual(config.issue, undefined);
+  assert.deepStrictEqual(config.history.map((e) => [e.event, e.detail]), [['session_started', { kind: 'issue' }]]);
+  const projectConfig = JSON.parse(fs.readFileSync(path.join(root, '.work', 'gps-config.json'), 'utf-8'));
+  assert.strictEqual(projectConfig.github.enabled, false);
+  assert.ok(fs.existsSync(path.join(sessionsDir(root), id, '01-grill', 'resume.md')));
+
+  const again = run(root, 'issue-session.js', 'Crash on save');
+  assert.strictEqual(again.code, 1);
+  assert.match(again.err, /already exists/);
+}
+
+{
   // SKILL.md router: every command has a references file carrying its handler lines
   const skillDir = path.join(SCRIPTS, '..', 'skills', 'gps');
   const skill = fs.readFileSync(path.join(skillDir, 'SKILL.md'), 'utf-8');
@@ -755,6 +783,7 @@ function markDone(root, implName) {
   const handlers = {
     scout: ['scout-merge.js'],
     start: ['start-session.js'],
+    issue: ['issue-session.js'],
     status: ['status.js'],
     handoff: ['handoff.js'],
     resume: ['resume.js'],
