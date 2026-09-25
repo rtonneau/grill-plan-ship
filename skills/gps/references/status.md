@@ -5,7 +5,7 @@
 **What it does:**
 
 1. Runs `node $CLAUDE_PLUGIN_ROOT/scripts/status.js`, which:
-   - Lists every session under `.work/sessions/` with its feature name, creation date, `finishedAt`, `branch` and `prUrl` (GitHub sessions; `null` otherwise), `currentPhase` (the phase the last handler recorded in the config; `null` for older sessions), `phaseDrift` (`{ recorded, derived }` when the recorded phase differs from the derived one, else `null`), and `phase` (computed from the session's files: `grill`, `plan-not-started`, `plan`, `ship`, `finish-pending`, `plan-complete` or `finished`; old `status` / `phases_completed` config fields are ignored).
+   - Lists every session under `.work/sessions/` with its feature name, creation date, `finishedAt`, `branch`, `prUrl` and `issueUrl` (GitHub sessions; `null` otherwise), `currentPhase` (the phase the last handler recorded in the config; `null` for older sessions), `phaseDrift` (`{ recorded, derived }` when the recorded phase differs from the derived one, else `null`), and `phase` (computed from the session's files: `grill`, `plan-not-started`, `plan`, `ship`, `finish-pending`, `plan-complete` or `finished`; old `status` / `phases_completed` config fields are ignored).
    - Lists every scouted idea not started yet as `ideas` (from `.work/sessions/.pending-seeds.json`; `/gps start <slug>` removes an idea once it becomes a session), strongest first: `slug`, `strength`, `severity`, `problem`, `sourceReport`, `sourcePath`, `createdAt`, `startCommand`. If that file is unreadable, `ideas` is empty and `ideasProblem` says why — status never moves or repairs it.
    - Resolves the current session from `.work/sessions/.current-session` (same logic as every other command — there is no fallback to "the most recent session"). If the pointer is missing, invalid, points at a deleted session or at a finished one, `current` is `null` and `currentProblem` explains why and lists the unfinished sessions: show that to the user, ask which session to use, and only after they confirm run `node $CLAUDE_PLUGIN_ROOT/scripts/set-current.js <session-id>`.
    - Otherwise, for the current session only, adds:
@@ -15,7 +15,7 @@
      - `gitLog` — up to 10 project-wide commits (oneline) made since the session was created, so recent implementation activity is visible even without opening `commit-log.md` files.
      - `hasHandoff` — whether a saved checkpoint exists for this session (`HANDOFF.md` present). When true, Claude Code's rendered report should mention `/gps resume` is available for full context.
 2. Claude Code renders that JSON as a short human-readable report:
-   - One line per session: feature name and phase, plus its branch and PR link when set.
+   - One line per session: feature name and phase, plus its branch, PR link and issue link when set.
    - If a session's `phaseDrift` is not null, say so. The usual cause is a ticket set to `✅ Done` without running `ticket-done.js <N>`; running it fixes the record. `phase` is always the truth.
    - If `ideas` is non-empty: a table of the scouted ideas not started yet (slug, `severity · strength` or just the strength, one-line problem), each with its `/gps start <slug>` line to copy. Show `ideasProblem` if set.
    - For the current session: which phase is pending and why, ticket progress (`X/Y done`, next pending ticket if any), and the recent commits.
