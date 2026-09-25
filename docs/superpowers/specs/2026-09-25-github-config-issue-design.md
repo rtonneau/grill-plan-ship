@@ -83,8 +83,9 @@ outcome skips `/gps plan`.
   `createIssue(projectRoot, { title, body })` runs `gh issue create --title
   <feature name> --body-file <tmp>`. The issue number and URL are parsed from
   the last `https://…/issues/<n>` line.
-- Body: the resume's Problem Statement, Current behavior and Success Metrics,
-  the `gps session: <id>` line and the attribution line.
+- Body: the resume's Problem Statement, Context & Constraints (which holds the
+  current behavior) and Success Metrics sections, the `gps session: <id>` line
+  and the attribution line.
 - On failure: `❌` with gh's reason, nothing written, payload kept for a retry
   (same shape as a failed branch creation).
 - On success: the config gets `issue: { number, url, created_at }`; the `✅`

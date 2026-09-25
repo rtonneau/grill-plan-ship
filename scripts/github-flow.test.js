@@ -224,5 +224,45 @@ res = ok('finish.js');
 assert.match(res.out, /Pull request \(already open, updated by the push\): https:\/\/github\.com\/acme\/app\/pull\/12/);
 assert.strictEqual(prCreates().length, 1, 'no second PR');
 
+// ------------------------------- C. issue session: the grill write files the issue
+git('switch', '-q', 'main');
+ok('issue-session.js', 'Crash on save');
+({ sessionId, sessionDir, configPath } = currentSession());
+assert.strictEqual(readConfig(configPath).kind, 'issue');
+target = JSON.parse(ok('write-target.js').out);
+assert.strictEqual(target.target, 'grill');
+fs.writeFileSync(target.payloadPath, sectionsText(target, 'Saving a large file crashes the app.'));
+
+// gh fails: nothing written, payload kept, the retry works.
+process.env.GH_STUB_FAIL_ISSUE = '1';
+res = run('write-apply.js');
+assert.strictEqual(res.code, 1);
+assert.match(res.err, /gh issue create failed: gh: HTTP 502 \(nothing was written\)/);
+assert.ok(fs.existsSync(target.payloadPath), 'payload kept for a retry');
+assert.match(fs.readFileSync(path.join(sessionDir, '01-grill', 'resume.md'), 'utf-8'), /gps:fill/, 'resume still unfilled');
+assert.strictEqual(readConfig(configPath).issue, undefined);
+delete process.env.GH_STUB_FAIL_ISSUE;
+
+res = ok('write-apply.js');
+assert.match(res.out, /Issue #34: https:\/\/github\.com\/acme\/app\/issues\/34/);
+config = readConfig(configPath);
+assert.strictEqual(config.issue.number, 34);
+assert.strictEqual(config.issue.url, 'https://github.com/acme/app/issues/34');
+const issueCreates = ghCalls().filter((c) => c.args[0] === 'issue' && c.args[1] === 'create');
+assert.strictEqual(issueCreates.length, 1);
+assert.deepStrictEqual(issueCreates[0].args.slice(0, 4), ['issue', 'create', '--title', 'Crash on save']);
+assert.match(issueCreates[0].body, /## Problem Statement\n\nSaving a large file crashes the app\./);
+assert.match(issueCreates[0].body, /## Context & Constraints/);
+assert.match(issueCreates[0].body, /gps session: `.+__crash-on-save`/);
+assert.strictEqual(git('branch', '--show-current'), 'main', 'an issue session creates no branch at the grill write');
+assert.strictEqual(config.git, undefined);
+assert.deepStrictEqual(config.history.map((e) => e.event), ['session_started', 'issue_created', 'grill_written']);
+assert.deepStrictEqual(config.history[1].detail, { number: 34, url: 'https://github.com/acme/app/issues/34' });
+assert.strictEqual(config.history[1].at, config.issue.created_at);
+assert.strictEqual(
+  JSON.parse(ok('status.js').out).sessions.find((s) => s.sessionId === sessionId).issueUrl,
+  'https://github.com/acme/app/issues/34'
+);
+
 fs.rmSync(tmp, { recursive: true, force: true });
 console.log('# github-flow.test.js: all assertions passed');

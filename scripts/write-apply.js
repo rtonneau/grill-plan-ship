@@ -14,6 +14,10 @@
  * by the payload's "**Branch:**" field (from the current HEAD) and records
  * it in .session-config.json as `git`, for /gps finish to open the PR.
  * Bounded sessions (no plan) never get a branch.
+ *
+ * Grill phase of a `kind: "issue"` session (/gps issue) in a GitHub project:
+ * also files the GitHub issue from the resume sections and records it in
+ * .session-config.json as `issue`. If gh fails nothing is written.
  */
 
 const fs = require('fs');
@@ -33,7 +37,7 @@ const {
   renderPhaseFile,
   renderTicket,
 } = require('./lib/write-payload');
-const { validateBranchName, createSessionBranch } = require('./lib/github');
+const { validateBranchName, createSessionBranch, createIssue, buildIssueBody } = require('./lib/github');
 const { githubEnabled } = require('./lib/project-config');
 const { GpsError, writeJsonAtomic, runCli } = require('./lib/guard');
 
@@ -76,6 +80,7 @@ runCli(() => {
   const projectRoot = process.cwd();
   const branch = target === 'plan' && !config.git && githubEnabled(projectRoot) ? payload.fields.Branch || '' : null;
   if (branch !== null) errors.push(...validateBranchName(projectRoot, branch));
+  const issueWanted = target === 'grill' && config.kind === 'issue' && !config.issue && githubEnabled(projectRoot);
 
   const ticketsDir = path.join(sessionDir, '02-plan', 'tickets');
   const stubs = [];
@@ -104,13 +109,35 @@ runCli(() => {
     }
   }
 
+  // Same rule for the issue: if gh refuses, nothing is written.
+  let issue = null;
+  if (issueWanted) {
+    try {
+      issue = createIssue(projectRoot, { title: config.feature_name, body: buildIssueBody(payload.sections, sessionId) });
+    } catch (err) {
+      throw new GpsError(`${err.message} (nothing was written).`,
+        `Fix the problem (check that gh is installed and logged in) and run write-apply.js again.`);
+    }
+  }
+
   fs.mkdirSync(path.dirname(targetPath), { recursive: true });
   fs.writeFileSync(targetPath, rendered);
 
   if (target === 'grill') {
+    if (issue) {
+      config.issue = issue;
+      writeJsonAtomic(configPath, config);
+      recordEvent(configPath, config, sessionDir, {
+        event: 'issue_created',
+        files: ['01-grill/resume.md'],
+        detail: { number: issue.number, url: issue.url },
+        at: issue.created_at,
+      });
+    }
     recordEvent(configPath, config, sessionDir, { event: 'grill_written', files: ['01-grill/resume.md'] });
     fs.unlinkSync(payloadPath);
     console.log(`✅ Grill written for ${sessionId}. Next: /gps plan`);
+    if (issue) console.log(`📌 Issue #${issue.number}: ${issue.url}`);
     return;
   }
 

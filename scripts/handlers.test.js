@@ -772,6 +772,19 @@ function markDone(root, implName) {
 }
 
 {
+  // issue session with GitHub off: the grill write files no issue and still succeeds
+  const root = tempProject();
+  run(root, 'issue-session.js', 'Local report');
+  const target = JSON.parse(run(root, 'write-target.js').out);
+  fs.writeFileSync(target.payloadPath, target.sections.map((h) => `## ${h}\n\n${h}: approved.\n`).join('\n'));
+  const applied = run(root, 'write-apply.js');
+  assert.strictEqual(applied.code, 0, applied.err);
+  assert.doesNotMatch(applied.out, /Issue #/);
+  const config = JSON.parse(fs.readFileSync(path.join(sessionsDir(root), currentSession(root), '.session-config.json'), 'utf-8'));
+  assert.strictEqual(config.issue, undefined);
+}
+
+{
   // SKILL.md router: every command has a references file carrying its handler lines
   const skillDir = path.join(SCRIPTS, '..', 'skills', 'gps');
   const skill = fs.readFileSync(path.join(skillDir, 'SKILL.md'), 'utf-8');

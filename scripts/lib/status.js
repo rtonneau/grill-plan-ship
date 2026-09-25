@@ -34,6 +34,7 @@ function summarizeSession(sessionsDir, sessionId) {
       : null,
     branch: config && config.git ? config.git.branch || null : null,
     prUrl: config && config.git ? config.git.pr_url || null : null,
+    issueUrl: config && config.issue ? config.issue.url || null : null,
     configReadable: Boolean(config),
   };
 }
