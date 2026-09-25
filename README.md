@@ -40,7 +40,7 @@ Restart Claude Code. To update later:
 ```
 # In any project:
 /gps start add-dark-mode
-# ...brainstorming conversation happens automatically...
+# ...grill conversation happens automatically (grill-with-docs if installed, else brainstorming)...
 /gps write   # once approved, saves the resume to 01-grill/resume.md
 
 # Plan tickets
@@ -62,7 +62,7 @@ Already have a code review or audit? Turn its findings into seeded sessions inst
 ```
 /gps scout --from docs/reviews/2026-09-22-dotfiles-review.md
 # -> one candidate per group of related findings, e.g. "safe-bootstrap-linking  Critical · Strong"
-/gps start safe-bootstrap-linking   # brainstorming opens with those findings already loaded
+/gps start safe-bootstrap-linking   # the grill opens with those findings already loaded
 ```
 
 Add a direction to narrow it: `/gps scout --from review.md only Critical and High`, or `… one candidate per finding`.
