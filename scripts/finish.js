@@ -265,7 +265,7 @@ function finishSession() {
       config.git.pr_url = pr.url;
       writeJsonAtomic(configPath, config);
       if (!hasEvent(config, 'pr_opened')) {
-        recordEvent(configPath, config, sessionDir, { event: 'pr_opened', files: ['INDEX.md'], detail: { url: pr.url } });
+        recordEvent(configPath, config, sessionDir, { event: 'pr_opened', detail: { url: pr.url } });
       }
     }
   }

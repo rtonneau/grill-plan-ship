@@ -4,6 +4,7 @@
 // through the real handlers:
 //   A. bounded session: no branch, no PR, no gh call
 //   B. planned session: branch at the plan write, PR at finish, PR reused on a re-run
+//   I. a write that fails after the branch / the issue exists is retried without redoing it
 
 const assert = require('assert');
 const fs = require('fs');
@@ -41,14 +42,16 @@ if (args[0] === 'issue') process.exit(0);
 console.log('https://github.com/acme/app/pull/12');
 `);
 
-function run(script, ...args) {
+function runWithEnv(extraEnv, script, ...args) {
   const result = spawnSync(process.execPath, [path.join(SCRIPTS, script), ...args], {
     cwd: root,
     encoding: 'utf-8',
-    env: { ...process.env, CLAUDE_CODE_SESSION_ID: '', GPS_GH_BIN: ghStub },
+    env: { ...process.env, CLAUDE_CODE_SESSION_ID: '', GPS_GH_BIN: ghStub, ...extraEnv },
   });
   return { code: result.status, out: result.stdout, err: result.stderr };
 }
+
+const run = (script, ...args) => runWithEnv({}, script, ...args);
 
 function ok(script, ...args) {
   const res = run(script, ...args);
@@ -359,6 +362,78 @@ assert.ok(['issue_created', 'branch_created', 'plan_written', 'ticket_done', 'pr
 assert.ok(!plannedEvents.includes('issue_commented') && !plannedEvents.includes('issue_closed'));
 assert.ok(plannedEvents.indexOf('pr_opened') < plannedEvents.indexOf('session_finished'));
 assert.match(issueIndex, /\| pr_opened \|/);
+
+// ---------------- I. a failed write after the branch / issue exists can be retried
+// Failure injection: a preload makes fs.writeFileSync throw once for a path
+// containing GPS_TEST_FAIL_WRITE (the marker file records that it fired).
+const failOnce = path.join(tmp, 'fail-once.js');
+fs.writeFileSync(failOnce, `
+const fs = require('fs');
+const realWrite = fs.writeFileSync;
+fs.writeFileSync = function (file, ...rest) {
+  const needle = process.env.GPS_TEST_FAIL_WRITE;
+  const marker = process.env.GPS_TEST_FAIL_MARKER;
+  if (needle && marker && String(file).includes(needle) && !fs.existsSync(marker)) {
+    realWrite(marker, 'fired');
+    throw new Error('injected write failure');
+  }
+  return realWrite.call(this, file, ...rest);
+};
+`);
+const failWriteEnv = (needle, markerName) => ({
+  NODE_OPTIONS: `--require "${failOnce.split(path.sep).join('/')}"`,
+  GPS_TEST_FAIL_WRITE: needle,
+  GPS_TEST_FAIL_MARKER: path.join(tmp, markerName),
+});
+
+// I1. plan write: branch created, then a ticket write fails.
+git('switch', '-q', 'main');
+ok('start-session.js', 'Retry Branch');
+({ sessionId, sessionDir, configPath } = currentSession());
+target = JSON.parse(ok('write-target.js').out);
+fs.writeFileSync(target.payloadPath, sectionsText(target, 'Branch retry.'));
+ok('write-apply.js');
+ok('plan.js');
+target = JSON.parse(ok('write-target.js').out);
+fs.writeFileSync(target.payloadPath, planPayload(target, '**Branch:** feat/retry-branch\n', 'retryslug'));
+res = runWithEnv(failWriteEnv('01-retryslug', 'branch-fail-marker'), 'write-apply.js');
+assert.strictEqual(res.code, 1);
+assert.match(res.err, /injected write failure/);
+assert.ok(fs.existsSync(path.join(tmp, 'branch-fail-marker')), 'the failure was injected');
+assert.strictEqual(git('branch', '--show-current'), 'feat/retry-branch', 'the branch exists and is checked out');
+assert.strictEqual(readConfig(configPath).git.branch, 'feat/retry-branch', 'the branch is recorded before the files are written');
+assert.ok(fs.existsSync(target.payloadPath), 'payload kept for a retry');
+
+res = ok('write-apply.js');
+assert.strictEqual(git('branch', '--show-current'), 'feat/retry-branch');
+assert.ok(fs.existsSync(path.join(sessionDir, '02-plan', 'tickets', '01-retryslug.md')), 'ticket written on the retry');
+config = readConfig(configPath);
+assert.strictEqual(config.git.branch, 'feat/retry-branch');
+assert.strictEqual(config.history.filter((e) => e.event === 'branch_created').length, 1);
+assert.strictEqual(config.history.filter((e) => e.event === 'plan_written').length, 1);
+assert.ok(!fs.existsSync(target.payloadPath), 'payload removed once written');
+
+// I2. grill write of an issue session: issue filed, then resume.md fails.
+git('switch', '-q', 'main');
+ok('issue-session.js', 'Retry Issue');
+({ sessionId, sessionDir, configPath } = currentSession());
+target = JSON.parse(ok('write-target.js').out);
+fs.writeFileSync(target.payloadPath, sectionsText(target, 'Issue retry.'));
+const issueCreatesBefore = issueCalls('create').length;
+res = runWithEnv(failWriteEnv('resume.md', 'issue-fail-marker'), 'write-apply.js');
+assert.strictEqual(res.code, 1);
+assert.match(res.err, /injected write failure/);
+assert.ok(fs.existsSync(path.join(tmp, 'issue-fail-marker')), 'the failure was injected');
+assert.strictEqual(issueCalls('create').length, issueCreatesBefore + 1, 'exactly one issue filed');
+assert.ok(readConfig(configPath).issue.number, 'the issue is recorded before resume.md is written');
+assert.match(fs.readFileSync(path.join(sessionDir, '01-grill', 'resume.md'), 'utf-8'), /gps:fill/, 'resume still unfilled');
+
+ok('write-apply.js');
+assert.strictEqual(issueCalls('create').length, issueCreatesBefore + 1, 'the retry files no second issue');
+assert.doesNotMatch(fs.readFileSync(path.join(sessionDir, '01-grill', 'resume.md'), 'utf-8'), /gps:fill/, 'resume filled');
+config = readConfig(configPath);
+assert.strictEqual(config.history.filter((e) => e.event === 'issue_created').length, 1);
+assert.strictEqual(config.history.filter((e) => e.event === 'grill_written').length, 1);
 
 fs.rmSync(tmp, { recursive: true, force: true });
 console.log('# github-flow.test.js: all assertions passed');

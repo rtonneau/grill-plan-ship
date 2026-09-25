@@ -183,6 +183,7 @@ const failedComment = commentOnIssue(repo, 5, 'x');
 assert.strictEqual(failedComment.ok, false);
 assert.match(failedComment.reason, /not logged in/);
 assert.match(failedComment.commands[0], /^gh issue comment 5 --body /);
+assert.strictEqual(commentOnIssue(repo, 5, undefined).ok, false, 'a temp-file failure is reported, not thrown');
 const failedClose = closeIssue(repo, 5);
 assert.strictEqual(failedClose.ok, false);
 assert.deepStrictEqual(failedClose.commands, ['gh issue close 5']);

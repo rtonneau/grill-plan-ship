@@ -95,7 +95,7 @@ Sessions created before this feature are backfilled from their stored timestamps
 
 ## Project config
 
-The first gps command in a project writes `.work/gps-config.json`:
+Whichever of `/gps start`, `/gps issue` or `/gps write` (plan phase) runs first in a project writes `.work/gps-config.json`:
 
 ```json
 { "version": 1, "github": { "enabled": true, "detected_at": "2026-09-25T09:00:00.000Z" } }

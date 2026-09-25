@@ -107,6 +107,15 @@ runCli(() => {
       throw new GpsError(`${err.message} (nothing was written).`,
         `Fix the problem (or change "**Branch:**" in ${payloadPath}) and run write-apply.js again.`);
     }
+    // Recorded at once: if a later write fails, the retry sees config.git and
+    // skips the branch instead of failing on a branch that already exists.
+    config.git = gitInfo;
+    writeJsonAtomic(configPath, config);
+    recordEvent(configPath, config, sessionDir, {
+      event: 'branch_created',
+      detail: { branch: gitInfo.branch, base: gitInfo.base_branch },
+      at: gitInfo.branch_created_at,
+    });
   }
 
   // Same rule for the issue: if gh refuses, nothing is written.
@@ -118,22 +127,22 @@ runCli(() => {
       throw new GpsError(`${err.message} (nothing was written).`,
         `Fix the problem (check that gh is installed and logged in) and run write-apply.js again.`);
     }
+    // Recorded at once: if resume.md then fails to write, the retry sees
+    // config.issue and files no second issue.
+    config.issue = issue;
+    writeJsonAtomic(configPath, config);
+    recordEvent(configPath, config, sessionDir, {
+      event: 'issue_created',
+      files: ['01-grill/resume.md'],
+      detail: { number: issue.number, url: issue.url },
+      at: issue.created_at,
+    });
   }
 
   fs.mkdirSync(path.dirname(targetPath), { recursive: true });
   fs.writeFileSync(targetPath, rendered);
 
   if (target === 'grill') {
-    if (issue) {
-      config.issue = issue;
-      writeJsonAtomic(configPath, config);
-      recordEvent(configPath, config, sessionDir, {
-        event: 'issue_created',
-        files: ['01-grill/resume.md'],
-        detail: { number: issue.number, url: issue.url },
-        at: issue.created_at,
-      });
-    }
     recordEvent(configPath, config, sessionDir, { event: 'grill_written', files: ['01-grill/resume.md'] });
     fs.unlinkSync(payloadPath);
     console.log(`✅ Grill written for ${sessionId}. Next: /gps plan`);
@@ -150,15 +159,6 @@ runCli(() => {
   const { tickets, skipped } = checkPlanWritten(sessionDir);
   for (const fileName of skipped) {
     console.error(`⚠️  Skipped ${fileName}: ticket files must be named NN-<slug>.md`);
-  }
-  if (gitInfo) {
-    config.git = gitInfo;
-    writeJsonAtomic(configPath, config);
-    recordEvent(configPath, config, sessionDir, {
-      event: 'branch_created',
-      detail: { branch: gitInfo.branch, base: gitInfo.base_branch },
-      at: gitInfo.branch_created_at,
-    });
   }
   recordEvent(configPath, config, sessionDir, {
     event: 'plan_written',

@@ -142,8 +142,8 @@ function lastUrl(output) {
 // Writes `body` to a temp file, runs fn(filePath), always removes the file.
 function withBodyFile(body, fn) {
   const bodyFile = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'gps-gh-')), 'body.md');
-  fs.writeFileSync(bodyFile, body);
   try {
+    fs.writeFileSync(bodyFile, body);
     return fn(bodyFile);
   } finally {
     fs.rmSync(path.dirname(bodyFile), { recursive: true, force: true });
@@ -218,14 +218,14 @@ function createIssue(projectRoot, { title, body }) {
 
 // Never throws: { ok: true } or { ok: false, reason, commands }.
 function commentOnIssue(projectRoot, number, body) {
-  return withBodyFile(body, (bodyFile) => {
-    try {
+  try {
+    return withBodyFile(body, (bodyFile) => {
       runGh(projectRoot, ['issue', 'comment', String(number), '--body-file', bodyFile]);
       return { ok: true };
-    } catch (err) {
-      return { ok: false, reason: failureReason(err), commands: [`gh issue comment ${number} --body "<summary of the work>"`] };
-    }
-  });
+    });
+  } catch (err) {
+    return { ok: false, reason: failureReason(err), commands: [`gh issue comment ${number} --body "<summary of the work>"`] };
+  }
 }
 
 function closeIssue(projectRoot, number) {
