@@ -600,6 +600,77 @@ function markDone(root, implName) {
 }
 
 {
+  // ticket-done.js records the exact completion time
+  const root = tempProject();
+  run(root, 'start-session.js', 'done-hook');
+  fs.writeFileSync(payloadPath(root), sectionsPayload(GRILL_SECTIONS));
+  assert.strictEqual(run(root, 'write-apply.js').code, 0);
+  const configPath = path.join(sessionsDir(root), currentSession(root), '.session-config.json');
+  const history = () => JSON.parse(fs.readFileSync(configPath, 'utf-8')).history;
+
+  // no plan yet
+  const early = run(root, 'ticket-done.js', '1');
+  assert.strictEqual(early.code, 1);
+  assert.match(early.err, /no tickets yet/);
+
+  assert.strictEqual(run(root, 'plan.js').code, 0);
+  writePlan(root, ['a']);
+  assert.strictEqual(run(root, 'ticket-done.js').code, 1, 'a number is required');
+  assert.match(run(root, 'ticket-done.js', '9').err, /Ticket 9 not found/);
+
+  // ticket.js records ticket_started once, however often it runs
+  assert.strictEqual(run(root, 'ticket.js', '1').code, 0);
+  assert.strictEqual(run(root, 'ticket.js', '1').code, 0);
+  const started = history().filter((e) => e.event === 'ticket_started');
+  assert.strictEqual(started.length, 1);
+  assert.deepStrictEqual(started[0].detail, { ticket: '01-a' });
+  assert.deepStrictEqual(started[0].files, ['02-plan/tickets/01-a.md', '03-implement/01-a/commit-log.md']);
+
+  // still In Progress -> refused, nothing recorded
+  const refused = run(root, 'ticket-done.js', '1');
+  assert.strictEqual(refused.code, 1);
+  assert.match(refused.err, /not marked Done/);
+  assert.ok(!history().some((e) => e.event === 'ticket_done'));
+
+  markDone(root, '01-a');
+  const recorded = run(root, 'ticket-done.js', '1');
+  assert.strictEqual(recorded.code, 0, recorded.err);
+  assert.match(recorded.out, /recorded as Done/);
+  const events = history().filter((e) => e.event === 'ticket_done');
+  assert.strictEqual(events.length, 1);
+  assert.deepStrictEqual(events[0].files, ['03-implement/01-a/commit-log.md']);
+  assert.deepStrictEqual(events[0].detail, { ticket: '01-a' });
+  assert.strictEqual(events[0].phase, 'finish-pending');
+
+  // idempotent: nothing changes the second time
+  const before = fs.readFileSync(configPath, 'utf-8');
+  const again = run(root, 'ticket-done.js', '1');
+  assert.strictEqual(again.code, 0, again.err);
+  assert.match(again.out, /already recorded as Done/);
+  assert.strictEqual(fs.readFileSync(configPath, 'utf-8'), before);
+}
+
+{
+  // duplicate ticket numbers: each Done ticket gets its own ticket_done event
+  const root = tempProject();
+  run(root, 'start-session.js', 'dup-done');
+  writeResume(root);
+  run(root, 'plan.js');
+  writePlan(root, ['x']);
+  const ticketsDir = path.join(sessionsDir(root), currentSession(root), '02-plan', 'tickets');
+  fs.writeFileSync(path.join(ticketsDir, '01-y.md'), '# Ticket 01: y\n\nDo y.\n');
+  const configPath = path.join(sessionsDir(root), currentSession(root), '.session-config.json');
+  run(root, 'ticket.js', '1');
+  markDone(root, '01-x');
+  assert.strictEqual(run(root, 'ticket-done.js', '1').code, 0);
+  run(root, 'ticket.js', '1'); // now picks 01-y
+  markDone(root, '01-y');
+  assert.strictEqual(run(root, 'ticket-done.js', '1').code, 0);
+  const done = JSON.parse(fs.readFileSync(configPath, 'utf-8')).history.filter((e) => e.event === 'ticket_done');
+  assert.deepStrictEqual(done.map((e) => e.detail.ticket), ['01-x', '01-y']);
+}
+
+{
   // SKILL.md router: every command has a references file carrying its handler lines
   const skillDir = path.join(SCRIPTS, '..', 'skills', 'gps');
   const skill = fs.readFileSync(path.join(skillDir, 'SKILL.md'), 'utf-8');

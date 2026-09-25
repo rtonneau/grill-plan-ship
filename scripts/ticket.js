@@ -11,49 +11,25 @@
  *   is printed again.
  * - Several files with the same number are all valid tickets; the first
  *   not-yet-done one (alphabetical filename order) is picked.
+ * - Records a `ticket_started` event in the session history, once per ticket.
  */
 
 const fs = require('fs');
-const path = require('path');
 const { loadTemplate, renderTemplate } = require('./lib/templates');
 const { resolveSession } = require('./lib/session-store');
-const { listTickets, isTicketDone } = require('./lib/ticket-queue');
-const { resolveWriteTarget } = require('./lib/write-target');
+const { isTicketDone } = require('./lib/ticket-queue');
+const { findTicketByNumber } = require('./lib/ticket-lookup');
 const { touchPhase } = require('./lib/token-usage');
+const { hasEvent, recordEvent, sessionPath } = require('./lib/history');
 const { ensureScratchDir } = require('./lib/scratch-dir');
 const { GpsError, writeJsonAtomic, runCli } = require('./lib/guard');
-
-function findTicket(sessionDir, ticketNum) {
-  const ticketsDir = path.join(sessionDir, '02-plan', 'tickets');
-  if (!fs.existsSync(ticketsDir)) {
-    throw new GpsError('This session has no tickets yet.', 'Run /gps plan, then /gps write, then /gps ticket <N>.');
-  }
-
-  const writeTarget = resolveWriteTarget(sessionDir).target;
-  if (writeTarget === 'grill') {
-    throw new GpsError('The grill phase is not written yet.', 'Run /gps write, then /gps plan.');
-  }
-  if (writeTarget === 'plan') {
-    throw new GpsError('The plan and tickets are not written yet.', 'Run /gps write to save them, then /gps ticket <N>.');
-  }
-
-  const { tickets, skipped } = listTickets(sessionDir);
-  for (const fileName of skipped) {
-    console.error(`⚠️  Skipped ${fileName}: ticket files must be named NN-<slug>.md`);
-  }
-  const candidates = tickets.filter((t) => Number(t.num) === ticketNum);
-
-  if (candidates.length === 0) {
-    throw new GpsError(`Ticket ${ticketNum} not found.`, 'Run /gps ship or /gps status to list the tickets.');
-  }
-  return candidates.find((t) => !t.done) || candidates[0];
-}
 
 function implementTicket(ticketNum) {
   const projectRoot = process.cwd();
   const { sessionId, sessionDir, configPath, config } = resolveSession(projectRoot);
-  const ticket = findTicket(sessionDir, ticketNum);
+  const ticket = findTicketByNumber(sessionDir, ticketNum);
   const phaseKey = `03-${ticket.num}-${ticket.slug}`;
+  const ticketKey = `${ticket.num}-${ticket.slug}`;
 
   if (isTicketDone(ticket.commitLogPath)) {
     console.log(`✅ Ticket ${ticket.num} (${ticket.slug}) is already Done; nothing was changed.`);
@@ -63,6 +39,7 @@ function implementTicket(ticketNum) {
 
   fs.mkdirSync(ticket.implDir, { recursive: true });
 
+  const alreadyStarted = hasEvent(config, 'ticket_started', { ticket: ticketKey });
   touchPhase(config, phaseKey);
   if (!config.scratch_dir) {
     console.error(`⚠️  ${sessionId} predates scratch dirs; adding scratch_dir to its config.`);
@@ -75,6 +52,14 @@ function implementTicket(ticketNum) {
   if (!logExisted) {
     const logContent = renderTemplate(loadTemplate('03-implement-log.md'), { N: ticket.num });
     fs.writeFileSync(ticket.commitLogPath, logContent);
+  }
+
+  if (!alreadyStarted) {
+    recordEvent(configPath, config, sessionDir, {
+      event: 'ticket_started',
+      files: [sessionPath(sessionDir, ticket.ticketPath), sessionPath(sessionDir, ticket.commitLogPath)],
+      detail: { ticket: ticketKey },
+    });
   }
 
   const ticketContent = fs.readFileSync(ticket.ticketPath, 'utf-8');

@@ -12,5 +12,8 @@
 4. Otherwise creates `03-implement/NN-<slug>/` and a `commit-log.md` template — **an existing log is kept, never overwritten**, so an interrupted ticket resumes from its notes.
 5. Records this ticket's token-usage phase key (`03-NN-<slug>`) in `.session-config.json`, so usage can be computed later when the ticket is finalized
 6. Prints ticket spec to console, including that phase key and the session's scratch dir (backfilled, with a warning, for sessions started before scratch dirs existed)
+7. Records a `ticket_started` event (once per ticket) in the session history in `.session-config.json`.
+
+When the ticket is done — its Status line set to exactly `**Status:** ✅ Done` — run `node $CLAUDE_PLUGIN_ROOT/scripts/ticket-done.js <number>` to record the completion time. It refuses unless the log says Done, and does nothing if the ticket was already recorded.
 
 **Output:** Workspace + spec printed. Ready to code.
