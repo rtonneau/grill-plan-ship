@@ -92,6 +92,18 @@ function commit(file, message) {
   git('commit', '-q', '-m', message);
 }
 
+const issueCalls = (verb) => ghCalls().filter((c) => c.args[0] === 'issue' && c.args[1] === verb);
+
+// /gps issue + write the grill (files the issue); returns the session paths.
+function startIssueSession(title, problem) {
+  ok('issue-session.js', title);
+  const session = currentSession();
+  const grill = JSON.parse(ok('write-target.js').out);
+  fs.writeFileSync(grill.payloadPath, sectionsText(grill, problem));
+  ok('write-apply.js');
+  return session;
+}
+
 git('init', '-q', '-b', 'main');
 git('config', 'user.email', 'e2e@example.com');
 git('config', 'user.name', 'E2E');
@@ -223,6 +235,9 @@ fs.writeFileSync(path.join(root, '.work', 'sessions', '.current-session'), sessi
 res = ok('finish.js');
 assert.match(res.out, /Pull request \(already open, updated by the push\): https:\/\/github\.com\/acme\/app\/pull\/12/);
 assert.strictEqual(prCreates().length, 1, 'no second PR');
+assert.strictEqual(readConfig(configPath).history.filter((e) => e.event === 'pr_opened').length, 1);
+assert.deepStrictEqual(readConfig(configPath).history.find((e) => e.event === 'pr_opened').detail,
+  { url: 'https://github.com/acme/app/pull/12' });
 
 // ------------------------------- C. issue session: the grill write files the issue
 git('switch', '-q', 'main');
@@ -263,6 +278,87 @@ assert.strictEqual(
   JSON.parse(ok('status.js').out).sessions.find((s) => s.sessionId === sessionId).issueUrl,
   'https://github.com/acme/app/issues/34'
 );
+
+// --------- C (continued). bounded issue session: finish comments, does not close
+commit('save-fix.js', 'fix: handle large saves (#34)');
+res = ok('finish.js');
+assert.match(res.out, /Summary posted on issue #34/);
+assert.strictEqual(issueCalls('comment').length, 1);
+assert.deepStrictEqual(issueCalls('comment')[0].args.slice(0, 3), ['issue', 'comment', '34']);
+assert.match(issueCalls('comment')[0].body, /Saving a large file crashes the app\./);
+assert.match(issueCalls('comment')[0].body, /fix: handle large saves/);
+assert.strictEqual(issueCalls('close').length, 0, 'closing needs --close-issue');
+assert.strictEqual(prCreates().length, 1, 'a bounded issue session opens no PR (only B did)');
+let issueIndex = fs.readFileSync(path.join(sessionDir, 'INDEX.md'), 'utf-8');
+assert.match(issueIndex, /## Issue/);
+assert.match(issueIndex, /https:\/\/github\.com\/acme\/app\/issues\/34/);
+assert.match(issueIndex, /Summary comment:\*\* posted/);
+assert.match(issueIndex, /Closed:\*\* no/);
+assert.doesNotMatch(issueIndex, /Branch & PR/);
+config = readConfig(configPath);
+assert.strictEqual(config.issue.commented, true);
+assert.strictEqual(config.issue.closed, undefined);
+assert.deepStrictEqual(config.history.map((e) => e.event),
+  ['session_started', 'issue_created', 'grill_written', 'issue_commented', 'session_finished']);
+assert.match(issueIndex, /## Timeline/);
+assert.match(issueIndex, /\| issue_commented \|/);
+
+// ------------------------------- E. bounded issue session, closed with the flag
+({ sessionId, sessionDir, configPath } = startIssueSession('Typo in footer', 'The footer says "Copyrigth".'));
+const typoIssue = readConfig(configPath).issue.number;
+commit('footer.js', 'fix: footer typo');
+res = ok('finish.js', '--close-issue');
+assert.match(res.out, new RegExp(`Issue #${typoIssue} closed`));
+assert.deepStrictEqual(issueCalls('close').pop().args, ['issue', 'close', String(typoIssue)]);
+assert.strictEqual(readConfig(configPath).issue.closed, true);
+assert.match(fs.readFileSync(path.join(sessionDir, 'INDEX.md'), 'utf-8'), /Closed:\*\* yes/);
+assert.deepStrictEqual(readConfig(configPath).history.map((e) => e.event),
+  ['session_started', 'issue_created', 'grill_written', 'issue_commented', 'issue_closed', 'session_finished']);
+
+// ------------------------- G. gh comment fails: finish still succeeds, commands listed
+({ sessionId, sessionDir, configPath } = startIssueSession('Broken link', 'The docs link 404s.'));
+const linkIssue = readConfig(configPath).issue.number;
+commit('docs.js', 'fix: docs link');
+process.env.GH_STUB_FAIL_COMMENT = '1';
+res = ok('finish.js');
+delete process.env.GH_STUB_FAIL_COMMENT;
+assert.match(res.err, new RegExp(`Issue #${linkIssue}: comment failed \\(gh: HTTP 403\\)`));
+assert.match(res.err, new RegExp(`gh issue comment ${linkIssue} --body`));
+assert.strictEqual(readConfig(configPath).issue.commented, undefined);
+issueIndex = fs.readFileSync(path.join(sessionDir, 'INDEX.md'), 'utf-8');
+assert.match(issueIndex, /Summary comment:\*\* not posted/);
+assert.match(issueIndex, new RegExp(`gh issue comment ${linkIssue} --body`));
+
+// ------------------- H. planned issue session: branch + PR "Closes #N", no comment/close
+git('switch', '-q', 'main');
+({ sessionId, sessionDir, configPath } = startIssueSession('Slow search', 'Search takes ten seconds.'));
+const searchIssue = readConfig(configPath).issue.number;
+ok('plan.js');
+target = JSON.parse(ok('write-target.js').out);
+fs.writeFileSync(target.payloadPath, planPayload(target, '**Branch:** fix/slow-search\n', 'index'));
+ok('write-apply.js');
+assert.strictEqual(git('branch', '--show-current'), 'fix/slow-search');
+markTicketDone(sessionDir, 'index');
+commit('index.js', 'fix: index search terms');
+const commentsBefore = issueCalls('comment').length;
+const closesBefore = issueCalls('close').length;
+res = ok('finish.js', '--close-issue');
+assert.match(res.err, /--close-issue ignored: the pull request closes the issue when it is merged/);
+const searchPr = prCreates().pop();
+assert.strictEqual(searchPr.args[searchPr.args.indexOf('--title') + 1], 'fix: Slow search');
+assert.match(searchPr.body, new RegExp(`Closes #${searchIssue}`));
+assert.strictEqual(issueCalls('comment').length, commentsBefore, 'the PR closes the issue: no comment');
+assert.strictEqual(issueCalls('close').length, closesBefore, 'the PR closes the issue: no close');
+issueIndex = fs.readFileSync(path.join(sessionDir, 'INDEX.md'), 'utf-8');
+assert.match(issueIndex, /## Issue/);
+assert.match(issueIndex, /Closed by:\*\* the pull request/);
+assert.match(issueIndex, /## Branch & PR/);
+const plannedEvents = readConfig(configPath).history.map((e) => e.event);
+assert.ok(['issue_created', 'branch_created', 'plan_written', 'ticket_done', 'pr_opened', 'session_finished']
+  .every((name) => plannedEvents.includes(name)), `planned issue session events: ${plannedEvents.join(', ')}`);
+assert.ok(!plannedEvents.includes('issue_commented') && !plannedEvents.includes('issue_closed'));
+assert.ok(plannedEvents.indexOf('pr_opened') < plannedEvents.indexOf('session_finished'));
+assert.match(issueIndex, /\| pr_opened \|/);
 
 fs.rmSync(tmp, { recursive: true, force: true });
 console.log('# github-flow.test.js: all assertions passed');
