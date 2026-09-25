@@ -18,10 +18,11 @@
  * lib/history.js) plus the session_finished event, which is recorded after
  * INDEX.md is written.
  *
- * Sessions with a branch (`git` in the config, set by /gps write in a
+ * Sessions with a branch (`git` in the config, set by the plan write in a
  * GitHub project) must have it checked out; finish pushes it and opens a
  * PR against its base branch. A failed push or gh call does not fail the
  * finish: INDEX.md and the output list the commands to run by hand.
+ * Bounded sessions have no branch, so they open no PR.
  */
 
 const fs = require('fs');

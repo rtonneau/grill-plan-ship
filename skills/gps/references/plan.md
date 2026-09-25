@@ -13,7 +13,7 @@
 
 **Output:** The writing-plans conversation begins right away.
 
-**Next:** Once the tickets are approved, run `/gps write` to save the plan and tickets to disk, then `/gps ship` to implement them.
+**Next:** Once the tickets are approved, run `/gps write` to save the plan and tickets to disk (on a GitHub project it also creates the session branch), then `/gps ship` to implement them.
 
 ## Dependencies
 

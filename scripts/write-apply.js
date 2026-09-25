@@ -9,9 +9,11 @@
  * NN-<slug>.md tickets and removes the [slug] stubs, then deletes the
  * payload. Writes nothing unless every check passes.
  *
- * Grill phase in a GitHub project: also creates the session branch named
+ * Plan phase in a GitHub project (github.enabled in .work/gps-config.json),
+ * for a session without a branch yet: also creates the session branch named
  * by the payload's "**Branch:**" field (from the current HEAD) and records
  * it in .session-config.json as `git`, for /gps finish to open the PR.
+ * Bounded sessions (no plan) never get a branch.
  */
 
 const fs = require('fs');
@@ -31,7 +33,8 @@ const {
   renderPhaseFile,
   renderTicket,
 } = require('./lib/write-payload');
-const { detectGithub, validateBranchName, createSessionBranch } = require('./lib/github');
+const { validateBranchName, createSessionBranch } = require('./lib/github');
+const { githubEnabled } = require('./lib/project-config');
 const { GpsError, writeJsonAtomic, runCli } = require('./lib/guard');
 
 const NOTHING_PENDING_HINT = {
@@ -71,7 +74,7 @@ runCli(() => {
   }
 
   const projectRoot = process.cwd();
-  const branch = target === 'grill' && detectGithub(projectRoot) ? payload.fields.Branch || '' : null;
+  const branch = target === 'plan' && !config.git && githubEnabled(projectRoot) ? payload.fields.Branch || '' : null;
   if (branch !== null) errors.push(...validateBranchName(projectRoot, branch));
 
   const ticketsDir = path.join(sessionDir, '02-plan', 'tickets');
@@ -105,14 +108,9 @@ runCli(() => {
   fs.writeFileSync(targetPath, rendered);
 
   if (target === 'grill') {
-    if (gitInfo) {
-      config.git = gitInfo;
-      writeJsonAtomic(configPath, config);
-    }
     recordEvent(configPath, config, sessionDir, { event: 'grill_written', files: ['01-grill/resume.md'] });
     fs.unlinkSync(payloadPath);
     console.log(`✅ Grill written for ${sessionId}. Next: /gps plan`);
-    if (gitInfo) console.log(`🌿 Working on branch ${gitInfo.branch} (from ${gitInfo.base_branch}); /gps finish opens the PR.`);
     return;
   }
 
@@ -126,6 +124,15 @@ runCli(() => {
   for (const fileName of skipped) {
     console.error(`⚠️  Skipped ${fileName}: ticket files must be named NN-<slug>.md`);
   }
+  if (gitInfo) {
+    config.git = gitInfo;
+    writeJsonAtomic(configPath, config);
+    recordEvent(configPath, config, sessionDir, {
+      event: 'branch_created',
+      detail: { branch: gitInfo.branch, base: gitInfo.base_branch },
+      at: gitInfo.branch_created_at,
+    });
+  }
   recordEvent(configPath, config, sessionDir, {
     event: 'plan_written',
     files: ['02-plan/plan.md', ...tickets.map((t) => sessionPath(sessionDir, t.ticketPath))],
@@ -133,4 +140,5 @@ runCli(() => {
   });
   fs.unlinkSync(payloadPath);
   console.log(`✅ Plan written for ${sessionId}: ${tickets.length} ticket(s). Next: /gps ship`);
+  if (gitInfo) console.log(`🌿 Working on branch ${gitInfo.branch} (from ${gitInfo.base_branch}); /gps finish opens the PR.`);
 });

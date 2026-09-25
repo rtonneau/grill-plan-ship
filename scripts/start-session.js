@@ -35,8 +35,10 @@ const { touchPhase } = require('./lib/token-usage');
 const { recordEvent } = require('./lib/history');
 const { ensureScratchDir, ensureGitignoreEntry } = require('./lib/scratch-dir');
 const { GpsError, localDate, slugify, writeJsonAtomic, runCli } = require('./lib/guard');
+const { ensureProjectConfig } = require('./lib/project-config');
 
 function startSession(featureName) {
+  ensureProjectConfig(process.cwd()); // detects GitHub once; a corrupt file aborts before anything is created
   const now = new Date();
   const slug = slugify(featureName, now);
   const sessionId = `${localDate(now)}__${slug}`;
