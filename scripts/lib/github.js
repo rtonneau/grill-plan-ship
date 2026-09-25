@@ -1,9 +1,10 @@
 // scripts/lib/github.js
 //
-// Session branch + pull request support for projects hosted on GitHub.
-// /gps write (grill) creates the session's branch; /gps finish pushes it and
-// opens a PR against the branch it started from. Git and gh always run via
-// execFileSync with an argument array (never a shell string).
+// Session branch, pull request and issue support for projects hosted on GitHub.
+// /gps write (plan) creates the session's branch; /gps finish pushes it and
+// opens a PR against the branch it started from. /gps issue files a GitHub
+// issue at the grill write; /gps finish comments on it. Git and gh always run
+// via execFileSync with an argument array (never a shell string).
 //
 // GPS_GH_BIN overrides the gh executable (tests point it at a stub .js
 // script, which is run with node).
@@ -18,6 +19,8 @@ const BRANCH_RE = new RegExp(`^(${BRANCH_TYPES.join('|')})/[a-z0-9]+([._-][a-z0-
 const MAX_BRANCH_LENGTH = 80;
 const BRANCH_PATTERN = `<${BRANCH_TYPES.join('|')}>/<short-slug>`;
 const PR_ATTRIBUTION = '🤖 Generated with [Claude Code](https://claude.com/claude-code)';
+const ISSUE_SECTIONS = ['Problem Statement', 'Context & Constraints', 'Success Metrics'];
+const ISSUE_URL_RE = /^https:\/\/\S+\/issues\/(\d+)$/;
 
 function git(projectRoot, args) {
   return execFileSync('git', args, {
@@ -122,8 +125,29 @@ function runGh(projectRoot, args) {
   });
 }
 
+// True when `gh auth status` succeeds (gh installed and logged in).
+function ghAuthenticated(projectRoot) {
+  try {
+    runGh(projectRoot, ['auth', 'status']);
+    return true;
+  } catch (_err) {
+    return false;
+  }
+}
+
 function lastUrl(output) {
   return String(output).split('\n').map((l) => l.trim()).filter((l) => /^https:\/\//.test(l)).pop() || null;
+}
+
+// Writes `body` to a temp file, runs fn(filePath), always removes the file.
+function withBodyFile(body, fn) {
+  const bodyFile = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'gps-gh-')), 'body.md');
+  fs.writeFileSync(bodyFile, body);
+  try {
+    return fn(bodyFile);
+  } finally {
+    fs.rmSync(path.dirname(bodyFile), { recursive: true, force: true });
+  }
 }
 
 // URL of an open PR whose head is `branch`, or null (none, or gh failed).
@@ -152,20 +176,64 @@ function openPullRequest(projectRoot, gitInfo, { title, body }) {
   const existingUrl = gitInfo.pr_url || findOpenPullRequest(projectRoot, gitInfo.branch);
   if (existingUrl) return { ok: true, url: existingUrl, existing: true };
 
-  const bodyFile = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'gps-pr-')), 'body.md');
-  fs.writeFileSync(bodyFile, body);
+  return withBodyFile(body, (bodyFile) => {
+    try {
+      const url = lastUrl(runGh(projectRoot, [
+        'pr', 'create',
+        '--base', gitInfo.base_branch, '--head', gitInfo.branch,
+        '--title', title, '--body-file', bodyFile,
+      ]));
+      if (!url) return { ok: false, step: 'gh', reason: 'gh printed no PR URL', commands: commands.slice(1) };
+      return { ok: true, url, existing: false };
+    } catch (err) {
+      return { ok: false, step: 'gh', reason: failureReason(err), commands: commands.slice(1) };
+    }
+  });
+}
+
+// Body of the GitHub issue filed from a grill resume: the report sections
+// (in ISSUE_SECTIONS order), the session id and the attribution line.
+function buildIssueBody(sections, sessionId) {
+  const parts = ISSUE_SECTIONS
+    .map((heading) => sections.find((s) => s.heading === heading))
+    .filter(Boolean)
+    .map((s) => `## ${s.heading}\n\n${s.body}\n`);
+  return [...parts, `gps session: \`${sessionId}\``, '', PR_ATTRIBUTION, ''].join('\n');
+}
+
+// Files an issue. Throws Error with gh's reason on failure.
+function createIssue(projectRoot, { title, body }) {
+  return withBodyFile(body, (bodyFile) => {
+    let output;
+    try {
+      output = runGh(projectRoot, ['issue', 'create', '--title', title, '--body-file', bodyFile]);
+    } catch (err) {
+      throw new Error(`gh issue create failed: ${failureReason(err)}`);
+    }
+    const url = String(output).split('\n').map((l) => l.trim()).filter((l) => ISSUE_URL_RE.test(l)).pop();
+    if (!url) throw new Error('gh issue create printed no issue URL');
+    return { number: Number(url.match(ISSUE_URL_RE)[1]), url, created_at: new Date().toISOString() };
+  });
+}
+
+// Never throws: { ok: true } or { ok: false, reason, commands }.
+function commentOnIssue(projectRoot, number, body) {
+  return withBodyFile(body, (bodyFile) => {
+    try {
+      runGh(projectRoot, ['issue', 'comment', String(number), '--body-file', bodyFile]);
+      return { ok: true };
+    } catch (err) {
+      return { ok: false, reason: failureReason(err), commands: [`gh issue comment ${number} --body "<summary of the work>"`] };
+    }
+  });
+}
+
+function closeIssue(projectRoot, number) {
   try {
-    const url = lastUrl(runGh(projectRoot, [
-      'pr', 'create',
-      '--base', gitInfo.base_branch, '--head', gitInfo.branch,
-      '--title', title, '--body-file', bodyFile,
-    ]));
-    if (!url) return { ok: false, step: 'gh', reason: 'gh printed no PR URL', commands: commands.slice(1) };
-    return { ok: true, url, existing: false };
+    runGh(projectRoot, ['issue', 'close', String(number)]);
+    return { ok: true };
   } catch (err) {
-    return { ok: false, step: 'gh', reason: failureReason(err), commands: commands.slice(1) };
-  } finally {
-    fs.rmSync(path.dirname(bodyFile), { recursive: true, force: true });
+    return { ok: false, reason: failureReason(err), commands: [`gh issue close ${number}`] };
   }
 }
 
@@ -182,4 +250,9 @@ module.exports = {
   commitsBetween,
   hasUncommittedChanges,
   openPullRequest,
+  ghAuthenticated,
+  buildIssueBody,
+  createIssue,
+  commentOnIssue,
+  closeIssue,
 };

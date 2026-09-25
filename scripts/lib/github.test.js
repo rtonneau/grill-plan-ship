@@ -7,6 +7,7 @@ const { execFileSync } = require('child_process');
 const {
   isGithubUrl, detectGithub, currentBranch, validateBranchName, createSessionBranch,
   branchType, commitsBetween, hasUncommittedChanges, openPullRequest,
+  ghAuthenticated, createIssue, commentOnIssue, closeIssue, buildIssueBody,
 } = require('./github');
 
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'gps-github-'));
@@ -96,13 +97,19 @@ const bodyAt = args.indexOf('--body-file');
 const body = bodyAt >= 0 ? fs.readFileSync(args[bodyAt + 1], 'utf-8') : null;
 fs.appendFileSync(${JSON.stringify(ghLog)}, JSON.stringify({ args, body }) + '\\n');
 if (process.env.GH_STUB_FAIL) { console.error('gh: not logged in'); process.exit(1); }
+if (args[0] === 'auth') process.exit(0);
+if (args[0] === 'issue' && args[1] === 'create') {
+  console.log(process.env.GH_STUB_NO_URL ? 'created' : 'https://github.com/acme/app/issues/5');
+  process.exit(0);
+}
+if (args[0] === 'issue') process.exit(0);
 if (args[1] === 'list') { if (process.env.GH_STUB_OPEN_PR) console.log(process.env.GH_STUB_OPEN_PR); process.exit(0); }
 console.log('Creating pull request...');
 console.log('https://github.com/acme/app/pull/7');
 `);
 process.env.GPS_GH_BIN = ghStub;
 const ghCalls = () => (fs.existsSync(ghLog) ? fs.readFileSync(ghLog, 'utf-8').trim().split('\n').map((l) => JSON.parse(l)) : []);
-const creates = () => ghCalls().filter((c) => c.args[1] === 'create');
+const creates = () => ghCalls().filter((c) => c.args[0] === 'pr' && c.args[1] === 'create');
 
 let pr = openPullRequest(repo, info, { title: 'feat: Dark mode', body: 'Body text\n' });
 assert.deepStrictEqual(pr, { ok: true, url: 'https://github.com/acme/app/pull/7', existing: false });
@@ -144,6 +151,54 @@ pr = openPullRequest(repo, info, { title: 'feat: Dark mode', body: 'x' });
 assert.strictEqual(pr.ok, false);
 assert.strictEqual(pr.step, 'push');
 assert.deepStrictEqual(pr.commands.map((c) => c.split(' ')[0]), ['git', 'gh']);
+
+// Issues and auth (stub gh).
+fs.rmSync(ghLog, { force: true });
+assert.strictEqual(ghAuthenticated(repo), true);
+assert.deepStrictEqual(ghCalls()[0].args, ['auth', 'status']);
+
+const issue = createIssue(repo, { title: 'Crash on save', body: 'Body\n' });
+assert.strictEqual(issue.number, 5);
+assert.strictEqual(issue.url, 'https://github.com/acme/app/issues/5');
+assert.ok(!Number.isNaN(Date.parse(issue.created_at)));
+const issueCall = ghCalls().find((c) => c.args[0] === 'issue' && c.args[1] === 'create');
+assert.deepStrictEqual(issueCall.args.slice(0, 4), ['issue', 'create', '--title', 'Crash on save']);
+assert.strictEqual(issueCall.body, 'Body\n');
+
+process.env.GH_STUB_NO_URL = '1';
+assert.throws(() => createIssue(repo, { title: 't', body: 'b' }), /gh issue create printed no issue URL/);
+delete process.env.GH_STUB_NO_URL;
+
+assert.deepStrictEqual(commentOnIssue(repo, 5, 'Done\n'), { ok: true });
+const commentCall = ghCalls().find((c) => c.args[0] === 'issue' && c.args[1] === 'comment');
+assert.deepStrictEqual(commentCall.args.slice(0, 3), ['issue', 'comment', '5']);
+assert.strictEqual(commentCall.body, 'Done\n');
+assert.deepStrictEqual(closeIssue(repo, 5), { ok: true });
+assert.deepStrictEqual(ghCalls().pop().args, ['issue', 'close', '5']);
+
+process.env.GH_STUB_FAIL = '1';
+assert.strictEqual(ghAuthenticated(repo), false);
+assert.throws(() => createIssue(repo, { title: 't', body: 'b' }), /gh issue create failed: gh: not logged in/);
+const failedComment = commentOnIssue(repo, 5, 'x');
+assert.strictEqual(failedComment.ok, false);
+assert.match(failedComment.reason, /not logged in/);
+assert.match(failedComment.commands[0], /^gh issue comment 5 --body /);
+const failedClose = closeIssue(repo, 5);
+assert.strictEqual(failedClose.ok, false);
+assert.deepStrictEqual(failedClose.commands, ['gh issue close 5']);
+delete process.env.GH_STUB_FAIL;
+
+// Issue body: only the report sections, in order, then the session and attribution lines.
+const issueBody = buildIssueBody([
+  { heading: 'Success Metrics', body: '- no crash' },
+  { heading: 'Notes', body: 'skip me' },
+  { heading: 'Problem Statement', body: 'It crashes.' },
+], '2026-09-25__crash');
+assert.match(issueBody, /^## Problem Statement\n\nIt crashes\.\n/);
+assert.ok(issueBody.indexOf('Problem Statement') < issueBody.indexOf('Success Metrics'));
+assert.doesNotMatch(issueBody, /Notes|skip me/);
+assert.match(issueBody, /gps session: `2026-09-25__crash`/);
+assert.match(issueBody, /Generated with \[Claude Code\]/);
 
 delete process.env.GPS_GH_BIN;
 fs.rmSync(tmp, { recursive: true, force: true });
