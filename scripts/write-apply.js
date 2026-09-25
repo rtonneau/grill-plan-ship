@@ -19,6 +19,7 @@ const path = require('path');
 const { resolveSession } = require('./lib/session-store');
 const { resolveWriteTarget, placeholderTester, checkPlanWritten } = require('./lib/write-target');
 const { computeUsage } = require('./lib/token-usage');
+const { recordEvent, sessionPath } = require('./lib/history');
 const {
   PAYLOAD_FILENAME,
   phaseFilePath,
@@ -108,6 +109,7 @@ runCli(() => {
       config.git = gitInfo;
       writeJsonAtomic(configPath, config);
     }
+    recordEvent(configPath, config, sessionDir, { event: 'grill_written', files: ['01-grill/resume.md'] });
     fs.unlinkSync(payloadPath);
     console.log(`✅ Grill written for ${sessionId}. Next: /gps plan`);
     if (gitInfo) console.log(`🌿 Working on branch ${gitInfo.branch} (from ${gitInfo.base_branch}); /gps finish opens the PR.`);
@@ -124,6 +126,11 @@ runCli(() => {
   for (const fileName of skipped) {
     console.error(`⚠️  Skipped ${fileName}: ticket files must be named NN-<slug>.md`);
   }
+  recordEvent(configPath, config, sessionDir, {
+    event: 'plan_written',
+    files: ['02-plan/plan.md', ...tickets.map((t) => sessionPath(sessionDir, t.ticketPath))],
+    detail: { tickets: tickets.length },
+  });
   fs.unlinkSync(payloadPath);
   console.log(`✅ Plan written for ${sessionId}: ${tickets.length} ticket(s). Next: /gps ship`);
 });

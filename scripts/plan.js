@@ -14,6 +14,7 @@ const { loadTemplate, renderTemplate } = require('./lib/templates');
 const { resolveSession } = require('./lib/session-store');
 const { resolveWriteTarget, placeholderTester } = require('./lib/write-target');
 const { touchPhase } = require('./lib/token-usage');
+const { recordEvent } = require('./lib/history');
 const { GpsError, writeJsonAtomic, runCli } = require('./lib/guard');
 
 function createPlan() {
@@ -65,6 +66,7 @@ function createPlan() {
 
   touchPhase(config, 'plan');
   writeJsonAtomic(configPath, config);
+  recordEvent(configPath, config, sessionDir, { event: 'plan_started', files: ['02-plan/plan.md'] });
 
   console.log(`✅ Plan directory created`);
   console.log(`Path: ${planDir}`);

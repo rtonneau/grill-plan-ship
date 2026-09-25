@@ -154,5 +154,28 @@ fs.writeFileSync(path.join(newSessionDir, 'HANDOFF.md'), '# Handoff\n');
 report = buildStatusReport(sessionsDir, projectRoot);
 assert.strictEqual(report.current.hasHandoff, true);
 
+// Recorded phase vs derived phase: drift is reported, never fixed silently.
+{
+  const driftId = '2026-09-01__drift';
+  const driftDir = path.join(sessionsDir, driftId);
+  fs.mkdirSync(path.join(driftDir, '01-grill'), { recursive: true });
+  fs.writeFileSync(path.join(driftDir, '01-grill', 'resume.md'), '# S\n\n<!-- gps:fill x -->\n');
+  const writeConfig = (extra) => fs.writeFileSync(path.join(driftDir, '.session-config.json'), JSON.stringify({
+    session_id: driftId, feature_name: 'drift', created_at: '2026-09-01T08:00:00.000Z', template_version: 2, ...extra,
+  }));
+  const summary = () => buildStatusReport(sessionsDir, projectRoot).sessions.find((s) => s.sessionId === driftId);
+
+  writeConfig({});
+  assert.strictEqual(summary().currentPhase, null);
+  assert.strictEqual(summary().phaseDrift, null);
+
+  writeConfig({ current_phase: 'grill' });
+  assert.strictEqual(summary().currentPhase, 'grill');
+  assert.strictEqual(summary().phaseDrift, null);
+
+  writeConfig({ current_phase: 'ship' });
+  assert.deepStrictEqual(summary().phaseDrift, { recorded: 'ship', derived: 'grill' });
+}
+
 fs.rmSync(projectRoot, { recursive: true, force: true });
 console.log('status.test.js: all assertions passed');

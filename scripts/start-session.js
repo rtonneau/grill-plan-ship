@@ -32,6 +32,7 @@ const { setCurrentSession } = require('./lib/session-store');
 const { TEMPLATE_VERSION } = require('./lib/write-target');
 const { getSeed, removeSeed } = require('./lib/seeds-store');
 const { touchPhase } = require('./lib/token-usage');
+const { recordEvent } = require('./lib/history');
 const { ensureScratchDir, ensureGitignoreEntry } = require('./lib/scratch-dir');
 const { GpsError, localDate, slugify, writeJsonAtomic, runCli } = require('./lib/guard');
 
@@ -67,11 +68,13 @@ function startSession(featureName) {
     scratch_dir: scratchDir,
     created_at: now.toISOString(),
     template_version: TEMPLATE_VERSION,
+    history: [],
   };
 
   touchPhase(config, 'grill');
 
-  writeJsonAtomic(path.join(workDir, '.session-config.json'), config);
+  const configPath = path.join(workDir, '.session-config.json');
+  writeJsonAtomic(configPath, config);
 
   const resumeContent = renderTemplate(loadTemplate('01-grill-resume.md'), {
     'feature-name': featureName,
@@ -85,6 +88,8 @@ function startSession(featureName) {
     path.join(workDir, 'INDEX.md'),
     `# Session: ${featureName}\n\nPhase: Grill (in progress)\n`
   );
+
+  recordEvent(configPath, config, workDir, { event: 'session_started', files: ['01-grill/resume.md'], at: config.created_at });
 
   setCurrentSession(sessionsDir, sessionId);
 

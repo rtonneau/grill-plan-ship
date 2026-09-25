@@ -19,6 +19,7 @@ const { loadTemplate, renderTemplate } = require('./lib/templates');
 const { resolveSession } = require('./lib/session-store');
 const { buildHandoffData } = require('./lib/handoff');
 const { runCli } = require('./lib/guard');
+const { recordEvent } = require('./lib/history');
 
 function formatGitStatus(gitStatus) {
   if (gitStatus.length === 0) return 'clean';
@@ -31,7 +32,7 @@ function formatList(items, emptyText) {
 
 function main() {
   const projectRoot = process.cwd();
-  const { sessionDir } = resolveSession(projectRoot);
+  const { sessionDir, configPath, config } = resolveSession(projectRoot);
   const data = buildHandoffData(sessionDir, projectRoot);
 
   const rendered = renderTemplate(loadTemplate('handoff.md'), {
@@ -48,6 +49,7 @@ function main() {
 
   const handoffPath = path.join(sessionDir, 'HANDOFF.md');
   fs.writeFileSync(handoffPath, rendered);
+  recordEvent(configPath, config, sessionDir, { event: 'handoff_saved', files: ['HANDOFF.md'] });
 
   console.log(`✅ Handoff saved: ${handoffPath}`);
   console.log(JSON.stringify(data, null, 2));

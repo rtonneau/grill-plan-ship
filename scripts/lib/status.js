@@ -28,6 +28,10 @@ function summarizeSession(sessionsDir, sessionId) {
     createdAt: config ? config.created_at : null,
     finishedAt: config ? config.finished_at || null : null,
     phase,
+    currentPhase: config && config.current_phase ? config.current_phase : null,
+    phaseDrift: config && config.current_phase && config.current_phase !== phase
+      ? { recorded: config.current_phase, derived: phase }
+      : null,
     branch: config && config.git ? config.git.branch || null : null,
     prUrl: config && config.git ? config.git.pr_url || null : null,
     configReadable: Boolean(config),

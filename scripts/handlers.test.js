@@ -671,6 +671,79 @@ function markDone(root, implName) {
 }
 
 {
+  // every handler records its event: start, grill, plan, plan write, handoff
+  const root = tempProject();
+  run(root, 'start-session.js', 'events');
+  const dir = path.join(sessionsDir(root), currentSession(root));
+  const configPath = path.join(dir, '.session-config.json');
+  const readConfig = () => JSON.parse(fs.readFileSync(configPath, 'utf-8'));
+
+  assert.deepStrictEqual(readConfig().history.map((e) => [e.event, e.phase]), [['session_started', 'grill']]);
+  assert.strictEqual(readConfig().history[0].at, readConfig().created_at);
+  assert.deepStrictEqual(readConfig().history[0].files, ['01-grill/resume.md']);
+  assert.strictEqual(readConfig().current_phase, 'grill');
+
+  fs.writeFileSync(payloadPath(root), sectionsPayload(GRILL_SECTIONS));
+  assert.strictEqual(run(root, 'write-apply.js').code, 0);
+  assert.strictEqual(run(root, 'plan.js').code, 0);
+  writePlan(root, ['a', 'b']);
+  assert.strictEqual(run(root, 'handoff.js').code, 0);
+
+  const history = readConfig().history;
+  assert.deepStrictEqual(history.map((e) => [e.event, e.phase]), [
+    ['session_started', 'grill'],
+    ['grill_written', 'plan-not-started'],
+    ['plan_started', 'plan'],
+    ['plan_written', 'ship'],
+    ['handoff_saved', 'ship'],
+  ]);
+  assert.deepStrictEqual(history[1].files, ['01-grill/resume.md']);
+  assert.deepStrictEqual(history[3].files, ['02-plan/plan.md', '02-plan/tickets/01-a.md', '02-plan/tickets/02-b.md']);
+  assert.deepStrictEqual(history[3].detail, { tickets: 2 });
+  assert.deepStrictEqual(history[4].files, ['HANDOFF.md']);
+  assert.strictEqual(readConfig().current_phase, 'ship');
+}
+
+{
+  // a session created before history existed is backfilled on its next recorded event
+  const root = tempProject();
+  run(root, 'start-session.js', 'legacy');
+  writeResume(root);
+  const configPath = path.join(sessionsDir(root), currentSession(root), '.session-config.json');
+  const legacy = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
+  delete legacy.history;
+  delete legacy.current_phase;
+  fs.writeFileSync(configPath, JSON.stringify(legacy));
+
+  assert.strictEqual(run(root, 'plan.js').code, 0);
+  const after = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
+  assert.deepStrictEqual(
+    after.history.map((e) => [e.event, Boolean(e.backfilled)]),
+    [['session_started', true], ['plan_started', false]]
+  );
+  assert.strictEqual(after.current_phase, 'plan');
+}
+
+{
+  // status reports drift until ticket-done.js records the completion
+  const root = tempProject();
+  run(root, 'start-session.js', 'drift');
+  fs.writeFileSync(payloadPath(root), sectionsPayload(GRILL_SECTIONS));
+  assert.strictEqual(run(root, 'write-apply.js').code, 0);
+  assert.strictEqual(run(root, 'plan.js').code, 0);
+  writePlan(root, ['a']);
+  assert.strictEqual(run(root, 'ticket.js', '1').code, 0);
+  const summaryOf = () => JSON.parse(run(root, 'status.js').out).sessions.find((s) => s.sessionId === currentSession(root));
+
+  assert.strictEqual(summaryOf().phaseDrift, null);
+  markDone(root, '01-a');
+  assert.deepStrictEqual(summaryOf().phaseDrift, { recorded: 'ship', derived: 'finish-pending' });
+  assert.strictEqual(run(root, 'ticket-done.js', '1').code, 0);
+  assert.strictEqual(summaryOf().phaseDrift, null);
+  assert.strictEqual(summaryOf().currentPhase, 'finish-pending');
+}
+
+{
   // SKILL.md router: every command has a references file carrying its handler lines
   const skillDir = path.join(SCRIPTS, '..', 'skills', 'gps');
   const skill = fs.readFileSync(path.join(skillDir, 'SKILL.md'), 'utf-8');
