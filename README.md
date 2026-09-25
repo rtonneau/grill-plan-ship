@@ -81,6 +81,17 @@ Add a direction to narrow it: `/gps scout --from review.md only Critical and Hig
 
 `/gps start` creates the scratch directory, records it as `scratch_dir` in `.session-config.json`, and adds `.scratch/` to the project's `.gitignore` if missing. `/gps ticket` prints its path so agents keep build logs and run output there (prefixed with the ticket number, e.g. `03-build.log`). To enforce a stricter policy (capture stdout, never write to the source tree), add it to your project's CLAUDE.md.
 
+## Session history
+
+Every `.session-config.json` records the life of its session, so a timeline can be built from that file alone:
+
+- `history` — append-only events `{ at, event, phase, files, detail }`: `session_started`, `grill_written`, `plan_started`, `plan_written`, `ticket_started`, `ticket_done`, `handoff_saved`, `session_finished`. `files` point at the session's `.md` files, relative to its directory.
+- `current_phase` — the phase after the last event. `/gps status` still derives the phase from the files and reports `phaseDrift` when the two disagree (typically a ticket set to `✅ Done` without `ticket-done.js <N>`).
+- `ticket-done.js <N>` records the exact time a ticket was completed; `/gps ship` and `/gps ticket` run it after the Status line is set.
+- `/gps finish` renders the history as a `## Timeline` table in `INDEX.md`, with links to the files.
+
+Sessions created before this feature are backfilled from their stored timestamps (`created_at`, phase start times, `finished_at`) and shown as "(reconstructed)".
+
 ## Branches and Pull Requests
 
 When the project's `origin` remote is on GitHub, each session gets its own branch and ends with a pull request:

@@ -14,6 +14,10 @@
  * - any ticket is not Done.
  * A bounded session (resume written, no plan) may finish with no tickets.
  *
+ * INDEX.md gets a "## Timeline" built from the session history (see
+ * lib/history.js) plus the session_finished event, which is recorded after
+ * INDEX.md is written.
+ *
  * Sessions with a branch (`git` in the config, set by /gps write in a
  * GitHub project) must have it checked out; finish pushes it and opens a
  * PR against its base branch. A failed push or gh call does not fail the
@@ -32,8 +36,9 @@ const {
   PR_ATTRIBUTION, currentBranch, branchType, commitsBetween, hasUncommittedChanges, openPullRequest,
 } = require('./lib/github');
 const { GpsError, writeJsonAtomic, runCli } = require('./lib/guard');
+const { getHistory, renderTimeline, recordEvent } = require('./lib/history');
 
-function buildIndex(config, finishedAt, tickets, bounded, pr) {
+function buildIndex(config, finishedAt, tickets, bounded, pr, events) {
   const lines = [
     `# Session Summary: ${config.feature_name}`,
     '',
@@ -62,6 +67,7 @@ function buildIndex(config, finishedAt, tickets, bounded, pr) {
     );
   }
   if (config.git) lines.push(...branchSection(config.git, pr));
+  lines.push(...renderTimeline(events));
   lines.push('## Next', '', 'Start a new feature with /gps start <next-feature>', '');
   return lines.join('\n');
 }
@@ -183,10 +189,15 @@ function finishSession() {
   }
 
   const finishedAt = new Date().toISOString();
-  fs.writeFileSync(path.join(sessionDir, 'INDEX.md'), buildIndex(config, finishedAt, tickets, bounded, pr));
+  const events = [
+    ...getHistory(config),
+    { at: finishedAt, event: 'session_finished', phase: 'finished', files: ['INDEX.md'] },
+  ];
+  fs.writeFileSync(path.join(sessionDir, 'INDEX.md'), buildIndex(config, finishedAt, tickets, bounded, pr, events));
 
   config.finished_at = finishedAt;
   writeJsonAtomic(configPath, config);
+  recordEvent(configPath, config, sessionDir, { event: 'session_finished', files: ['INDEX.md'], at: finishedAt });
 
   clearCurrentSession(sessionsDir);
 

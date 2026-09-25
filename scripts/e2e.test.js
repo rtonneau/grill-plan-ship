@@ -55,6 +55,7 @@ function expectStatus(phase, command) {
   const report = JSON.parse(ok('status.js').out);
   assert.strictEqual(hashWork(), before, 'status.js modified .work/');
   assert.strictEqual(report.current.phase, phase);
+  assert.ok(report.sessions.every((s) => s.phaseDrift === null), 'the recorded phase drifted from the derived phase');
   assert.strictEqual(report.current.suggestedNext.command, command);
   return report;
 }
@@ -108,6 +109,7 @@ for (const [num, slug] of [['1', 'toggle'], ['2', 'persist']]) {
   git('add', `${slug}.js`);
   git('commit', '-q', '-m', `feat: ${slug}`);
   fs.writeFileSync(log, fs.readFileSync(log, 'utf-8').replace(/^\*\*Status:\*\*.*$/m, '**Status:** ✅ Done'));
+  ok('ticket-done.js', num);
 }
 report = expectStatus('finish-pending', '/gps finish');
 // project-wide commits since the session started (the "initial" commit may share its second)
@@ -132,6 +134,30 @@ const index = fs.readFileSync(path.join(sessionDir, 'INDEX.md'), 'utf-8');
 assert.match(index, /✅ 01 toggle/);
 assert.match(index, /✅ 02 persist/);
 assert.ok(!fs.existsSync(path.join(root, '.work', 'sessions', '.current-session')));
+
+// history: every step is in the config, in order, with the phase after it
+const finalConfig = JSON.parse(fs.readFileSync(path.join(sessionDir, '.session-config.json'), 'utf-8'));
+assert.deepStrictEqual(finalConfig.history.map((e) => e.event), [
+  'session_started', 'grill_written', 'plan_started', 'plan_written',
+  'ticket_started', 'ticket_done', 'ticket_started', 'ticket_done',
+  'handoff_saved', 'session_finished',
+]);
+assert.deepStrictEqual(finalConfig.history.map((e) => e.phase), [
+  'grill', 'plan-not-started', 'plan', 'ship',
+  'ship', 'ship', 'ship', 'finish-pending',
+  'finish-pending', 'finished',
+]);
+const stamps = finalConfig.history.map((e) => e.at);
+assert.deepStrictEqual(stamps, [...stamps].sort(), 'events are in chronological order');
+assert.strictEqual(finalConfig.current_phase, 'finished');
+assert.ok(finalConfig.history.every((e) => !e.backfilled));
+assert.match(index, /## Timeline/);
+assert.match(index, /\| session_finished \|/);
+const links = [...index.matchAll(/\]\(([^)]+)\)/g)].map((m) => m[1]);
+assert.ok(links.includes('03-implement/01-toggle/commit-log.md'));
+for (const link of links) {
+  assert.ok(fs.existsSync(path.join(sessionDir, link)), `INDEX.md links to a missing file: ${link}`);
+}
 
 // after finishing: status reports no current session, still read-only
 const beforeStatus = hashWork();
