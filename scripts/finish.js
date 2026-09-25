@@ -14,10 +14,20 @@
  * - any ticket is not Done.
  * A bounded session (resume written, no plan) may finish with no tickets.
  *
- * Sessions with a branch (`git` in the config, set by /gps write in a
+ * INDEX.md gets a "## Timeline" built from the session history (see
+ * lib/history.js) plus the session_finished event, which is recorded after
+ * INDEX.md is written.
+ *
+ * Sessions with a branch (`git` in the config, set by the plan write in a
  * GitHub project) must have it checked out; finish pushes it and opens a
  * PR against its base branch. A failed push or gh call does not fail the
  * finish: INDEX.md and the output list the commands to run by hand.
+ * Bounded sessions have no branch, so they open no PR.
+ *
+ * Sessions filed with /gps issue (`issue` in the config): without a branch
+ * (bounded), finish comments a summary on the GitHub issue and, with
+ * `--close-issue`, closes it. With a branch, the PR body says "Closes #N"
+ * and merging the PR closes the issue. A failed gh call never fails finish.
  */
 
 const fs = require('fs');
@@ -30,10 +40,13 @@ const { listTickets } = require('./lib/ticket-queue');
 const { splitSections } = require('./lib/write-payload');
 const {
   PR_ATTRIBUTION, currentBranch, branchType, commitsBetween, hasUncommittedChanges, openPullRequest,
+  commentOnIssue, closeIssue,
 } = require('./lib/github');
+const { readRecentCommits } = require('./lib/git');
 const { GpsError, writeJsonAtomic, runCli } = require('./lib/guard');
+const { getHistory, hasEvent, renderTimeline, recordEvent } = require('./lib/history');
 
-function buildIndex(config, finishedAt, tickets, bounded, pr) {
+function buildIndex(config, finishedAt, tickets, bounded, pr, events, issueResult) {
   const lines = [
     `# Session Summary: ${config.feature_name}`,
     '',
@@ -62,6 +75,8 @@ function buildIndex(config, finishedAt, tickets, bounded, pr) {
     );
   }
   if (config.git) lines.push(...branchSection(config.git, pr));
+  if (config.issue) lines.push(...issueSection(config, issueResult));
+  lines.push(...renderTimeline(events));
   lines.push('## Next', '', 'Start a new feature with /gps start <next-feature>', '');
   return lines.join('\n');
 }
@@ -90,6 +105,23 @@ function branchSection(gitInfo, pr) {
   return lines;
 }
 
+function issueSection(config, result) {
+  const lines = ['## Issue', '', `- **Issue:** ${config.issue.url}`];
+  if (config.git) {
+    lines.push('- **Closed by:** the pull request, when it is merged', '');
+    return lines;
+  }
+  lines.push(
+    `- **Summary comment:** ${result.commented ? 'posted' : 'not posted'}`,
+    `- **Closed:** ${result.closed ? 'yes' : 'no'}`
+  );
+  if (result.failures.length > 0) {
+    lines.push('', 'Run by hand:', '', '```bash', ...result.failures.flatMap((f) => f.commands), '```');
+  }
+  lines.push('');
+  return lines;
+}
+
 // "## Problem Statement" of the resume, or null.
 function problemStatement(sessionDir) {
   try {
@@ -109,6 +141,7 @@ function buildPrBody(projectRoot, sessionDir, config, tickets, bounded) {
     '',
     problemStatement(sessionDir) || config.feature_name,
     '',
+    ...(config.issue ? [`Closes #${config.issue.number}`, ''] : []),
     '## Tickets',
     '',
     ...(bounded
@@ -132,6 +165,56 @@ function openSessionPr(projectRoot, sessionDir, config, tickets, bounded) {
   const title = `${branchType(config.git.branch)}: ${config.feature_name}`;
   const body = buildPrBody(projectRoot, sessionDir, config, tickets, bounded);
   return openPullRequest(projectRoot, config.git, { title, body });
+}
+
+function buildIssueComment(projectRoot, sessionDir, config) {
+  const commits = readRecentCommits(projectRoot, config.created_at, 50);
+  return [
+    '## Session finished',
+    '',
+    problemStatement(sessionDir) || config.feature_name,
+    '',
+    '## Commits',
+    '',
+    ...(commits.length > 0 ? commits.map((c) => `- ${c}`) : ['None.']),
+    '',
+    `gps session: \`${config.session_id}\``,
+    '',
+    PR_ATTRIBUTION,
+    '',
+  ].join('\n');
+}
+
+// Bounded issue session: comments once and (on request) closes the issue.
+// Each success is saved at once, so an interrupted finish never repeats it.
+// Returns { commented, closed, failures: [{ step, reason, commands }] }.
+function wrapUpIssue(projectRoot, sessionDir, configPath, config, close) {
+  const issue = config.issue;
+  const result = { commented: Boolean(issue.commented), closed: Boolean(issue.closed), failures: [] };
+
+  if (!result.commented) {
+    const commented = commentOnIssue(projectRoot, issue.number, buildIssueComment(projectRoot, sessionDir, config));
+    if (commented.ok) {
+      issue.commented = true;
+      result.commented = true;
+      writeJsonAtomic(configPath, config);
+      recordEvent(configPath, config, sessionDir, { event: 'issue_commented', detail: { number: issue.number } });
+    } else {
+      result.failures.push({ step: 'comment', ...commented });
+    }
+  }
+  if (close && !result.closed) {
+    const closed = closeIssue(projectRoot, issue.number);
+    if (closed.ok) {
+      issue.closed = true;
+      result.closed = true;
+      writeJsonAtomic(configPath, config);
+      recordEvent(configPath, config, sessionDir, { event: 'issue_closed', detail: { number: issue.number } });
+    } else {
+      result.failures.push({ step: 'close', ...closed });
+    }
+  }
+  return result;
 }
 
 function finishSession() {
@@ -162,6 +245,8 @@ function finishSession() {
 
   const projectRoot = process.cwd();
   let pr = null;
+  const closeRequested = process.argv.slice(2).includes('--close-issue');
+  const boundedIssue = Boolean(config.issue) && !config.git;
   if (config.git) {
     const onBranch = currentBranch(projectRoot);
     if (onBranch !== config.git.branch) {
@@ -179,14 +264,31 @@ function finishSession() {
       // PR on its next run instead of opening a second one.
       config.git.pr_url = pr.url;
       writeJsonAtomic(configPath, config);
+      if (!hasEvent(config, 'pr_opened')) {
+        recordEvent(configPath, config, sessionDir, { event: 'pr_opened', detail: { url: pr.url } });
+      }
     }
   }
 
+  let issueResult = null;
+  if (boundedIssue) {
+    issueResult = wrapUpIssue(projectRoot, sessionDir, configPath, config, closeRequested);
+  } else if (closeRequested) {
+    console.error(`⚠️  --close-issue ignored: ${config.issue
+      ? 'the pull request closes the issue when it is merged.'
+      : 'this session has no GitHub issue.'}`);
+  }
+
   const finishedAt = new Date().toISOString();
-  fs.writeFileSync(path.join(sessionDir, 'INDEX.md'), buildIndex(config, finishedAt, tickets, bounded, pr));
+  const events = [
+    ...getHistory(config),
+    { at: finishedAt, event: 'session_finished', phase: 'finished', files: ['INDEX.md'] },
+  ];
+  fs.writeFileSync(path.join(sessionDir, 'INDEX.md'), buildIndex(config, finishedAt, tickets, bounded, pr, events, issueResult));
 
   config.finished_at = finishedAt;
   writeJsonAtomic(configPath, config);
+  recordEvent(configPath, config, sessionDir, { event: 'session_finished', files: ['INDEX.md'], at: finishedAt });
 
   clearCurrentSession(sessionsDir);
 
@@ -197,6 +299,15 @@ function finishSession() {
   } else if (pr) {
     console.error(`⚠️  Pull request not opened (${pr.step === 'push' ? 'git push' : 'gh pr create'} failed: ${pr.reason}). Run by hand:`);
     for (const command of pr.commands) console.error(`   ${command}`);
+  }
+  if (issueResult) {
+    const number = config.issue.number;
+    if (issueResult.commented) console.log(`💬 Summary posted on issue #${number}: ${config.issue.url}`);
+    if (issueResult.closed) console.log(`✅ Issue #${number} closed`);
+    for (const failure of issueResult.failures) {
+      console.error(`⚠️  Issue #${number}: ${failure.step} failed (${failure.reason}). Run by hand:`);
+      for (const command of failure.commands) console.error(`   ${command}`);
+    }
   }
 
   const unfinished = listUnfinishedSessions(sessionsDir);
