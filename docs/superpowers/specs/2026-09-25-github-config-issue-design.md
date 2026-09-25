@@ -39,8 +39,10 @@ New `scripts/lib/project-config.js`:
   way (GitHub Enterprise, opting out).
 
 Every handler that needs to know about GitHub calls `githubEnabled()`:
-`start-session.js`, `issue-session.js`, `write-target.js`, `write-apply.js`,
-`finish.js`. Projects that already use gps get the file on their next command.
+`start-session.js`, `issue-session.js`, `write-target.js`, `write-apply.js`.
+`finish.js` does not read the flag: it acts on the session's own `git` and
+`issue` records, so a session keeps working if the flag changes mid-way.
+Projects that already use gps get the file on their next command.
 `detectGithub` stays in `github.js`, used only by `ensureProjectConfig`.
 
 ## Branch at plan write
