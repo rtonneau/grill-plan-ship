@@ -115,6 +115,22 @@ the flag on later does not retro-create an issue.
 **Status:** `summarizeSession` adds `issueUrl` (null when absent); `/gps status`
 prints it next to the branch/PR.
 
+## Session history events
+
+The session history (`docs/superpowers/specs/2026-09-25-session-history-design.md`,
+implemented first) records these GitHub steps through `recordEvent`, so they
+appear in the session's timeline and in `INDEX.md`:
+
+| event | recorded by | detail |
+|---|---|---|
+| `issue_created` | grill write of an issue session | `number`, `url` (`at` = the time gh created it) |
+| `branch_created` | plan write | `branch`, `base` (`at` = `git.branch_created_at`) |
+| `pr_opened` | `/gps finish` (once, even across a re-run) | `url` |
+| `issue_commented` | `/gps finish`, bounded issue session | `number` |
+| `issue_closed` | `/gps finish --close-issue` | `number` |
+
+`session_started` carries `detail: { kind: "issue" }` for issue sessions.
+
 ## Files
 
 New: `scripts/lib/project-config.js` (+ test), `scripts/lib/session-init.js`,

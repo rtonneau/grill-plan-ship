@@ -69,7 +69,12 @@ read-only for history and record nothing. The GitHub work adds
 ## `scripts/lib/history.js`
 
 - `recordEvent(configPath, config, sessionDir, { event, files, detail, at })`:
-  1. `ensureHistory(config)`: creates `config.history` (backfilled) when missing.
+  1. `ensureHistory(config)`: creates `config.history` (backfilled) when
+     missing. When it had to backfill, any backfilled event of the same kind
+     (and same `detail.ticket`) as the event being recorded is dropped in
+     favour of the new one, so a command that just wrote the fact backfill
+     reads (`usage.plan`, `finished_at`) never produces a duplicate. New
+     sessions are created with `history: []`, so they are never backfilled.
   2. Appends `{ at: at || now, event, phase, files, detail }`, omitting empty
      `files`/`detail`. `phase` comes from
      `computeSessionState(sessionDir, config).phase`, so it uses the derived
@@ -97,8 +102,13 @@ read-only for history and record nothing. The GitHub work adds
 ## `ticket-done.js <N>`
 
 - Resolves the ticket like `ticket.js` does. The lookup moves from
-  `ticket.js` into `scripts/lib/ticket-queue.js` as
-  `findTicketByNumber(sessionDir, number)` so both handlers share it.
+  `ticket.js` into a new `scripts/lib/ticket-lookup.js` (`ticket-queue.js`
+  cannot host it: `write-target.js` requires that module, so it would be a
+  circular import) as `findTicketsByNumber(sessionDir, number)` (all tickets
+  with that number) and `findTicketByNumber` (the first not-yet-done one,
+  else the first), so both handlers share it.
+- With several tickets sharing a number it records the first one that is Done
+  and not yet recorded, so each duplicate gets its own event.
 - Fails (`❌`, nothing changed) unless the plan is written, the ticket exists,
   and its `commit-log.md` says exactly `**Status:** ✅ Done`. Hint: set the
   Status line first, then run this again.
@@ -129,7 +139,8 @@ old sessions closed with the new version.
 
 ## Files
 
-New: `scripts/lib/history.js` (+ test), `scripts/ticket-done.js`.
+New: `scripts/lib/history.js` (+ test), `scripts/lib/ticket-lookup.js`,
+`scripts/ticket-done.js`.
 `ticket-done.js` is not a `/gps` command: it is documented inside `ship.md`
 and `ticket.md` (like `token-usage.js`), so `SKILL.md` and the router test are
 unchanged.
@@ -137,7 +148,7 @@ unchanged.
 Changed: `scripts/lib/session-init.js` (or `start-session.js` before the GitHub
 refactor lands), `scripts/write-apply.js`, `scripts/plan.js`,
 `scripts/ticket.js`, `scripts/handoff.js`, `scripts/finish.js`,
-`scripts/lib/ticket-queue.js`, `scripts/lib/status.js`,
+`scripts/lib/status.js`,
 `skills/gps/references/ship.md`, `ticket.md`, `status.md`, `README.md`,
 `CLAUDE.md`.
 

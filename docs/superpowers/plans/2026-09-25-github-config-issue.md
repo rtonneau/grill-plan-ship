@@ -10,6 +10,8 @@
 
 **Spec:** `docs/superpowers/specs/2026-09-25-github-config-issue-design.md`
 
+**Prerequisite:** `docs/superpowers/plans/2026-09-25-session-history.md` is implemented first. It provides `scripts/lib/history.js` (`recordEvent`, `hasEvent`, `getHistory`), `history: []` in new session configs, and already records `session_started` (in `start-session.js`), `grill_written`, `plan_written`, `ticket_*`, `handoff_saved` and `session_finished`. Code snippets and "replace X with Y" instructions below are written against the code **as that plan leaves it**; the tasks here add the GitHub events (`branch_created`, `issue_created`, `pr_opened`, `issue_commented`, `issue_closed`) through the same `recordEvent`.
+
 ## Global Constraints
 
 - Node >= 20, no external dependencies; git and gh run via `execFileSync` with an argument array, never a shell string.
@@ -18,6 +20,7 @@
 - `skills/gps/SKILL.md` must stay <= 70 lines and `skills/gps/references/write.md` <= 50 lines (`scripts/handlers.test.js` enforces both).
 - `/gps status` (`status.js`) is read-only: it must never create or modify anything under `.work/` (`e2e.test.js` hashes it), so it must not call `ensureProjectConfig`.
 - Session state is never edited by hand outside the handlers; tests drive the real handler scripts.
+- Every state change is recorded with `recordEvent(configPath, config, sessionDir, { event, files, detail, at })` from `scripts/lib/history.js`, after the files are written. An event for an action that happened earlier in the same command passes that action's real time as `at` (e.g. `branch_created` uses `git.branch_created_at`, `issue_created` uses `issue.created_at`), so the timeline keeps the real order. `recordEvent` never throws.
 - Every commit message ends with these two lines (blank line before them):
   ```
   Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>
@@ -565,6 +568,7 @@ function markTicketDone(sessionDir, slug) {
   ok('ticket.js', '1');
   const log = path.join(sessionDir, '03-implement', `01-${slug}`, 'commit-log.md');
   fs.writeFileSync(log, fs.readFileSync(log, 'utf-8').replace(/^\*\*Status:\*\*.*$/m, '**Status:** ✅ Done'));
+  ok('ticket-done.js', '1');
 }
 
 function commit(file, message) {
@@ -598,6 +602,7 @@ let res = ok('write-apply.js');
 assert.doesNotMatch(res.out, /Working on branch/);
 assert.strictEqual(git('branch', '--show-current'), 'main');
 assert.strictEqual(readConfig(configPath).git, undefined);
+assert.ok(!readConfig(configPath).history.some((e) => e.event === 'branch_created'), 'bounded: no branch event');
 
 commit('theme.js', 'feat: add dark theme');
 res = ok('finish.js');
@@ -644,6 +649,11 @@ assert.strictEqual(config.git.branch, 'feat/search-filters');
 assert.strictEqual(config.git.base_branch, 'main');
 assert.strictEqual(config.git.pr_url, null);
 assert.doesNotMatch(fs.readFileSync(path.join(sessionDir, '02-plan', 'plan.md'), 'utf-8'), /Branch/);
+const branchEvent = config.history.find((e) => e.event === 'branch_created');
+assert.deepStrictEqual(branchEvent.detail, { branch: 'feat/search-filters', base: 'main' });
+assert.strictEqual(branchEvent.at, config.git.branch_created_at);
+assert.ok(config.history.findIndex((e) => e.event === 'branch_created') < config.history.findIndex((e) => e.event === 'plan_written'),
+  'the branch was created before the plan files were written');
 
 markTicketDone(sessionDir, 'filters');
 commit('filters.js', 'feat: add filters');
@@ -785,51 +795,38 @@ const { githubEnabled } = require('./lib/project-config');
   const branch = target === 'plan' && !config.git && githubEnabled(projectRoot) ? payload.fields.Branch || '' : null;
 ```
 
-4. Replace the grill block
+4. Replace the whole `if (target === 'grill') { ... }` block (it currently holds `if (gitInfo) { config.git = gitInfo; writeJsonAtomic(configPath, config); }`, the `recordEvent(... 'grill_written' ...)` line the history plan added, `fs.unlinkSync(payloadPath);`, the `✅` log, the `🌿` log and `return;`) with:
 
 ```js
   if (target === 'grill') {
-    if (gitInfo) {
-      config.git = gitInfo;
-      writeJsonAtomic(configPath, config);
-    }
-    fs.unlinkSync(payloadPath);
-    console.log(`✅ Grill written for ${sessionId}. Next: /gps plan`);
-    if (gitInfo) console.log(`🌿 Working on branch ${gitInfo.branch} (from ${gitInfo.base_branch}); /gps finish opens the PR.`);
-    return;
-  }
-```
-
-with
-
-```js
-  if (target === 'grill') {
+    recordEvent(configPath, config, sessionDir, { event: 'grill_written', files: ['01-grill/resume.md'] });
     fs.unlinkSync(payloadPath);
     console.log(`✅ Grill written for ${sessionId}. Next: /gps plan`);
     return;
   }
 ```
 
-5. Replace the final lines
-
-```js
-  fs.unlinkSync(payloadPath);
-  console.log(`✅ Plan written for ${sessionId}: ${tickets.length} ticket(s). Next: /gps ship`);
-});
-```
-
-with
+5. The plan tail: the history plan added a `recordEvent(configPath, config, sessionDir, { event: 'plan_written', ... })` statement before `fs.unlinkSync(payloadPath);` and the `✅ Plan written` log. **Insert immediately before that `recordEvent(... 'plan_written' ...)` statement:**
 
 ```js
   if (gitInfo) {
     config.git = gitInfo;
     writeJsonAtomic(configPath, config);
+    recordEvent(configPath, config, sessionDir, {
+      event: 'branch_created',
+      detail: { branch: gitInfo.branch, base: gitInfo.base_branch },
+      at: gitInfo.branch_created_at,
+    });
   }
-  fs.unlinkSync(payloadPath);
-  console.log(`✅ Plan written for ${sessionId}: ${tickets.length} ticket(s). Next: /gps ship`);
-  if (gitInfo) console.log(`🌿 Working on branch ${gitInfo.branch} (from ${gitInfo.base_branch}); /gps finish opens the PR.`);
-});
 ```
+
+and **after the `✅ Plan written …` `console.log` line** (before the closing `});`) add:
+
+```js
+  if (gitInfo) console.log(`🌿 Working on branch ${gitInfo.branch} (from ${gitInfo.base_branch}); /gps finish opens the PR.`);
+```
+
+The branch event goes first so the timeline shows the real order (branch created, then the plan files written).
 
 - [ ] **Step 6: Fix the wording in `finish.js`'s header**
 
@@ -902,6 +899,7 @@ In `scripts/handlers.test.js`, insert this block immediately before the block th
   assert.strictEqual(config.kind, 'issue');
   assert.strictEqual(config.feature_name, 'Crash on save');
   assert.strictEqual(config.issue, undefined);
+  assert.deepStrictEqual(config.history.map((e) => [e.event, e.detail]), [['session_started', { kind: 'issue' }]]);
   const projectConfig = JSON.parse(fs.readFileSync(path.join(root, '.work', 'gps-config.json'), 'utf-8'));
   assert.strictEqual(projectConfig.github.enabled, false);
   assert.ok(fs.existsSync(path.join(sessionsDir(root), id, '01-grill', 'resume.md')));
@@ -938,10 +936,12 @@ const { loadTemplate, renderTemplate } = require('./templates');
 const { setCurrentSession } = require('./session-store');
 const { TEMPLATE_VERSION } = require('./write-target');
 const { touchPhase } = require('./token-usage');
+const { recordEvent } = require('./history');
 const { ensureScratchDir, ensureGitignoreEntry } = require('./scratch-dir');
 const { GpsError, localDate, slugify, writeJsonAtomic } = require('./guard');
 
-// `extraConfig` is merged into .session-config.json (e.g. { kind: 'issue' }).
+// `extraConfig` is merged into .session-config.json (e.g. { kind: 'issue' });
+// the session starts with an empty history and a `session_started` event.
 function initSession(projectRoot, featureName, extraConfig = {}) {
   const now = new Date();
   const slug = slugify(featureName, now);
@@ -973,12 +973,14 @@ function initSession(projectRoot, featureName, extraConfig = {}) {
     scratch_dir: scratchDir,
     created_at: now.toISOString(),
     template_version: TEMPLATE_VERSION,
+    history: [],
     ...extraConfig,
   };
 
   touchPhase(config, 'grill');
 
-  writeJsonAtomic(path.join(workDir, '.session-config.json'), config);
+  const configPath = path.join(workDir, '.session-config.json');
+  writeJsonAtomic(configPath, config);
 
   const resumeContent = renderTemplate(loadTemplate('01-grill-resume.md'), {
     'feature-name': featureName,
@@ -992,6 +994,13 @@ function initSession(projectRoot, featureName, extraConfig = {}) {
     path.join(workDir, 'INDEX.md'),
     `# Session: ${featureName}\n\nPhase: Grill (in progress)\n`
   );
+
+  recordEvent(configPath, config, workDir, {
+    event: 'session_started',
+    files: ['01-grill/resume.md'],
+    detail: extraConfig.kind ? { kind: extraConfig.kind } : undefined,
+    at: config.created_at,
+  });
 
   setCurrentSession(sessionsDir, sessionId);
 
@@ -1009,6 +1018,8 @@ module.exports = { initSession, announceSession };
 ```
 
 - [ ] **Step 4: Slim `scripts/start-session.js` down to use it**
+
+(The history plan put `history: []` and the `session_started` `recordEvent` call into `start-session.js`; they now live in `initSession` above, so the slimmed file below deliberately has neither, and no `recordEvent` import.)
 
 Replace everything after the header comment (from `const fs = require('fs');` to the end of the file) with:
 
@@ -1193,6 +1204,9 @@ assert.match(issueCreates[0].body, /## Context & Constraints/);
 assert.match(issueCreates[0].body, /gps session: `.+__crash-on-save`/);
 assert.strictEqual(git('branch', '--show-current'), 'main', 'an issue session creates no branch at the grill write');
 assert.strictEqual(config.git, undefined);
+assert.deepStrictEqual(config.history.map((e) => e.event), ['session_started', 'issue_created', 'grill_written']);
+assert.deepStrictEqual(config.history[1].detail, { number: 34, url: 'https://github.com/acme/app/issues/34' });
+assert.strictEqual(config.history[1].at, config.issue.created_at);
 assert.strictEqual(
   JSON.parse(ok('status.js').out).sessions.find((s) => s.sessionId === sessionId).issueUrl,
   'https://github.com/acme/app/issues/34'
@@ -1260,14 +1274,21 @@ const { validateBranchName, createSessionBranch, createIssue, buildIssueBody } =
   }
 ```
 
-5. Replace the grill block (from Task 3) with:
+5. Replace the grill block (as Task 3 left it, with its `recordEvent(... 'grill_written' ...)` line) with (the issue is filed before the resume file is written, so its event comes first):
 
 ```js
   if (target === 'grill') {
     if (issue) {
       config.issue = issue;
       writeJsonAtomic(configPath, config);
+      recordEvent(configPath, config, sessionDir, {
+        event: 'issue_created',
+        files: ['01-grill/resume.md'],
+        detail: { number: issue.number, url: issue.url },
+        at: issue.created_at,
+      });
     }
+    recordEvent(configPath, config, sessionDir, { event: 'grill_written', files: ['01-grill/resume.md'] });
     fs.unlinkSync(payloadPath);
     console.log(`✅ Grill written for ${sessionId}. Next: /gps plan`);
     if (issue) console.log(`📌 Issue #${issue.number}: ${issue.url}`);
@@ -1337,7 +1358,15 @@ function startIssueSession(title, problem) {
 }
 ```
 
-2. Insert this block immediately before the line `fs.rmSync(tmp, { recursive: true, force: true });`:
+2. In Part B, right after the line `assert.strictEqual(prCreates().length, 1, 'no second PR');` add (the PR is recorded once in the history, even across the re-run):
+
+```js
+assert.strictEqual(readConfig(configPath).history.filter((e) => e.event === 'pr_opened').length, 1);
+assert.deepStrictEqual(readConfig(configPath).history.find((e) => e.event === 'pr_opened').detail,
+  { url: 'https://github.com/acme/app/pull/12' });
+```
+
+3. Insert this block immediately before the line `fs.rmSync(tmp, { recursive: true, force: true });`:
 
 ```js
 // --------- C (continued). bounded issue session: finish comments, does not close
@@ -1359,6 +1388,10 @@ assert.doesNotMatch(issueIndex, /Branch & PR/);
 config = readConfig(configPath);
 assert.strictEqual(config.issue.commented, true);
 assert.strictEqual(config.issue.closed, undefined);
+assert.deepStrictEqual(config.history.map((e) => e.event),
+  ['session_started', 'issue_created', 'grill_written', 'issue_commented', 'session_finished']);
+assert.match(issueIndex, /## Timeline/);
+assert.match(issueIndex, /\| issue_commented \|/);
 
 // ------------------------------- E. bounded issue session, closed with the flag
 ({ sessionId, sessionDir, configPath } = startIssueSession('Typo in footer', 'The footer says "Copyrigth".'));
@@ -1369,6 +1402,8 @@ assert.match(res.out, new RegExp(`Issue #${typoIssue} closed`));
 assert.deepStrictEqual(issueCalls('close').pop().args, ['issue', 'close', String(typoIssue)]);
 assert.strictEqual(readConfig(configPath).issue.closed, true);
 assert.match(fs.readFileSync(path.join(sessionDir, 'INDEX.md'), 'utf-8'), /Closed:\*\* yes/);
+assert.deepStrictEqual(readConfig(configPath).history.map((e) => e.event),
+  ['session_started', 'issue_created', 'grill_written', 'issue_commented', 'issue_closed', 'session_finished']);
 
 // ------------------------- G. gh comment fails: finish still succeeds, commands listed
 ({ sessionId, sessionDir, configPath } = startIssueSession('Broken link', 'The docs link 404s.'));
@@ -1408,6 +1443,12 @@ issueIndex = fs.readFileSync(path.join(sessionDir, 'INDEX.md'), 'utf-8');
 assert.match(issueIndex, /## Issue/);
 assert.match(issueIndex, /Closed by:\*\* the pull request/);
 assert.match(issueIndex, /## Branch & PR/);
+const plannedEvents = readConfig(configPath).history.map((e) => e.event);
+assert.ok(['issue_created', 'branch_created', 'plan_written', 'ticket_done', 'pr_opened', 'session_finished']
+  .every((name) => plannedEvents.includes(name)), `planned issue session events: ${plannedEvents.join(', ')}`);
+assert.ok(!plannedEvents.includes('issue_commented') && !plannedEvents.includes('issue_closed'));
+assert.ok(plannedEvents.indexOf('pr_opened') < plannedEvents.indexOf('session_finished'));
+assert.match(issueIndex, /\| pr_opened \|/);
 
 ```
 
@@ -1446,7 +1487,9 @@ const {
 const { readRecentCommits } = require('./lib/git');
 ```
 
-3. Change the `buildIndex` signature and body. Replace `function buildIndex(config, finishedAt, tickets, bounded, pr) {` with `function buildIndex(config, finishedAt, tickets, bounded, pr, issueResult) {` and replace the line `  if (config.git) lines.push(...branchSection(config.git, pr));` with:
+and change the history import the history plan added, `const { getHistory, renderTimeline, recordEvent } = require('./lib/history');`, to `const { getHistory, hasEvent, renderTimeline, recordEvent } = require('./lib/history');`.
+
+3. Change the `buildIndex` signature and body. Replace `function buildIndex(config, finishedAt, tickets, bounded, pr, events) {` (as the history plan left it) with `function buildIndex(config, finishedAt, tickets, bounded, pr, events, issueResult) {` and replace the line `  if (config.git) lines.push(...branchSection(config.git, pr));` with:
 
 ```js
   if (config.git) lines.push(...branchSection(config.git, pr));
@@ -1525,6 +1568,7 @@ function wrapUpIssue(projectRoot, sessionDir, configPath, config, close) {
       issue.commented = true;
       result.commented = true;
       writeJsonAtomic(configPath, config);
+      recordEvent(configPath, config, sessionDir, { event: 'issue_commented', detail: { number: issue.number } });
     } else {
       result.failures.push({ step: 'comment', ...commented });
     }
@@ -1535,6 +1579,7 @@ function wrapUpIssue(projectRoot, sessionDir, configPath, config, close) {
       issue.closed = true;
       result.closed = true;
       writeJsonAtomic(configPath, config);
+      recordEvent(configPath, config, sessionDir, { event: 'issue_closed', detail: { number: issue.number } });
     } else {
       result.failures.push({ step: 'close', ...closed });
     }
@@ -1563,7 +1608,24 @@ After the closing brace of the `if (config.git) { ... }` block and before `const
   }
 ```
 
-Change the INDEX write to pass it: `buildIndex(config, finishedAt, tickets, bounded, pr, issueResult)`.
+Change the INDEX write (the history plan's `buildIndex(config, finishedAt, tickets, bounded, pr, events)`) to pass it: `buildIndex(config, finishedAt, tickets, bounded, pr, events, issueResult)`. `events` is built after this point from `getHistory(config)`, so it already contains the `issue_commented` / `issue_closed` events recorded by `wrapUpIssue`.
+
+Record the PR in the history the moment it is opened, so the timeline in INDEX.md shows it. In the existing `if (pr.ok) { ... }` block, replace
+
+```js
+      config.git.pr_url = pr.url;
+      writeJsonAtomic(configPath, config);
+```
+
+with
+
+```js
+      config.git.pr_url = pr.url;
+      writeJsonAtomic(configPath, config);
+      if (!hasEvent(config, 'pr_opened')) {
+        recordEvent(configPath, config, sessionDir, { event: 'pr_opened', files: ['INDEX.md'], detail: { url: pr.url } });
+      }
+```
 
 After the PR output block (`} else if (pr) { ... }`) and before `const unfinished = ...` add:
 
@@ -1662,9 +1724,13 @@ Projects with `github.enabled` false work exactly as before: no branch, no PR.
 In `CLAUDE.md`:
 
 1. After ``- `/gps start <feature-name>` — Create new session directory + initialize templates`` add ``- `/gps issue <title>` — Like start, for a report: on GitHub projects the grill write files a GitHub issue``.
-2. In the architecture tree, after the `│   ├── start-session.js     ← Creates .work/sessions/YYYYMMDD__feature/` line add `│   ├── issue-session.js     ← /gps issue: same setup as start, marked kind "issue"`, and change `Shared helpers (session-store, templates, write-target, write-payload, ticket-queue, github) + tests` to `Shared helpers (session-store, session-init, project-config, templates, write-target, write-payload, ticket-queue, github) + tests`.
-3. In the "Session Structure" tree, change the `.session-config.json` comment to `← Machine state (session ID, status, tickets, `kind`, and `git` branch/PR / `issue` on GitHub projects)`, and after the closing fence of that tree add the paragraph:
+2. In the architecture tree, after the `│   ├── start-session.js     ← Creates .work/sessions/YYYYMMDD__feature/` line add `│   ├── issue-session.js     ← /gps issue: same setup as start, marked kind "issue"`, and change `Shared helpers (session-store, history, ticket-lookup, templates, write-target, write-payload, ticket-queue, github) + tests` (as the history plan left it) to `Shared helpers (session-store, session-init, project-config, history, ticket-lookup, templates, write-target, write-payload, ticket-queue, github) + tests`.
+3. In the "Session Structure" tree, in the `.session-config.json` comment (as the history plan left it: `← Machine state (session ID, \`current_phase\`, \`history\` timeline events, usage, and \`git\` branch/PR on GitHub projects)`) replace `and \`git\` branch/PR on GitHub projects)` with `\`kind\`, and \`git\` branch/PR / \`issue\` on GitHub projects)`, and after the closing fence of that tree add the paragraph:
    `Project-wide, \`.work/gps-config.json\` holds the GitHub flag (\`github.enabled\`, detected once by the first command, editable by hand); handlers read it via \`scripts/lib/project-config.js\` and never re-detect.`
+
+- [ ] **Step 3b: README — GitHub events in the session history**
+
+In the `## Session history` section (added by the history plan, above `## Project config`/`## Branches and Pull Requests`), extend the event list `session_started`, `grill_written`, … `session_finished` with `branch_created`, `issue_created`, `pr_opened`, `issue_commented` and `issue_closed` (GitHub projects), so the sentence reads: ``…`handoff_saved`, `session_finished`, plus on GitHub projects `branch_created`, `issue_created`, `pr_opened`, `issue_commented`, `issue_closed`.``
 
 - [ ] **Step 4: status reference**
 
