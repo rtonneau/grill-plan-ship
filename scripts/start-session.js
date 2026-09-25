@@ -21,7 +21,7 @@
  *
  * If .work/sessions/.pending-seeds.json has an entry whose key matches
  * this slug (written earlier by /gps scout), that entry is printed and
- * removed so the brainstorming conversation that follows can open
+ * removed so the grill conversation that follows can open
  * already seeded with it instead of starting from zero.
  */
 
@@ -43,9 +43,9 @@ function startSession(featureName) {
     removeSeed(session.sessionsDir, session.slug);
     console.log(`\nScout seed found for "${session.slug}" (from ${seed.sourceReport}):`);
     console.log(JSON.stringify(seed, null, 2));
-    console.log(`\nOpen brainstorming seeded with this candidate's problem/solution/files instead of starting from zero.`);
+    console.log(`\nOpen the grill seeded with this candidate's problem/solution/files instead of starting from zero.`);
   } else {
-    console.log(`\nNext: the brainstorming conversation begins now. Once it's approved,`);
+    console.log(`\nNext: the grill conversation begins now. Once it's approved,`);
     console.log(`run /gps write to save the resume to ${path.join(session.grillDir, 'resume.md')}, then /gps plan.`);
   }
 }
