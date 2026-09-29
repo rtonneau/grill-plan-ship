@@ -13,7 +13,7 @@
    - First, one `**<field>:** <value>` line per entry of `fields` (e.g. `**Estimated effort:** 2 days`).
    - **`Branch` field (plan phase, GitHub projects only, when `fields` lists it):** name the session branch after the approved plan, shaped like `branchPattern`: the type that fits the work (`feat`, `fix`, `refactor`, `docs`, `chore`, `perf`, `test`), then a short lowercase slug naming the change, not the session. E.g. `**Branch:** feat/dark-mode-toggle`. Pick it yourself; don't ask the user.
    - Then one `## <heading>` block per entry of `sections`, in that order, holding the agreed content. Leave out Token Usage; the script fills it.
-   - **Plan only:** after the sections, one block per approved ticket, each opened by its own line `--- ticket: NN-<slug> ---` (e.g. `--- ticket: 01-add-parser ---`; the slug is lowercase `a-z 0-9` with `-`, `_` or `.` between). Ticket body:
+   - **Plan only:** after the sections, one block per approved ticket, each opened by its own line `--- ticket: NN-<slug> ---` (e.g. `--- ticket: 01-add-parser ---`; the slug is lowercase `a-z 0-9` with `-`, `_` or `.` between). Ticket body (its `**Model:**` line takes exactly one listed value, or is left out for `inherit`; the placeholder as is, an empty line or any other value fails the write):
 
      ````markdown
      **Model:** <haiku | sonnet | opus | inherit>

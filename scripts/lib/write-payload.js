@@ -11,15 +11,14 @@
 const fs = require('fs');
 const path = require('path');
 const { loadTemplate, renderTemplate } = require('./templates');
-const { TICKET_MODELS, parseTicketFilename, readTicketModel } = require('./ticket-queue');
+const { parseTicketFilename } = require('./ticket-queue');
+const { TICKET_MODELS, fenceTracker, normalizeTicketModel } = require('./ticket-model');
 
 const PAYLOAD_FILENAME = '.write-payload.md';
 const TOKEN_USAGE_HEADING = 'Token Usage';
 
 const HEADING_RE = /^## (.+?)\s*$/;
 const TICKET_SEPARATOR_RE = /^--- ticket: (.*?) ---\s*$/;
-const FENCE_OPEN_RE = /^\s*(`{3,}|~{3,})/;
-const FENCE_CLOSE_RE = /^\s*(`{3,}|~{3,})\s*$/;
 // "**Label:** value" lines above the first heading, e.g. "**Estimated effort:**".
 const FIELD_RE = /^\*\*([^*]+?):\*\*\s*(.*)$/;
 const UNFILLED_RE = /<!--\s*gps:fill\b|\{\{[^}]+\}\}/;
@@ -38,29 +37,6 @@ function toLines(text) {
 function placeholderError(what, text) {
   const legacyOnly = !/<!--\s*gps:fill\b/.test(text);
   return `${what} still has a placeholder.${legacyOnly ? ' ({{ … }} counts as a placeholder in sessions created before template version 2.)' : ''}`;
-}
-
-// Tracks fenced code blocks the CommonMark way: a fence closes only on a
-// bare line of the same character, at least as long as the opening one,
-// so "~~~" inside a ``` block or ``` inside a ```` block stays content.
-function fenceTracker() {
-  let open = null;
-  return {
-    // True when the line is a fence line or inside a fenced block.
-    inCode(line, lineNumber) {
-      if (open) {
-        const close = line.match(FENCE_CLOSE_RE);
-        if (close && close[1][0] === open.char && close[1].length >= open.length) open = null;
-        return true;
-      }
-      const start = line.match(FENCE_OPEN_RE);
-      if (start) open = { char: start[1][0], length: start[1].length, lineNumber };
-      return Boolean(start);
-    },
-    get open() {
-      return open;
-    },
-  };
 }
 
 // Splits markdown into the text before the first "## " heading and one
@@ -195,9 +171,11 @@ function validatePayload(payload, { expectedHeadings: expected, expectedFields: 
     names.add(name);
     if (!body) errors.push(`Ticket "${name}" is empty.`);
     else if (isUnfilled(body)) errors.push(placeholderError(`Ticket "${name}"`, body));
-    const model = readTicketModel(body);
-    if (model !== null && !TICKET_MODELS.includes(model.toLowerCase())) {
-      errors.push(`Ticket "${name}" has unknown model "${model}". Use one of: ${TICKET_MODELS.join(', ')}.`);
+    const { model, raw } = normalizeTicketModel(body);
+    if (raw === '') {
+      errors.push(`Ticket "${name}" has an empty **Model:** line. Give one of: ${TICKET_MODELS.join(', ')}, or remove the line.`);
+    } else if (raw !== null && raw.toLowerCase() !== model) {
+      errors.push(`Ticket "${name}" has unknown model "${raw}". Use one of: ${TICKET_MODELS.join(', ')}.`);
     }
   }
   return errors;

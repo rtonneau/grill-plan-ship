@@ -196,7 +196,13 @@ assert.match(renderTokenUsage({ available: false }), /- \*\*Input:\*\* unavailab
   const bad = check('**Model:** gpt-9\n\n');
   assert.ok(bad.some((e) => /Ticket "01-a" has unknown model "gpt-9"\. Use one of: haiku, sonnet, opus, inherit\./.test(e)), bad);
   const empty = check('**Model:**\n\n');
-  assert.ok(empty.some((e) => /unknown model ""/.test(e)), empty);
+  assert.ok(empty.some((e) => /empty \*\*Model:\*\* line\. Give one of: haiku, sonnet, opus, inherit, or remove the line\./.test(e)), empty);
+  // The placeholder copied from write.md is an unknown model, not a valid one
+  const placeholder = check('**Model:** <haiku | sonnet | opus | inherit>\n\n');
+  assert.ok(placeholder.some((e) => /unknown model "<haiku \| sonnet \| opus \| inherit>"/.test(e)), placeholder);
+  // An example in a code fence is content, not the ticket's Model line
+  assert.deepStrictEqual(check('```\n**Model:** gpt-4\n```\n'), []);
+  assert.deepStrictEqual(check('**Model:** haiku\r\n\r\n'), []);
 }
 
 // A UTF-8 byte-order mark does not hide the first heading

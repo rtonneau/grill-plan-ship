@@ -2,9 +2,11 @@
 
 **When:** After tickets have been saved to disk (`/gps write` has run for the plan phase). Takes no arguments — it works through whatever tickets remain.
 
-**Mode:** Before running the ticket loop, ask: "Implement each ticket via a dispatched subagent, or inline in this session?" Wait for an explicit answer before continuing. Ask this every time `/gps ship` is invoked — never cache the answer in session state, and never re-ask mid-run; whichever answer you get applies to every ticket this invocation processes.
+**Mode:** Before running the ticket loop, ask: "Implement each ticket via a dispatched subagent, or inline in this session?" Wait for an explicit answer before continuing. Ask this every time `/gps ship` is invoked — never cache the answer in session state, and never re-ask mid-run; whichever answer you get applies to every ticket this invocation processes. `/gps ticket <N>` (manual single-ticket implementation) is unaffected — it always runs inline.
 
-**Model hint:** each ticket returned by `ticket-queue.js` has a `model` (`haiku`, `sonnet`, `opus` or `inherit`; `inherit` when its spec has no `**Model:**` line). In subagent mode, put the remaining tickets' models in the mode question (one line per ticket) and let the user accept them or name overrides, once, for this whole run. In inline mode the hint is ignored because a running session can't switch models; say so in the question. `/gps ticket <N>` (manual single-ticket implementation) is unaffected — it always runs inline.
+**Model hint:** each ticket returned by `ticket-queue.js` has a `model` (`haiku`, `sonnet`, `opus` or `inherit`; `inherit` when its spec has no `**Model:**` line). If `ticket-queue.js` warns about an unknown model on stderr, show the warning to the user; that ticket runs as `inherit`. Act on it only after the mode answer:
+- **Subagent mode:** ask once, for this whole run, with one line per remaining ticket (`<N>: <model>`). The user accepts them or names overrides as `<N>=haiku|sonnet|opus|inherit`. Re-ask on any other value; never pass an unlisted value to the Agent `model` parameter.
+- **Inline mode:** say once that the hint is ignored, because a running session can't switch models. Ask nothing more.
 
 **What it does, repeated until done or blocked:**
 
