@@ -39,7 +39,7 @@ grill-plan-ship/
 │   ├── write-apply.js       ← Applies the /gps write payload (resume or plan + tickets)
 │   ├── plan.js               ← Creates 02-plan/ + ticket templates
 │   ├── ticket.js             ← Creates 03-implement/NN-*/ workspace
-│   ├── ticket-queue.js       ← Lists tickets + next pending one for /gps ship
+│   ├── ticket-queue.js       ← Lists tickets (with each one's `**Model:**` hint) + next pending one for /gps ship
 │   ├── ticket-done.js        ← Records a ticket's completion in the session history
 │   ├── finish.js             ← Generates INDEX.md
 │   ├── clean.js              ← /gps clean: lists sessions by idle time, deletes chosen ones

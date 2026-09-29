@@ -16,6 +16,8 @@
    - **Plan only:** after the sections, one block per approved ticket, each opened by its own line `--- ticket: NN-<slug> ---` (e.g. `--- ticket: 01-add-parser ---`; the slug is lowercase `a-z 0-9` with `-`, `_` or `.` between). Ticket body:
 
      ````markdown
+     **Model:** <haiku | sonnet | opus | inherit>
+
      **Acceptance Criteria:**
      - [ ] <testable criterion>
 

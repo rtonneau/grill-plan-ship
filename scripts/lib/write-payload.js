@@ -11,7 +11,7 @@
 const fs = require('fs');
 const path = require('path');
 const { loadTemplate, renderTemplate } = require('./templates');
-const { parseTicketFilename } = require('./ticket-queue');
+const { TICKET_MODELS, parseTicketFilename, readTicketModel } = require('./ticket-queue');
 
 const PAYLOAD_FILENAME = '.write-payload.md';
 const TOKEN_USAGE_HEADING = 'Token Usage';
@@ -195,6 +195,10 @@ function validatePayload(payload, { expectedHeadings: expected, expectedFields: 
     names.add(name);
     if (!body) errors.push(`Ticket "${name}" is empty.`);
     else if (isUnfilled(body)) errors.push(placeholderError(`Ticket "${name}"`, body));
+    const model = readTicketModel(body);
+    if (model !== null && !TICKET_MODELS.includes(model.toLowerCase())) {
+      errors.push(`Ticket "${name}" has unknown model "${model}". Use one of: ${TICKET_MODELS.join(', ')}.`);
+    }
   }
   return errors;
 }
