@@ -39,11 +39,11 @@ grill-plan-ship/
 │   ├── write-apply.js       ← Applies the /gps write payload (resume or plan + tickets)
 │   ├── plan.js               ← Creates 02-plan/ + ticket templates
 │   ├── ticket.js             ← Creates 03-implement/NN-*/ workspace
-│   ├── ticket-queue.js       ← Lists tickets (with each one's `**Model:**` hint) + next pending one for /gps ship
+│   ├── ticket-queue.js       ← Lists tickets (with each one's `**Model:**` hint) + next pending one
 │   ├── ticket-done.js        ← Records a ticket's completion in the session history
 │   ├── finish.js             ← Generates INDEX.md
 │   ├── clean.js              ← /gps clean: lists sessions by idle time, deletes chosen ones
-│   └── lib/                 ← Shared helpers (session-store, session-init, project-config, history, ticket-lookup, templates, write-target, write-payload, ticket-queue, github) + tests
+│   └── lib/                 ← Shared helpers (session-store, session-init, project-config, history, ticket-lookup, templates, write-target, write-payload, ticket-queue, ticket-model, github) + tests
 ├── templates/                ← Markdown templates (01-grill, 02-plan, 02-ticket, 03-implement)
 ├── examples/                 ← Real session examples (geant4, react, python)
 ├── README.md                 ← User documentation
@@ -219,7 +219,7 @@ git push origin main
 
 **Phase:** MVP (handlers written, needs real-world testing with Geant4)
 
-**Next:** Test all 4 commands end-to-end with actual Geant4 session → refine → document examples → v1.0 release
+**Next:** Test every command end-to-end with actual Geant4 session → refine → document examples → v1.0 release
 
 See docs/reviews/2026-09-22-mvp-hardening-review.md for the current hardening plan.
 

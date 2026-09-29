@@ -9,7 +9,13 @@
 1. Resolves the current session via `.work/sessions/.current-session`, then reads its `01-grill/resume.md` (fails if it still contains unfilled placeholders)
 2. **Fails and changes nothing if `02-plan/plan.md` already exists** — its hint says whether to run `/gps write` (plan still pending) or `/gps ship` (plan already written).
 3. Creates `02-plan/plan.md` and placeholder ticket stubs in `02-plan/tickets/` for `/gps write` to replace
-4. Immediately invokes the `writing-plans` skill against the approved `resume.md` to generate the actual tickets, then invokes `unslop` on each resulting ticket (skipped with a notice if `unslop` isn't available) — do not wait for or ask the user to run these themselves. While drafting the tickets, give each one a `**Model:**` suggestion that `/gps write` records (an unknown value fails the write). `haiku` for mechanical work (renames, docs, config, one file with an obvious pattern), `sonnet` for ordinary implementation, `opus` for cross-file design judgment or tricky debugging, `inherit` when unsure. The user can override it at ship time
+4. Immediately invokes the `writing-plans` skill against the approved `resume.md` to generate the actual tickets, then invokes `unslop` on each resulting ticket (skipped with a notice if `unslop` isn't available) — do not wait for or ask the user to run these themselves. While drafting the tickets, give each one a model hint as a standalone `**Model:** <value>` line that `/gps write` records (an unknown value fails the write). Keep that line when running `unslop`. Choose the value like this:
+   - `haiku`: mechanical work (renames, docs, config, one file with an obvious pattern).
+   - `sonnet`: ordinary implementation.
+   - `opus`: cross-file design judgment or tricky debugging.
+   - `inherit`: when unsure.
+
+   The user can override the hint at ship time in subagent mode; inline mode ignores it.
 
 **Output:** The writing-plans conversation begins right away.
 

@@ -38,6 +38,8 @@
 
      <anything the implementer needs>
      ````
+
+     Replace the `**Model:**` placeholder with exactly one value from the list on its own line at the top of the ticket, or leave the line out (means `inherit`). Any other value, an empty line or the placeholder left as is fails the write.
 3. Run `node $CLAUDE_PLUGIN_ROOT/scripts/write-apply.js`. It checks the payload, writes `resume.md` or `plan.md` and the tickets, fills Token Usage, removes the stubs and deletes the payload.
    - `❌` with a list: nothing was written. Fix those items in the payload and run it again.
    - `✅`: relay its line; it names the next command. On the plan phase of a GitHub project it also creates the branch from the current HEAD, switches to it and prints `🌿 Working on branch …`: relay that too. All later commits for this session go on that branch.
