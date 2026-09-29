@@ -8,7 +8,7 @@
 
 1. Same setup as `/gps start`: session directory `.work/sessions/YYYY-MM-DD__<slug>/`, scratch directory, `.current-session`. `.session-config.json` gets `kind: "issue"`. **If the session already exists, it fails and changes nothing.**
 2. Checks the project's GitHub flag (`.work/gps-config.json`). When it is off, the handler prints a `⚠️` that this is a local session and no issue will be created: relay it. The rest works as for `/gps start`.
-3. Immediately invokes the `brainstorming` skill, framed as a report: Problem Statement is the report, "Current behavior" the reproduction, Success Metrics the expected result. Do not wait for the user to run `/brainstorming` themselves.
+3. Immediately invokes the `brainstorming` skill, framed as a report: Problem Statement is the report, "Current behavior" the reproduction, Success Metrics the expected result. Do not wait for the user to run `/brainstorming` themselves. Its questions use `AskUserQuestion`, per the rule in SKILL.md.
 
 **Then, as for `/gps start`:** once the design is approved, save the resume by following `references/write.md`. On a GitHub project that write also files the GitHub issue from the resume and prints `📌 Issue #N: <url>`: relay it. If it fails with `gh issue create failed`, nothing was written: relay the reason and run write-apply again after the user fixes it.
 

@@ -18,7 +18,7 @@
    2. **`brainstorming`** (superpowers), when the skills above are not available.
    3. If neither is available, stop and tell the user to install `mattpocock-skills` or `superpowers`.
 
-   If a seed was found in step 6, open with that context already summarized rather than asking the user to restate it. Tell the user in one line which skill is running the grill.
+   If a seed was found in step 6, open with that context already summarized rather than asking the user to restate it. Tell the user in one line which skill is running the grill. The grill asks its questions with `AskUserQuestion`, per the rule in SKILL.md.
 
 **If the grill classifies the work as "bounded"** (a short in-chat design instead of a full spec/plan doc — a `brainstorming` outcome; when running `grilling`, treat small, single-change work the same way):
 
