@@ -5,6 +5,7 @@ const { listSessionDirs, resolveCurrentPointer, pointerError } = require('./sess
 const { computeSessionState } = require('./phase');
 const { readRecentCommits } = require('./git');
 const { SEEDS_FILENAME, peekSeeds } = require('./seeds-store');
+const { computeIdleness } = require('./staleness');
 
 const STRENGTH_ORDER = ['Strong', 'Worth exploring', 'Speculative'];
 
@@ -36,6 +37,7 @@ function summarizeSession(sessionsDir, sessionId) {
     prUrl: config && config.git ? config.git.pr_url || null : null,
     issueUrl: config && config.issue ? config.issue.url || null : null,
     configReadable: Boolean(config),
+    ...computeIdleness(sessionsDir, sessionId, config),
   };
 }
 

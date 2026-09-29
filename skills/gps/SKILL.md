@@ -1,6 +1,6 @@
 ---
 name: gps
-description: "grill-plan-ship: universal workflow plugin (brainstorm → plan → implement). Use for /gps scout, /gps scout --from, /gps start, /gps issue, /gps status, /gps write, /gps plan, /gps ticket, /gps ship, /gps finish, /gps handoff, /gps resume."
+description: "grill-plan-ship: universal workflow plugin (brainstorm → plan → implement). Use for /gps scout, /gps scout --from, /gps start, /gps issue, /gps status, /gps clean, /gps write, /gps plan, /gps ticket, /gps ship, /gps finish, /gps handoff, /gps resume."
 ---
 
 # grill-plan-ship
@@ -17,6 +17,7 @@ Each command's full instructions live in `references/<command>.md` in this skill
 - `/gps start <feature-name>` — Begin a new feature
 - `/gps issue <title>` — Report a problem as a GitHub issue (local session without GitHub) and work on it
 - `/gps status` — Show every session's state, scouted ideas not started yet, and what's pending on the current one
+- `/gps clean [session-id...]` — List sessions by idle time and delete the ones you pick (after confirmation)
 - `/gps write` — Write the current phase's output (brainstorm resume, or plan + tickets) to disk
 - `/gps plan` — Generate plan + tickets
 - `/gps ticket <number>` — Implement ticket N

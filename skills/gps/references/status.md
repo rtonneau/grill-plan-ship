@@ -16,6 +16,7 @@
      - `hasHandoff` — whether a saved checkpoint exists for this session (`HANDOFF.md` present). When true, Claude Code's rendered report should mention `/gps resume` is available for full context.
 2. Claude Code renders that JSON as a short human-readable report:
    - One line per session: feature name and phase, plus its branch, PR link and issue link when set.
+   - Each session also carries `lastActivityAt`, `idleDays` and `staleness` (`null`, `stale` at 14+ idle days, `very-stale` at 28+). Flag stale sessions in their line, and when any exist end the report with one sentence pointing at `/gps clean` to remove them.
    - If a session's `phaseDrift` is not null, say so. The usual cause is a ticket set to `✅ Done` without running `ticket-done.js <N>`; running it fixes the record. `phase` is always the truth.
    - If `ideas` is non-empty: a table of the scouted ideas not started yet (slug, `severity · strength` or just the strength, one-line problem), each with its `/gps start <slug>` line to copy. Show `ideasProblem` if set.
    - For the current session: which phase is pending and why, ticket progress (`X/Y done`, next pending ticket if any), and the recent commits.
