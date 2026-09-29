@@ -89,20 +89,34 @@ assert.strictEqual(run('ticket.js', '1').code, 1, 'ticket must refuse while stub
 // write (plan)
 const planTarget = JSON.parse(ok('write-target.js').out);
 assert.strictEqual(planTarget.target, 'plan');
-fs.writeFileSync(
-  planTarget.payloadPath,
+const planPayload = (ticketOne) =>
   planTarget.fields.map((label) => `**${label}:** 1 day\n`).join('') + '\n' +
   planTarget.sections.map((h) => `## ${h}\n\n${h}: two tickets.\n`).join('\n') +
-    '\n--- ticket: 01-toggle ---\nAdd the toggle.\n\n--- ticket: 02-persist ---\nPersist the choice.\n'
-);
+    `\n--- ticket: 01-toggle ---\n${ticketOne}Add the toggle.\n\n--- ticket: 02-persist ---\nPersist the choice.\n`;
+// An unknown model is rejected and nothing is written
+fs.writeFileSync(planTarget.payloadPath, planPayload('**Model:** gpt-9\n\n'));
+const badModel = run('write-apply.js');
+assert.notStrictEqual(badModel.code, 0);
+assert.match(badModel.err + badModel.out, /unknown model "gpt-9"/);
+fs.writeFileSync(planTarget.payloadPath, planPayload('**Model:** haiku\n\n'));
 ok('write-apply.js');
 let report = expectStatus('ship', '/gps ship');
 assert.strictEqual(report.current.nextPending.slug, 'toggle');
 
+// A hand-edited unknown model warns on stderr and falls back to inherit
+const persistTicket = path.join(sessionDir, '02-plan', 'tickets', '02-persist.md');
+const persistText = fs.readFileSync(persistTicket, 'utf-8');
+fs.writeFileSync(persistTicket, `**Model:** sonett\n\n${persistText}`);
+const typoQueue = ok('ticket-queue.js');
+assert.match(typoQueue.err, /Ticket 02-persist: unknown model "sonett", using inherit/);
+assert.strictEqual(JSON.parse(typoQueue.out).tickets[1].model, 'inherit');
+fs.writeFileSync(persistTicket, persistText);
+
 // ship: each ticket -> implement, mark Done, commit
-for (const [num, slug] of [['1', 'toggle'], ['2', 'persist']]) {
+for (const [num, slug, model] of [['1', 'toggle', 'haiku'], ['2', 'persist', 'inherit']]) {
   const queue = JSON.parse(ok('ticket-queue.js').out);
   assert.strictEqual(queue.nextPending.slug, slug);
+  assert.strictEqual(queue.nextPending.model, model);
   ok('ticket.js', num);
   const log = path.join(sessionDir, '03-implement', `0${num}-${slug}`, 'commit-log.md');
   fs.writeFileSync(path.join(root, `${slug}.js`), `// ${slug}\n`);
