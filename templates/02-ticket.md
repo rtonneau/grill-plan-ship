@@ -1,5 +1,7 @@
 # Ticket {{ N }}: {{ slug }}
 
+<!-- Optional model hint for /gps ship: add a line `**Model:** haiku | sonnet | opus | inherit` (one value); no line means inherit. -->
+
 **Acceptance Criteria:**
 - [ ] <!-- gps:fill Criterion 1 (testable) -->
 - [ ] <!-- gps:fill Criterion 2 (testable) -->
