@@ -3,13 +3,22 @@ const assert = require('assert');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-const { parseTicketFilename, listTickets } = require('./ticket-queue');
+const { parseTicketFilename, ticketModel, listTickets } = require('./ticket-queue');
 
 // parseTicketFilename
 assert.deepStrictEqual(parseTicketFilename('01-add-login.md'), { num: '01', slug: 'add-login' });
 assert.strictEqual(parseTicketFilename('04-[slug].md'), null);
 assert.strictEqual(parseTicketFilename('01-Bad Name.md'), null);
 assert.strictEqual(parseTicketFilename('not-a-ticket.txt'), null);
+
+// ticketModel: valid values (any case), and "inherit" for missing or unknown ones
+assert.strictEqual(ticketModel('# T\n\n**Model:** haiku\n\n**Acceptance Criteria:**\n'), 'haiku');
+assert.strictEqual(ticketModel('**Model:**   Sonnet  \n'), 'sonnet');
+assert.strictEqual(ticketModel('**Model:** opus\n'), 'opus');
+assert.strictEqual(ticketModel('**Model:** inherit\n'), 'inherit');
+assert.strictEqual(ticketModel('# T\n\n**Notes:**\nno model line\n'), 'inherit');
+assert.strictEqual(ticketModel('**Model:** gpt-9\n'), 'inherit');
+assert.strictEqual(ticketModel('**Model:**\n'), 'inherit');
 
 const sessionDir = fs.mkdtempSync(path.join(os.tmpdir(), 'gps-ticket-queue-'));
 const ticketsDir = path.join(sessionDir, '02-plan', 'tickets');
@@ -34,7 +43,7 @@ assert.deepStrictEqual(listTickets(sessionDir), { tickets: [], nextPending: null
 
 fs.mkdirSync(ticketsDir, { recursive: true });
 fs.writeFileSync(path.join(ticketsDir, '01-add-login.md'), '# Ticket 1: add-login\n');
-fs.writeFileSync(path.join(ticketsDir, '02-add-logout.md'), '# Ticket 2: add-logout\n');
+fs.writeFileSync(path.join(ticketsDir, '02-add-logout.md'), '# Ticket 2: add-logout\n\n**Model:** haiku\n');
 
 // Neither ticket has a commit-log.md yet -> both pending, nextPending is ticket 1
 let result = listTickets(sessionDir);
@@ -42,6 +51,10 @@ assert.strictEqual(result.tickets.length, 2);
 assert.strictEqual(result.tickets[0].done, false);
 assert.strictEqual(result.tickets[1].done, false);
 assert.strictEqual(result.nextPending.num, '01');
+
+// Model comes from the ticket's "**Model:**" line; no line means inherit
+assert.strictEqual(result.tickets[0].model, 'inherit');
+assert.strictEqual(result.tickets[1].model, 'haiku');
 
 // Ticket 1's commit-log.md still has the raw template line -> still pending
 const implDir1 = path.join(sessionDir, '03-implement', '01-add-login');

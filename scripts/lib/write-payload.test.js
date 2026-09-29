@@ -185,6 +185,20 @@ assert.match(renderTokenUsage({ available: false }), /- \*\*Input:\*\* unavailab
   assert.match(out, /\*\*Session:\*\* demo\n\*\*Estimated effort:\*\* 2 days/);
 }
 
+// Ticket "**Model:**" line: known values (any case) and no line pass; anything else is an error
+{
+  const opts = { expectedHeadings: ['Strategy'], phase: 'plan', isUnfilled };
+  const check = (model) =>
+    validatePayload(parsePayload(`## Strategy\nx\n--- ticket: 01-a ---\n${model}body\n`), opts);
+  assert.deepStrictEqual(check(''), []);
+  assert.deepStrictEqual(check('**Model:** haiku\n\n'), []);
+  assert.deepStrictEqual(check('**Model:** Inherit\n\n'), []);
+  const bad = check('**Model:** gpt-9\n\n');
+  assert.ok(bad.some((e) => /Ticket "01-a" has unknown model "gpt-9"\. Use one of: haiku, sonnet, opus, inherit\./.test(e)), bad);
+  const empty = check('**Model:**\n\n');
+  assert.ok(empty.some((e) => /unknown model ""/.test(e)), empty);
+}
+
 // A UTF-8 byte-order mark does not hide the first heading
 assert.deepStrictEqual(parsePayload('﻿## Strategy\nx\n').sections, [{ heading: 'Strategy', body: 'x' }]);
 

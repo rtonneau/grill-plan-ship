@@ -4,6 +4,11 @@ const path = require('path');
 const { isSlug } = require('./guard');
 
 const STATUS_DONE_RE = /^\*\*Status:\*\*\s*✅\s*Done\s*$/m;
+const MODEL_RE = /^\*\*Model:\*\*[ \t]*(.*?)[ \t]*$/m;
+
+// Values a ticket's optional "**Model:**" line may hold; "inherit" (or no
+// line) means the session's own model.
+const TICKET_MODELS = ['haiku', 'sonnet', 'opus', 'inherit'];
 
 // "NN-<slug>.md" with a valid slug -> { num, slug }; anything else
 // (including the "[slug]" stubs /gps plan creates) -> null.
@@ -11,6 +16,19 @@ function parseTicketFilename(fileName) {
   const match = fileName.match(/^(\d+)-(.+)\.md$/);
   if (!match || !isSlug(match[2])) return null;
   return { num: match[1], slug: match[2] };
+}
+
+// The raw value of a ticket's first "**Model:**" line, or null if it has none.
+function readTicketModel(ticketText) {
+  const match = ticketText.match(MODEL_RE);
+  return match ? match[1] : null;
+}
+
+// A ticket's model, defaulting to "inherit" when the line is missing or
+// holds an unknown value (e.g. a hand-edited ticket).
+function ticketModel(ticketText) {
+  const value = (readTicketModel(ticketText) || '').toLowerCase();
+  return TICKET_MODELS.includes(value) ? value : 'inherit';
 }
 
 function isTicketDone(commitLogPath) {
@@ -47,6 +65,7 @@ function listTickets(sessionDir) {
         implDir,
         commitLogPath,
         done: isTicketDone(commitLogPath),
+        model: ticketModel(fs.readFileSync(path.join(ticketsDir, fileName), 'utf-8')),
       };
     });
 
@@ -55,4 +74,4 @@ function listTickets(sessionDir) {
   return { tickets, nextPending, skipped };
 }
 
-module.exports = { parseTicketFilename, isTicketDone, listTickets };
+module.exports = { TICKET_MODELS, parseTicketFilename, readTicketModel, ticketModel, isTicketDone, listTickets };

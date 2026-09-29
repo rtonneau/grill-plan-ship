@@ -131,6 +131,10 @@ Projects with `github.enabled` false work exactly as before: no branch, no PR.
 ✅ Versionable (.session-config.json tracks state)
 ✅ Token usage tracked per phase (grill, plan, each ticket)
 
+## Per-ticket model hint
+
+Each ticket may carry a `**Model:** haiku | sonnet | opus | inherit` line, suggested by the planner and recorded by `/gps write` (an unknown value fails the write). In subagent mode `/gps ship` shows each remaining ticket's model, lets you accept or override them once per run, and dispatches each subagent on that model (`inherit` or no line uses the session's model). Inline mode ignores the hint. A blocked ticket is never retried on a stronger model.
+
 ## Token Usage
 
 Every phase output (`01-grill/resume.md`, `02-plan/plan.md`, each ticket's `03-implement/NN-*/commit-log.md`) ends with a `## Token Usage` section reporting that phase's real input/output/cache token totals, parsed from Claude Code's own session transcripts. If the transcript can't be found or parsed, the section reads `unavailable` instead of blocking the write.
