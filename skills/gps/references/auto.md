@@ -11,9 +11,9 @@
 3. If `questions` has `ship-mode`, ask it once with `AskUserQuestion`: subagent, inline, or subagent + inline follow-up. Ask nothing else before or during the run.
 4. Run each step in order: read its references file (`write.md`, `plan.md`, `ship.md`, `finish.md`) and run it as if typed, with these overrides:
    - `write:grill` / `write:plan`: `write.md` steps 1–3, including fixing the payload after a `❌`.
-   - `plan`: once the tickets are drafted (writing-plans, then unslop), they count as approved: go straight to the next step. Skip writing-plans' own execution hand-off question.
-   - `ship`: use the mode collected in step 3; take each ticket's model hint as drafted and don't ask to confirm it.
+   - `plan`: writing-plans only drafts here: don't execute its plan, don't ask for a review or an execution method, and don't treat the ship-mode answer as one (it is for `/gps ship`). Once the tickets are drafted (writing-plans, then unslop), they count as approved: go straight to the next step.
+   - `ship`: use the mode collected in step 3; take each ticket's model hint as drafted and don't ask to confirm it. When `nextPending` is null, come back here for the next step instead of stopping.
    - `finish`: run as typed. Its closing "switch to an unfinished session?" question is still asked, since the run is over by then.
-5. After each step, relay its `✅`, `🌿` and `🔀` lines, never its `Next:` suggestion. The first failure ends the run: a handler `❌` (other than the payload fix above), a BLOCKED ticket or an inaccurate DONE. Report which step stopped it; finish never runs after an incomplete ship.
+5. After each step, relay everything it prints (including `⚠️` lines) except its `Next:` suggestion, since the run already knows the next step. A `⚠️` doesn't stop the run, but repeat every one in the final report (e.g. a pull request that was not opened). The first failure ends the run: a handler `❌` (other than the payload fix above), a BLOCKED ticket or an inaccurate DONE. Report which step stopped it; finish never runs after an incomplete ship.
 
 **Examples:** `/gps auto`, `/gps auto plan`, `/gps auto ship`, `/gps write+finish`

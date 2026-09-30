@@ -856,8 +856,13 @@ function markDone(root, implName) {
   // /gps auto and its write+finish alias route to auto.md
   assert.match(skill, /`\/gps write\+finish` → `references\/auto\.md`/);
   const autoDoc = fs.readFileSync(path.join(refsDir, 'auto.md'), 'utf-8');
-  assert.match(autoDoc, /never its `Next:` suggestion/);
   assert.match(autoDoc, /ship-mode/);
+  // unattended runs must still surface ⚠️ lines (e.g. a PR that was not opened)
+  assert.match(autoDoc, /relay everything it prints \(including `⚠️` lines\) except its `Next:` suggestion/);
+  // writing-plans must not take over execution with the ship-mode answer
+  assert.match(autoDoc, /writing-plans only drafts/);
+  // ship's own "suggest /gps finish. Stop." must hand back to the auto run
+  assert.match(fs.readFileSync(path.join(refsDir, 'ship.md'), 'utf-8'), /Under \/gps auto:.*`nextPending` is null.*references\/auto\.md/);
   assert.match(writeDoc, /`write\+finish`.*references\/auto\.md/);
   assert.ok(skill.split('\n').length <= 70, 'SKILL.md router must stay short');
   assert.ok(fs.readFileSync(path.join(refsDir, 'write.md'), 'utf-8').split('\n').length <= 50, 'write.md must stay short');
