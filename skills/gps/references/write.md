@@ -42,8 +42,8 @@
    - `❌` with a list: nothing was written. Fix those items in the payload and run it again.
    - `✅`: relay its line; it names the next command. On the plan phase of a GitHub project it also creates the branch from the current HEAD, switches to it and prints `🌿 Working on branch …`: relay that too. All later commits for this session go on that branch.
 
-**Example:**
+**Chained forms:** `/gps write+plan` (grill written, then `/gps plan`) and `/gps write+ship` (plan written, then `/gps ship`). Any other `+` form: stop and show those two.
+- After step 1, before writing a payload: `write+plan` needs target `grill`, `write+ship` needs `plan`. On a mismatch, write nothing, stop and suggest the command that fits (`/gps write+ship` once a plan exists; `/gps plan` if the grill is already written). `none` stops as in step 1.
+- Steps 2–3 are unchanged, including fixing the payload after a `❌`. Chain only after write-apply's `✅`: relay it (and any `🌿` line) but not its `Next:` suggestion, then read `references/plan.md` or `references/ship.md` and run it as if typed. Its own questions (e.g. ship's mode) are still asked.
 
-```
-/gps write
-```
+**Examples:** `/gps write`, `/gps write+plan`, `/gps write+ship`

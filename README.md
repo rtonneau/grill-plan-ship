@@ -11,7 +11,7 @@ A structured workflow plugin for any code project.
 - `/gps clean [session-id...]` — List sessions by idle time (`/gps status` flags `stale` at 14+ days, `very-stale` at 28+) and delete the ones you pick, after confirmation. Local session folders only; branches, PRs and issues are kept
 - `/gps handoff` — Save an in-flight checkpoint before stopping
 - `/gps resume` — Catch up on a session using its checkpoint plus live state
-- `/gps write` — Save the current phase's output (brainstorm resume, or plan + tickets) to disk
+- `/gps write` — Save the current phase's output (brainstorm resume, or plan + tickets) to disk. `/gps write+plan` and `/gps write+ship` save it and go straight into the next command
 - `/gps plan` — Create tickets
 - `/gps ticket <N>` — Implement one ticket by hand
 - `/gps ship` — Implement every remaining ticket in order, one commit each
@@ -48,6 +48,7 @@ Restart Claude Code. To update later:
 /gps plan
 # ...writing-plans + unslop happen automatically...
 /gps write   # once approved, saves plan.md + tickets to disk
+# (shortcuts: /gps write+plan after the grill, /gps write+ship after the plan)
 
 # Implement every ticket, one commit each
 /gps ship
