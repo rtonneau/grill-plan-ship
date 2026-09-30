@@ -28,7 +28,7 @@
 
 **Output:** The grill conversation begins right away.
 
-**Next:** Once the grill's design is approved, run `/gps write` to save the resume, then `/gps plan`.
+**Next:** Once the grill's design is approved, run `/gps write` to save the resume, then `/gps plan` — or `/gps write+plan` to do both.
 
 **Example:**
 

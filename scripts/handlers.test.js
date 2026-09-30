@@ -822,6 +822,11 @@ function markDone(root, implName) {
   assert.match(fs.readFileSync(path.join(refsDir, 'start.md'), 'utf-8'), /ignore write-apply's `Next: \/gps plan`/);
   // a leftover payload must be read before it can be overwritten
   assert.match(fs.readFileSync(path.join(refsDir, 'write.md'), 'utf-8'), /existingPayload/);
+  // chained forms: SKILL.md routes them to write.md, which checks the target before writing
+  assert.match(skill, /`\/gps write\+plan` and `\/gps write\+ship` → `references\/write\.md`/);
+  const writeDoc = fs.readFileSync(path.join(refsDir, 'write.md'), 'utf-8');
+  assert.match(writeDoc, /`write\+plan` needs target `grill`, `write\+ship` needs `plan`/);
+  assert.match(writeDoc, /references\/plan\.md` or `references\/ship\.md/);
   assert.ok(skill.split('\n').length <= 70, 'SKILL.md router must stay short');
   assert.ok(fs.readFileSync(path.join(refsDir, 'write.md'), 'utf-8').split('\n').length <= 50, 'write.md must stay short');
 }
