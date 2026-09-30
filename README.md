@@ -133,7 +133,7 @@ Projects with `github.enabled` false work exactly as before: no branch, no PR.
 
 ## Per-ticket model hint
 
-Each ticket may carry a `**Model:** haiku | sonnet | opus | inherit` line, suggested while planning and recorded by `/gps write`. Writing is strict: an unknown or empty value fails the write. Reading is lenient: `/gps ship` treats a missing or hand-edited unknown value as `inherit` and warns about the unknown one. Only a `**Model:**` line outside code fences counts. In subagent mode `/gps ship` shows each remaining ticket's model, lets you accept or override them once per run, and dispatches each subagent on that model (`inherit` uses the session's model). Inline mode ignores the hint. A blocked ticket is never retried on a stronger model.
+Each ticket may carry a `**Model:** haiku | sonnet | opus | inherit` line, suggested while planning and recorded by `/gps write`. Writing is strict: an unknown or empty value fails the write. Reading is lenient: `/gps ship` treats a missing or hand-edited unknown value as `inherit` and warns about the unknown one. Only a `**Model:**` line outside code fences counts. In subagent mode `/gps ship` shows each remaining ticket's model, lets you accept or override them once per run, and dispatches each subagent on that model (`inherit` uses the session's model). Subagent + inline follow-up mode uses the hint the same way, but the subagent only implements and verifies; the main session then reviews its diff, re-runs verification, fixes what's needed and commits. Inline mode ignores the hint. A blocked ticket is never retried on a stronger model.
 
 ## Token Usage
 
