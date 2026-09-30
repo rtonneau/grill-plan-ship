@@ -785,6 +785,31 @@ function markDone(root, implName) {
 }
 
 {
+  // /gps auto: prints the route from the current phase, records auto_started once it is valid
+  const root = tempProject();
+  assert.strictEqual(run(root, 'start-session.js', 'auto-feat').code, 0);
+  const configPath = path.join(sessionsDir(root), currentSession(root), '.session-config.json');
+  const history = () => JSON.parse(fs.readFileSync(configPath, 'utf-8')).history || [];
+
+  const bad = run(root, 'auto-route.js', 'Finish');
+  assert.strictEqual(bad.code, 1);
+  assert.match(bad.err, /❌ Unknown target "Finish"/);
+  const extra = run(root, 'auto-route.js', 'ship', 'finish');
+  assert.strictEqual(extra.code, 1);
+  assert.match(extra.err, /❌ .*one target/);
+  assert.ok(!history().some((e) => e.event === 'auto_started'));
+
+  const ok = run(root, 'auto-route.js');
+  assert.strictEqual(ok.code, 0, ok.err);
+  const route = JSON.parse(ok.out);
+  assert.strictEqual(route.target, 'finish');
+  assert.deepStrictEqual(route.steps, ['write:grill', 'plan', 'write:plan', 'ship', 'finish']);
+  assert.deepStrictEqual(route.questions, ['ship-mode']);
+  const event = history().find((e) => e.event === 'auto_started');
+  assert.deepStrictEqual(event.detail, { target: 'finish', steps: 'write:grill → plan → write:plan → ship → finish' });
+}
+
+{
   // SKILL.md router: every command has a references file carrying its handler lines
   const skillDir = path.join(SCRIPTS, '..', 'skills', 'gps');
   const skill = fs.readFileSync(path.join(skillDir, 'SKILL.md'), 'utf-8');
@@ -806,6 +831,7 @@ function markDone(root, implName) {
     ticket: ['ticket.js'],
     ship: ['ticket-queue.js', 'ticket.js', 'token-usage.js'],
     finish: ['finish.js', 'set-current.js'],
+    auto: ['auto-route.js'],
   };
   assert.deepStrictEqual(Object.keys(handlers).sort(), listed);
   for (const [command, scripts] of Object.entries(handlers)) {
@@ -827,6 +853,17 @@ function markDone(root, implName) {
   const writeDoc = fs.readFileSync(path.join(refsDir, 'write.md'), 'utf-8');
   assert.match(writeDoc, /`write\+plan` needs target `grill`, `write\+ship` needs `plan`/);
   assert.match(writeDoc, /references\/plan\.md` or `references\/ship\.md/);
+  // /gps auto and its write+finish alias route to auto.md
+  assert.match(skill, /`\/gps write\+finish` → `references\/auto\.md`/);
+  const autoDoc = fs.readFileSync(path.join(refsDir, 'auto.md'), 'utf-8');
+  assert.match(autoDoc, /ship-mode/);
+  // unattended runs must still surface ⚠️ lines (e.g. a PR that was not opened)
+  assert.match(autoDoc, /relay everything it prints \(including `⚠️` lines\) except its `Next:` suggestion/);
+  // writing-plans must not take over execution with the ship-mode answer
+  assert.match(autoDoc, /writing-plans only drafts/);
+  // ship's own "suggest /gps finish. Stop." must hand back to the auto run
+  assert.match(fs.readFileSync(path.join(refsDir, 'ship.md'), 'utf-8'), /Under \/gps auto:.*`nextPending` is null.*references\/auto\.md/);
+  assert.match(writeDoc, /`write\+finish`.*references\/auto\.md/);
   assert.ok(skill.split('\n').length <= 70, 'SKILL.md router must stay short');
   assert.ok(fs.readFileSync(path.join(refsDir, 'write.md'), 'utf-8').split('\n').length <= 50, 'write.md must stay short');
 }
