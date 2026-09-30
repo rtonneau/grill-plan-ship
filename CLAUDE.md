@@ -20,6 +20,7 @@ A reusable Claude Code plugin that orchestrates structured development workflows
 - `/gps ticket <N>` — Start implementing ticket N
 - `/gps ship` — Implement every remaining ticket in order, one commit each
 - `/gps finish` — Archive session + generate summary
+- `/gps auto [plan|ship|finish]` — Run from the current phase to the target without stopping (`/gps write+finish` = `/gps auto finish`)
 - `/gps clean [session-id...]` — List sessions by idle time, delete the chosen ones (after confirmation)
 
 ## Architecture
@@ -43,7 +44,8 @@ grill-plan-ship/
 │   ├── ticket-done.js        ← Records a ticket's completion in the session history
 │   ├── finish.js             ← Generates INDEX.md
 │   ├── clean.js              ← /gps clean: lists sessions by idle time, deletes chosen ones
-│   └── lib/                 ← Shared helpers (session-store, session-init, project-config, history, ticket-lookup, templates, write-target, write-payload, ticket-queue, ticket-model, github) + tests
+│   ├── auto-route.js         ← /gps auto: steps from the current phase to the target
+│   └── lib/                 ← Shared helpers (session-store, session-init, project-config, history, ticket-lookup, templates, write-target, write-payload, ticket-queue, ticket-model, github, auto-route) + tests
 ├── templates/                ← Markdown templates (01-grill, 02-plan, 02-ticket, 03-implement)
 ├── examples/                 ← Real session examples (geant4, react, python)
 ├── README.md                 ← User documentation

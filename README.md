@@ -16,6 +16,7 @@ A structured workflow plugin for any code project.
 - `/gps ticket <N>` — Implement one ticket by hand
 - `/gps ship` — Implement every remaining ticket in order, one commit each
 - `/gps finish` — Archive session (open the pull request of a planned session, or comment on / close the issue of a bounded `/gps issue` session)
+- `/gps auto [plan|ship|finish]` — Run the session from its current phase to the target (default finish) without stopping: tickets are approved as drafted, and only the ship mode is asked, once, at the start. `/gps write+finish` is the same as `/gps auto finish`
 
 ## Workflow Visualization
 
@@ -48,7 +49,7 @@ Restart Claude Code. To update later:
 /gps plan
 # ...writing-plans + unslop happen automatically...
 /gps write   # once approved, saves plan.md + tickets to disk
-# (shortcuts: /gps write+plan after the grill, /gps write+ship after the plan)
+# (shortcuts: /gps write+plan after the grill, /gps write+ship after the plan, /gps auto to run through to finish)
 
 # Implement every ticket, one commit each
 /gps ship
@@ -88,7 +89,7 @@ Add a direction to narrow it: `/gps scout --from review.md only Critical and Hig
 
 Every `.session-config.json` records the life of its session, so a timeline can be built from that file alone:
 
-- `history` — append-only events `{ at, event, phase, files, detail }`: `session_started`, `grill_written`, `plan_started`, `plan_written`, `ticket_started`, `ticket_done`, `handoff_saved`, `session_finished`, plus on GitHub projects `branch_created`, `issue_created`, `pr_opened`, `issue_commented`, `issue_closed`. `files` point at the session's `.md` files, relative to its directory.
+- `history` — append-only events `{ at, event, phase, files, detail }`: `session_started`, `grill_written`, `plan_started`, `plan_written`, `ticket_started`, `ticket_done`, `handoff_saved`, `auto_started`, `session_finished`, plus on GitHub projects `branch_created`, `issue_created`, `pr_opened`, `issue_commented`, `issue_closed`. `files` point at the session's `.md` files, relative to its directory.
 - `current_phase` — the phase after the last event. `/gps status` still derives the phase from the files and reports `phaseDrift` when the two disagree (typically a ticket set to `✅ Done` without `ticket-done.js <N>`).
 - `ticket-done.js <N>` records the exact time a ticket was completed; `/gps ship` and `/gps ticket` run it after the Status line is set.
 - `/gps finish` renders the history as a `## Timeline` table in `INDEX.md`, with links to the files.

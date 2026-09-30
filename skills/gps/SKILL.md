@@ -1,6 +1,6 @@
 ---
 name: gps
-description: "grill-plan-ship: universal workflow plugin (brainstorm → plan → implement). Use for /gps scout, /gps scout --from, /gps start, /gps issue, /gps status, /gps clean, /gps write, /gps write+plan, /gps write+ship, /gps plan, /gps ticket, /gps ship, /gps finish, /gps handoff, /gps resume."
+description: "grill-plan-ship: universal workflow plugin (brainstorm → plan → implement). Use for /gps scout, /gps scout --from, /gps start, /gps issue, /gps status, /gps clean, /gps write, /gps write+plan, /gps write+ship, /gps write+finish, /gps auto, /gps plan, /gps ticket, /gps ship, /gps finish, /gps handoff, /gps resume."
 ---
 
 # grill-plan-ship
@@ -9,7 +9,7 @@ Universal workflow plugin: brainstorm → plan → implement.
 
 ## How to run a command
 
-Each command's full instructions live in `references/<command>.md` in this skill's directory (`/gps write` → `references/write.md`; `/gps scout --from …` → `references/scout.md`; the chained `/gps write+plan` and `/gps write+ship` → `references/write.md`). Before doing anything else, read the file for the command you were given, and only that file. Never run a command from memory of an earlier read.
+Each command's full instructions live in `references/<command>.md` in this skill's directory (`/gps write` → `references/write.md`; `/gps scout --from …` → `references/scout.md`; the chained `/gps write+plan` and `/gps write+ship` → `references/write.md`; `/gps auto` and `/gps write+finish` → `references/auto.md`). Before doing anything else, read the file for the command you were given, and only that file. Never run a command from memory of an earlier read.
 
 ## Commands
 
@@ -23,6 +23,7 @@ Each command's full instructions live in `references/<command>.md` in this skill
 - `/gps ticket <number>` — Implement ticket N
 - `/gps ship` — Implement every remaining ticket in order, one commit each
 - `/gps finish` — Close the session and write its summary
+- `/gps auto [plan|ship|finish]` — Run the session from its current phase to the target (default finish) without stopping; asks the ship mode once at the start
 - `/gps handoff` — Save an in-flight checkpoint of the current session before stopping work
 - `/gps resume` — Catch up on the current session using its saved handoff plus live state
 

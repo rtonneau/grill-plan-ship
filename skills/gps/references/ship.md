@@ -8,6 +8,8 @@
 - **Subagent mode and subagent + inline follow-up mode:** ask once, for this whole run, with one line per remaining ticket (`<N>: <model>`). The user accepts them or names overrides as `<N>=haiku|sonnet|opus|inherit`. Re-ask on any other value; never pass an unlisted value to the Agent `model` parameter.
 - **Inline mode:** say once that the hint is ignored, because a running session can't switch models. Ask nothing more.
 
+**Under /gps auto:** the mode and model hints come from the auto run; ask neither.
+
 **What it does, repeated until done or blocked:**
 
 1. Runs `node $CLAUDE_PLUGIN_ROOT/scripts/ticket-queue.js`, which lists every ticket in `02-plan/tickets/` and, for each, checks its `03-implement/NN-<slug>/commit-log.md`: a ticket counts as done only if that file's Status line is exactly `**Status:** ✅ Done` (the template starts as `In Progress`; older sessions' raw `In Progress / ✅ Done` also doesn't count). Returns the full list in ticket-number order plus `nextPending`, the first ticket that isn't done. Files not named `NN-<slug>.md` are skipped with a warning. It fails if the grill or plan phase isn't written yet.

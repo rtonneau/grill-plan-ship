@@ -831,6 +831,7 @@ function markDone(root, implName) {
     ticket: ['ticket.js'],
     ship: ['ticket-queue.js', 'ticket.js', 'token-usage.js'],
     finish: ['finish.js', 'set-current.js'],
+    auto: ['auto-route.js'],
   };
   assert.deepStrictEqual(Object.keys(handlers).sort(), listed);
   for (const [command, scripts] of Object.entries(handlers)) {
@@ -852,6 +853,12 @@ function markDone(root, implName) {
   const writeDoc = fs.readFileSync(path.join(refsDir, 'write.md'), 'utf-8');
   assert.match(writeDoc, /`write\+plan` needs target `grill`, `write\+ship` needs `plan`/);
   assert.match(writeDoc, /references\/plan\.md` or `references\/ship\.md/);
+  // /gps auto and its write+finish alias route to auto.md
+  assert.match(skill, /`\/gps write\+finish` → `references\/auto\.md`/);
+  const autoDoc = fs.readFileSync(path.join(refsDir, 'auto.md'), 'utf-8');
+  assert.match(autoDoc, /never its `Next:` suggestion/);
+  assert.match(autoDoc, /ship-mode/);
+  assert.match(writeDoc, /`write\+finish`.*references\/auto\.md/);
   assert.ok(skill.split('\n').length <= 70, 'SKILL.md router must stay short');
   assert.ok(fs.readFileSync(path.join(refsDir, 'write.md'), 'utf-8').split('\n').length <= 50, 'write.md must stay short');
 }
