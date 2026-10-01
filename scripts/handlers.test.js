@@ -824,6 +824,7 @@ function markDone(root, implName) {
     issue: ['issue-session.js'],
     status: ['status.js'],
     clean: ['clean.js', 'set-current.js'],
+    config: ['config.js'],
     handoff: ['handoff.js'],
     resume: ['resume.js'],
     write: ['write-target.js', 'write-apply.js'],

@@ -9,6 +9,7 @@ A structured workflow plugin for any code project.
 - `/gps start <feature>` — Begin a feature
 - `/gps issue <title>` — Report a problem as a GitHub issue (local session without GitHub) and work on it
 - `/gps clean [session-id...]` — List sessions by idle time (`/gps status` flags `stale` at 14+ days, `very-stale` at 28+) and delete the ones you pick, after confirmation. Local session folders only; branches, PRs and issues are kept
+- `/gps config [--rescan]` — Show the project's GitHub flag; `--rescan` detects it again, e.g. after adding a github.com `origin`, and asks before changing it
 - `/gps handoff` — Save an in-flight checkpoint before stopping
 - `/gps resume` — Catch up on a session using its checkpoint plus live state
 - `/gps write` — Save the current phase's output (brainstorm resume, or plan + tickets) to disk. `/gps write+plan` and `/gps write+ship` save it and go straight into the next command
@@ -104,7 +105,7 @@ Whichever of `/gps start`, `/gps issue` or `/gps write` (plan phase) runs first 
 { "version": 1, "github": { "enabled": true, "detected_at": "2026-09-25T09:00:00.000Z" } }
 ```
 
-`github.enabled` is true when `origin` is on github.com **and** `gh auth status` succeeds. It is detected once and only read afterwards. Edit the file by hand to force GitHub features on or off (GitHub Enterprise, a `gh auth login` done later, opting out). It lives under `.work/`, so it is per checkout.
+`github.enabled` is true when `origin` is on github.com **and** `gh auth status` succeeds. It is detected once and only read afterwards. When the project changes (a github.com `origin` added, `gh auth login` done later), run `/gps config --rescan`: it detects again and, if the value changes, asks before writing it. The new value applies to sessions whose plan is not saved yet. Edit the file by hand to force GitHub features on or off (GitHub Enterprise, opting out); a rescan never overwrites that without asking. It lives under `.work/`, so it is per checkout.
 
 ## Branches and Pull Requests
 
