@@ -20,7 +20,7 @@ A reusable Claude Code plugin that orchestrates structured development workflows
 - `/gps ticket <N>` — Start implementing ticket N
 - `/gps ship` — Implement every remaining ticket in order, one commit each
 - `/gps finish` — Archive session + generate summary
-- `/gps auto [plan|ship|finish]` — Run from the current phase to the target without stopping (`/gps write+finish` = `/gps auto finish`)
+- `/gps auto [plan|ship|finish]` — Run from the current phase to the target without stopping
 - `/gps clean [session-id|idea-slug...]` — List sessions by idle time and scouted ideas, delete the chosen ones (after confirmation)
 - `/gps config [--rescan]` — Show the GitHub flag; `--rescan` re-detects it (after confirmation when it changes)
 

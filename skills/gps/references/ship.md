@@ -1,6 +1,11 @@
 # /gps ship
 
-**When:** After tickets have been saved to disk (`/gps write` has run for the plan phase). Takes no arguments — it works through whatever tickets remain.
+**When:** After the tickets are approved. Takes no arguments — it works through whatever tickets remain.
+
+**Save the plan first:** before anything else (the mode question included), run `node $CLAUDE_PLUGIN_ROOT/scripts/write-target.js`. Its `target`:
+- `plan`: the plan and tickets aren't saved yet. Run `references/write.md` steps 2–3 now (only when the tickets were drafted and approved in this conversation; otherwise stop and say so). Relay write-apply's `✅` and any `🌿` line but not its `Next:` suggestion, then go on.
+- `grill`, or `none` with `reason` `plan-not-started`: nothing is planned yet. Stop and suggest `/gps plan`.
+- Any other `none`: go on.
 
 **Mode:** Before running the ticket loop, ask: "Implement each ticket via a dispatched subagent, inline in this session, or via a subagent followed by an inline review-and-commit in this session?" (subagent, inline, or subagent + inline follow-up). Wait for an explicit answer before continuing. Ask this every time `/gps ship` is invoked — never cache the answer in session state, and never re-ask mid-run; whichever answer you get applies to every ticket this invocation processes. `/gps ticket <N>` (manual single-ticket implementation) is unaffected — it always runs inline.
 
