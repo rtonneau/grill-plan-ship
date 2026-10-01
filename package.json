@@ -1,6 +1,6 @@
 {
   "name": "grill-plan-ship",
-  "version": "1.10.0",
+  "version": "1.11.0",
   "description": "Universal workflow plugin: grill → plan → ship",
   "keywords": [
     "workflow",
