@@ -824,6 +824,7 @@ function markDone(root, implName) {
     issue: ['issue-session.js'],
     status: ['status.js'],
     clean: ['clean.js', 'set-current.js'],
+    config: ['config.js'],
     handoff: ['handoff.js'],
     resume: ['resume.js'],
     write: ['write-target.js', 'write-apply.js'],
@@ -848,13 +849,17 @@ function markDone(root, implName) {
   assert.match(fs.readFileSync(path.join(refsDir, 'start.md'), 'utf-8'), /ignore write-apply's `Next: \/gps plan`/);
   // a leftover payload must be read before it can be overwritten
   assert.match(fs.readFileSync(path.join(refsDir, 'write.md'), 'utf-8'), /existingPayload/);
-  // chained forms: SKILL.md routes them to write.md, which checks the target before writing
-  assert.match(skill, /`\/gps write\+plan` and `\/gps write\+ship` → `references\/write\.md`/);
-  const writeDoc = fs.readFileSync(path.join(refsDir, 'write.md'), 'utf-8');
-  assert.match(writeDoc, /`write\+plan` needs target `grill`, `write\+ship` needs `plan`/);
-  assert.match(writeDoc, /references\/plan\.md` or `references\/ship\.md/);
-  // /gps auto and its write+finish alias route to auto.md
-  assert.match(skill, /`\/gps write\+finish` → `references\/auto\.md`/);
+  // no chained "+" commands: /gps plan and /gps ship save a pending phase first
+  for (const name of ['SKILL.md', ...fs.readdirSync(refsDir).map((f) => `references/${f}`)]) {
+    const text = fs.readFileSync(path.join(skillDir, name), 'utf-8');
+    assert.ok(!/\bwrite\+/.test(text), `${name} must not mention a chained "+" command`);
+  }
+  for (const [command, pending] of [['plan', /target` is `grill`/], ['ship', /- `plan`: the plan and tickets aren't saved yet/]]) {
+    const doc = fs.readFileSync(path.join(refsDir, `${command}.md`), 'utf-8');
+    assert.ok(doc.includes('node $CLAUDE_PLUGIN_ROOT/scripts/write-target.js'), `${command}.md must run write-target.js first`);
+    assert.match(doc, pending);
+    assert.match(doc, /`references\/write\.md` steps 2–3/);
+  }
   const autoDoc = fs.readFileSync(path.join(refsDir, 'auto.md'), 'utf-8');
   assert.match(autoDoc, /ship-mode/);
   // unattended runs must still surface ⚠️ lines (e.g. a PR that was not opened)
@@ -863,7 +868,6 @@ function markDone(root, implName) {
   assert.match(autoDoc, /writing-plans only drafts/);
   // ship's own "suggest /gps finish. Stop." must hand back to the auto run
   assert.match(fs.readFileSync(path.join(refsDir, 'ship.md'), 'utf-8'), /Under \/gps auto:.*`nextPending` is null.*references\/auto\.md/);
-  assert.match(writeDoc, /`write\+finish`.*references\/auto\.md/);
   assert.ok(skill.split('\n').length <= 70, 'SKILL.md router must stay short');
   assert.ok(fs.readFileSync(path.join(refsDir, 'write.md'), 'utf-8').split('\n').length <= 50, 'write.md must stay short');
 }

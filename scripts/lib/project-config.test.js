@@ -5,7 +5,7 @@ const os = require('os');
 const path = require('path');
 const { execFileSync } = require('child_process');
 const { GpsError } = require('./guard');
-const { CONFIG_FILENAME, ensureProjectConfig, githubEnabled } = require('./project-config');
+const { CONFIG_FILENAME, ensureProjectConfig, githubEnabled, rescanProjectConfig } = require('./project-config');
 
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'gps-projcfg-'));
 const marker = path.join(tmp, 'gh-called');
@@ -67,6 +67,59 @@ assert.throws(() => ensureProjectConfig(plain), (err) => err instanceof GpsError
 fs.writeFileSync(configFile(plain), JSON.stringify({ version: 1, github: { enabled: 'yes' } }));
 assert.throws(() => ensureProjectConfig(plain), (err) => err instanceof GpsError && /github\.enabled/.test(err.message) && Boolean(err.hint));
 assert.strictEqual(fs.readFileSync(configFile(plain), 'utf-8'), JSON.stringify({ version: 1, github: { enabled: 'yes' } }));
+
+// Rescan: a project detected off, then pushed to GitHub.
+const later = makeProject('later');
+assert.strictEqual(githubEnabled(later), false);
+const before = readFile(later);
+execFileSync('git', ['init', '-q', '-b', 'main'], { cwd: later, stdio: 'ignore' });
+let result = rescanProjectConfig(later, { check: true });
+assert.deepStrictEqual([result.status, result.detected.reason], ['unchanged', 'no "origin" remote']);
+execFileSync('git', ['remote', 'add', 'origin', 'git@github.com:acme/app.git'], { cwd: later, stdio: 'ignore' });
+
+// check and plain rescan report the change but write nothing.
+result = rescanProjectConfig(later, { check: true });
+assert.deepStrictEqual([result.status, result.stored, result.detected.enabled], ['differs', false, true]);
+result = rescanProjectConfig(later);
+assert.strictEqual(result.status, 'differs');
+assert.deepStrictEqual(readFile(later), before);
+
+// apply writes the new value, keeping unknown fields.
+fs.writeFileSync(configFile(later), JSON.stringify({ ...before, extra: 1 }));
+result = rescanProjectConfig(later, { apply: true });
+assert.strictEqual(result.status, 'updated');
+assert.strictEqual(readFile(later).github.enabled, true);
+assert.strictEqual(readFile(later).extra, 1);
+assert.strictEqual(githubEnabled(later), true);
+
+// Same value: rescan refreshes detected_at, check leaves the file alone.
+const stamped = { ...readFile(later), github: { enabled: true, detected_at: '2020-01-01T00:00:00.000Z' } };
+fs.writeFileSync(configFile(later), JSON.stringify(stamped));
+assert.strictEqual(rescanProjectConfig(later, { check: true }).status, 'unchanged');
+assert.strictEqual(readFile(later).github.detected_at, '2020-01-01T00:00:00.000Z');
+result = rescanProjectConfig(later);
+assert.deepStrictEqual([result.status, result.storedAt], ['unchanged', '2020-01-01T00:00:00.000Z']);
+assert.notStrictEqual(readFile(later).github.detected_at, '2020-01-01T00:00:00.000Z');
+
+// A hand-forced flag is not overwritten without apply.
+process.env.GH_STUB_AUTH_FAIL = '1';
+result = rescanProjectConfig(later);
+assert.strictEqual(result.status, 'differs');
+assert.match(result.detected.reason, /gh is not authenticated/);
+assert.strictEqual(readFile(later).github.enabled, true);
+delete process.env.GH_STUB_AUTH_FAIL;
+
+// Other reasons; a missing file is created.
+assert.match(rescanProjectConfig(makeProject('gitlab2', 'https://gitlab.com/a/b.git')).detected.reason, /not on github\.com/);
+const fresh = makeProject('fresh');
+result = rescanProjectConfig(fresh, { check: true });
+assert.deepStrictEqual([result.status, result.stored, result.detected.reason], ['created', null, 'not a git repository']);
+assert.strictEqual(readFile(fresh).github.enabled, false);
+
+// An invalid file is refused, never overwritten by a rescan.
+fs.writeFileSync(configFile(fresh), '{ not json');
+assert.throws(() => rescanProjectConfig(fresh, { apply: true }), GpsError);
+assert.strictEqual(fs.readFileSync(configFile(fresh), 'utf-8'), '{ not json');
 
 delete process.env.GPS_GH_BIN;
 fs.rmSync(tmp, { recursive: true, force: true });

@@ -41,7 +41,7 @@ function summarizeSession(sessionsDir, sessionId) {
   };
 }
 
-// Scouted ideas not yet turned into sessions (/gps start removes a seed),
+// Scouted ideas not yet turned into sessions (/gps start removes a seed, /gps clean drops one),
 // strongest first; scout order is kept within a strength.
 function listPendingIdeas(sessionsDir) {
   const { seeds, problem } = peekSeeds(sessionsDir);

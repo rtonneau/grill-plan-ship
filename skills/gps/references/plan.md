@@ -1,6 +1,8 @@
 # /gps plan
 
-**When:** After reviewing the grill session (resume.md approved).
+**When:** After the grill's design is approved. Saving it first with `/gps write` is optional.
+
+**Save the grill first:** run `node $CLAUDE_PLUGIN_ROOT/scripts/write-target.js`. If its `target` is `grill`, the resume isn't saved yet: run `references/write.md` steps 2–3 now (only when the grill design was approved in this conversation; otherwise stop and say the grill must be finished first). Relay write-apply's `✅` line but not its `Next:` suggestion, then go on. Any other `target`: go on.
 
 **Run:** `node $CLAUDE_PLUGIN_ROOT/scripts/plan.js`
 
@@ -19,7 +21,7 @@
 
 **Output:** The writing-plans conversation begins right away.
 
-**Next:** Once the tickets are approved, run `/gps write` to save the plan and tickets to disk (on a GitHub project it also creates the session branch), then `/gps ship` to implement them — or `/gps write+ship` to do both, or `/gps auto` to run through to finish.
+**Next:** Once the tickets are approved, run `/gps ship`: it saves the plan and tickets first (on a GitHub project that also creates the session branch), then implements them. `/gps write` does only the saving; `/gps auto` runs through to finish.
 
 ## Dependencies
 

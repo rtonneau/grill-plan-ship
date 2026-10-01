@@ -59,6 +59,21 @@ function detectGithub(projectRoot) {
   return isGithubUrl(tryGit(projectRoot, ['config', '--get', 'remote.origin.url']));
 }
 
+// detectGithub + `gh auth status`, with the reason for the result:
+// { enabled, reason } (reason is one line for /gps config).
+function diagnoseGithub(projectRoot) {
+  if (tryGit(projectRoot, ['rev-parse', '--is-inside-work-tree']) !== 'true') {
+    return { enabled: false, reason: 'not a git repository' };
+  }
+  const origin = tryGit(projectRoot, ['config', '--get', 'remote.origin.url']);
+  if (!origin) return { enabled: false, reason: 'no "origin" remote' };
+  if (!isGithubUrl(origin)) return { enabled: false, reason: `origin is not on github.com (${origin})` };
+  if (!ghAuthenticated(projectRoot)) {
+    return { enabled: false, reason: 'origin is on github.com, but gh is not authenticated (run gh auth login)' };
+  }
+  return { enabled: true, reason: 'origin is on github.com and gh is authenticated' };
+}
+
 function currentBranch(projectRoot) {
   return tryGit(projectRoot, ['branch', '--show-current']) || null;
 }
@@ -276,6 +291,7 @@ module.exports = {
   PR_ATTRIBUTION,
   isGithubUrl,
   detectGithub,
+  diagnoseGithub,
   currentBranch,
   validateBranchName,
   createSessionBranch,

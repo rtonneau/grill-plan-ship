@@ -1,6 +1,6 @@
 # /gps auto
 
-**When:** You trust the direction and want the session to run from its current phase to a target without stopping: `plan` (plan and tickets written), `ship` (every ticket implemented) or `finish` (the default: session closed, PR opened on GitHub projects). `/gps write+finish` is `/gps auto finish`; it runs even when the grill is already written, and the route then starts at `plan`.
+**When:** You trust the direction and want the session to run from its current phase to a target without stopping: `plan` (plan and tickets written), `ship` (every ticket implemented) or `finish` (the default: session closed, PR opened on GitHub projects).
 
 **Run:** `node $CLAUDE_PLUGIN_ROOT/scripts/auto-route.js [plan|ship|finish]`
 
@@ -16,4 +16,4 @@
    - `finish`: run as typed. Its closing "switch to an unfinished session?" question is still asked, since the run is over by then.
 5. After each step, relay everything it prints (including `⚠️` lines) except its `Next:` suggestion, since the run already knows the next step. A `⚠️` doesn't stop the run, but repeat every one in the final report (e.g. a pull request that was not opened). The first failure ends the run: a handler `❌` (other than the payload fix above), a BLOCKED ticket or an inaccurate DONE. Report which step stopped it; finish never runs after an incomplete ship.
 
-**Examples:** `/gps auto`, `/gps auto plan`, `/gps auto ship`, `/gps write+finish`
+**Examples:** `/gps auto`, `/gps auto plan`, `/gps auto ship`
