@@ -17,7 +17,7 @@ A structured workflow plugin for any code project.
 - `/gps ticket <N>` — Implement one ticket by hand
 - `/gps ship` — Implement every remaining ticket in order, one commit each
 - `/gps finish` — Archive session: commit leftover tracked changes, then open the pull request of a planned session and switch back to its base branch (or comment on / close the issue of a bounded `/gps issue` session)
-- `/gps auto [plan|ship|finish]` — Run the session from its current phase to the target (default finish) without stopping: tickets are approved as drafted, and only the ship mode is asked, once, at the start.
+- `/gps auto [--delegate] [plan|ship|finish]` — Run the session from its current phase to the target (default finish) without stopping: tickets are approved as drafted, and only the ship mode is asked, once, at the start. `--delegate` skips that question: each ticket is implemented by a subagent on its hinted model, then reviewed and committed in this session.
 
 ## Workflow Visualization
 
