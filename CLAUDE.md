@@ -9,7 +9,7 @@ A reusable Claude Code plugin that orchestrates structured development workflows
 1. **Grill** — Brainstorm & spec (uses `/brainstorming` skill)
 2. **Plan** — Break work into atomic tickets (uses `/writing-plans` skill)
 3. **Ship** — Implement tickets one by one (manual, no TDD)
-4. **Finish** — Archive session with INDEX.md (and open a PR from the session branch on GitHub projects)
+4. **Finish** — Archive session with INDEX.md, commit leftover tracked changes (and, on GitHub projects, open a PR from the session branch and switch back to its base branch)
 
 ## Commands
 
