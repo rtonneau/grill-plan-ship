@@ -24,7 +24,7 @@ Each command's full instructions live in `references/<command>.md` in this skill
 - `/gps ticket <number>` — Implement ticket N
 - `/gps ship` — Save the approved plan + tickets if they aren't yet, then implement every remaining ticket in order, one commit each
 - `/gps finish` — Close the session and write its summary
-- `/gps auto [plan|ship|finish]` — Run the session from its current phase to the target (default finish) without stopping; asks the ship mode once at the start
+- `/gps auto [--delegate] [plan|ship|finish]` — Run the session from its current phase to the target (default finish) without stopping; asks the ship mode once at the start, or `--delegate` presets subagent + inline follow-up
 - `/gps handoff` — Save an in-flight checkpoint of the current session before stopping work
 - `/gps resume` — Catch up on the current session using its saved handoff plus live state
 

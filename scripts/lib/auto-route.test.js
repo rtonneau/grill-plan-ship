@@ -23,6 +23,15 @@ assert.deepStrictEqual(computeRoute(dir, config, 'plan').steps, ['write:grill', 
 assert.deepStrictEqual(computeRoute(dir, config, 'ship').questions, ['ship-mode']);
 assert.deepStrictEqual(computeRoute(dir, config, 'plan').questions, []);
 
+// preset ship mode replaces the question, only when the route ships
+const delegated = computeRoute(dir, config, 'ship', { shipMode: 'subagent+inline' });
+assert.deepStrictEqual(delegated.questions, []);
+assert.strictEqual(delegated.shipMode, 'subagent+inline');
+assert.strictEqual(computeRoute(dir, config, 'ship').shipMode, undefined);
+const planOnly = computeRoute(dir, config, 'plan', { shipMode: 'subagent+inline' });
+assert.deepStrictEqual(planOnly.questions, []);
+assert.strictEqual(planOnly.shipMode, undefined);
+
 // resume written, no plan: starts at plan
 fs.writeFileSync(resumePath, '# Session\n\nActual problem statement.\n');
 assert.deepStrictEqual(computeRoute(dir, config).steps, ['plan', 'write:plan', 'ship', 'finish']);

@@ -807,6 +807,21 @@ function markDone(root, implName) {
   assert.deepStrictEqual(route.questions, ['ship-mode']);
   const event = history().find((e) => e.event === 'auto_started');
   assert.deepStrictEqual(event.detail, { target: 'finish', steps: 'write:grill → plan → write:plan → ship → finish' });
+
+  // --delegate presets the ship mode, wherever it sits among the arguments
+  const delegated = run(root, 'auto-route.js', 'ship', '--delegate');
+  assert.strictEqual(delegated.code, 0, delegated.err);
+  const delegatedRoute = JSON.parse(delegated.out);
+  assert.deepStrictEqual(delegatedRoute.questions, []);
+  assert.strictEqual(delegatedRoute.shipMode, 'subagent+inline');
+  assert.strictEqual(history().filter((e) => e.event === 'auto_started').pop().detail.shipMode, 'subagent+inline');
+  assert.strictEqual(run(root, 'auto-route.js', '--delegate', 'ship', 'finish').code, 1);
+
+  // no ship step: --delegate is ignored with a warning
+  const planOnly = run(root, 'auto-route.js', '--delegate', 'plan');
+  assert.strictEqual(planOnly.code, 0, planOnly.err);
+  assert.match(planOnly.err, /⚠️ {2}--delegate ignored/);
+  assert.strictEqual(JSON.parse(planOnly.out).shipMode, undefined);
 }
 
 {
@@ -862,6 +877,7 @@ function markDone(root, implName) {
   }
   const autoDoc = fs.readFileSync(path.join(refsDir, 'auto.md'), 'utf-8');
   assert.match(autoDoc, /ship-mode/);
+  assert.match(autoDoc, /`shipMode`/);
   // unattended runs must still surface ⚠️ lines (e.g. a PR that was not opened)
   assert.match(autoDoc, /relay everything it prints \(including `⚠️` lines\) except its `Next:` suggestion/);
   // writing-plans must not take over execution with the ship-mode answer
