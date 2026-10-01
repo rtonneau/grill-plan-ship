@@ -17,7 +17,7 @@ Each command's full instructions live in `references/<command>.md` in this skill
 - `/gps start <feature-name>` — Begin a new feature
 - `/gps issue <title>` — Report a problem as a GitHub issue (local session without GitHub) and work on it
 - `/gps status` — Show every session's state, scouted ideas not started yet, and what's pending on the current one
-- `/gps clean [session-id...]` — List sessions by idle time and delete the ones you pick (after confirmation)
+- `/gps clean [session-id|idea-slug...]` — List sessions by idle time and scouted ideas not started yet, and delete the ones you pick (after confirmation)
 - `/gps config [--rescan]` — Show the project's GitHub flag; `--rescan` detects it again (after confirmation when it changes)
 - `/gps write` — Write the current phase's output (brainstorm resume, or plan + tickets) to disk; `write+plan` / `write+ship` then run the next command
 - `/gps plan` — Generate plan + tickets

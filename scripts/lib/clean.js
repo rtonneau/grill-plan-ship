@@ -1,8 +1,9 @@
 // scripts/lib/clean.js
 //
-// /gps clean: lists sessions with their idleness, and deletes named ones.
-// Only session directories are removed: never .current-session,
-// .pending-seeds.json, git branches, pull requests or issues.
+// /gps clean: lists sessions with their idleness and the scouted ideas not
+// started yet, and deletes named ones. Only session directories and entries
+// of .pending-seeds.json are removed: never .current-session, scout reports,
+// git branches, pull requests or issues.
 
 const fs = require('fs');
 const path = require('path');
@@ -11,6 +12,9 @@ const {
   CURRENT_SESSION_FILENAME, listSessionDirs, isSafeSessionName, isFinished,
 } = require('./session-store');
 const { computeIdleness } = require('./staleness');
+const { SEEDS_FILENAME, peekSeeds, removeSeeds } = require('./seeds-store');
+
+const DAY_MS = 24 * 60 * 60 * 1000;
 
 function readConfig(sessionsDir, sessionId) {
   try {
@@ -60,28 +64,62 @@ function listCleanable(sessionsDir, now = new Date()) {
     .sort((a, b) => (b.idleDays === null ? -1 : b.idleDays) - (a.idleDays === null ? -1 : a.idleDays));
 }
 
-// Validates every id first; deletes only when all pass. Returns the removed ids.
-function deleteSessions(sessionsDir, sessionIds) {
-  const available = () => listSessionDirs(sessionsDir).join(', ') || 'none';
-  const current = readCurrentPointer(sessionsDir);
-  const unique = [...new Set(sessionIds)];
-
-  for (const sessionId of unique) {
-    if (!isSafeSessionName(sessionId)) {
-      throw new GpsError(`Invalid session id: ${JSON.stringify(sessionId)}`, `Sessions: ${available()}`);
-    }
-    if (!listSessionDirs(sessionsDir).includes(sessionId)) {
-      throw new GpsError(`Session ${sessionId} not found.`, `Sessions: ${available()}`);
-    }
-    if (sessionId === current) {
-      throw new GpsError(`Session ${sessionId} is the current session.`,
-        'Switch first with node $CLAUDE_PLUGIN_ROOT/scripts/set-current.js <session-id>, then clean it.');
-    }
-  }
-  for (const sessionId of unique) {
-    fs.rmSync(path.join(sessionsDir, sessionId), { recursive: true, force: true });
-  }
-  return unique;
+// Scouted ideas not started yet, oldest first. { ideas, problem }: problem is
+// why .pending-seeds.json is unreadable (then ideas is empty), else null.
+function listIdeas(sessionsDir, now = new Date()) {
+  const { seeds, problem } = peekSeeds(sessionsDir);
+  const ideas = Object.entries(seeds).map(([slug, seed]) => {
+    const entry = seed || {};
+    const time = entry.createdAt ? Date.parse(entry.createdAt) : NaN;
+    return {
+      slug,
+      problem: entry.problem || null,
+      strength: entry.strength || null,
+      sourceReport: entry.sourceReport || null,
+      createdAt: entry.createdAt || null,
+      idleDays: Number.isNaN(time) ? null : Math.max(0, Math.floor((now.getTime() - time) / DAY_MS)),
+    };
+  });
+  ideas.sort((a, b) => (b.idleDays === null ? -1 : b.idleDays) - (a.idleDays === null ? -1 : a.idleDays));
+  return { ideas, problem };
 }
 
-module.exports = { listCleanable, deleteSessions };
+// Each id names a session directory or, failing that, a scouted idea.
+// Validates every id first; changes nothing unless all pass. Returns
+// { sessions, ideas }: the removed session ids and idea slugs.
+function deleteEntries(sessionsDir, ids) {
+  const sessionIds = listSessionDirs(sessionsDir);
+  const { seeds, problem } = peekSeeds(sessionsDir);
+  const available = () => `Sessions: ${sessionIds.join(', ') || 'none'}. Ideas: ${Object.keys(seeds).join(', ') || 'none'}.`;
+  const current = readCurrentPointer(sessionsDir);
+  const sessions = [];
+  const ideas = [];
+
+  for (const id of new Set(ids)) {
+    if (!isSafeSessionName(id)) {
+      throw new GpsError(`Invalid session or idea id: ${JSON.stringify(id)}`, available());
+    }
+    if (sessionIds.includes(id)) {
+      if (id === current) {
+        throw new GpsError(`Session ${id} is the current session.`,
+          'Switch first with node $CLAUDE_PLUGIN_ROOT/scripts/set-current.js <session-id>, then clean it.');
+      }
+      sessions.push(id);
+    } else if (problem) {
+      throw new GpsError(`${id} is not a session, and ${SEEDS_FILENAME} is unreadable (${problem}).`,
+        'Run /gps scout to move the file aside and start fresh, or fix it by hand.');
+    } else if (Object.prototype.hasOwnProperty.call(seeds, id)) {
+      ideas.push(id);
+    } else {
+      throw new GpsError(`${id} is neither a session nor a scouted idea.`, available());
+    }
+  }
+
+  for (const id of sessions) {
+    fs.rmSync(path.join(sessionsDir, id), { recursive: true, force: true });
+  }
+  if (ideas.length > 0) removeSeeds(sessionsDir, ideas);
+  return { sessions, ideas };
+}
+
+module.exports = { listCleanable, listIdeas, deleteEntries };
