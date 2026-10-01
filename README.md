@@ -8,16 +8,16 @@ A structured workflow plugin for any code project.
 - `/gps scout [--from <review>]` — Turn an architecture scan, or a review you already have, into ready-to-run `/gps start` seeds
 - `/gps start <feature>` — Begin a feature
 - `/gps issue <title>` — Report a problem as a GitHub issue (local session without GitHub) and work on it
-- `/gps clean [session-id...]` — List sessions by idle time (`/gps status` flags `stale` at 14+ days, `very-stale` at 28+) and delete the ones you pick, after confirmation. Local session folders only; branches, PRs and issues are kept
+- `/gps clean [session-id|idea-slug...]` — List sessions by idle time (`/gps status` flags `stale` at 14+ days, `very-stale` at 28+) and scouted ideas not started yet, and delete the ones you pick, after confirmation. Local session folders and ideas only; branches, PRs, issues and scout reports are kept
 - `/gps config [--rescan]` — Show the project's GitHub flag; `--rescan` detects it again, e.g. after adding a github.com `origin`, and asks before changing it
 - `/gps handoff` — Save an in-flight checkpoint before stopping
 - `/gps resume` — Catch up on a session using its checkpoint plus live state
-- `/gps write` — Save the current phase's output (brainstorm resume, or plan + tickets) to disk. `/gps write+plan` and `/gps write+ship` save it and go straight into the next command
+- `/gps write` — Save the current phase's output (brainstorm resume, or plan + tickets) to disk. Optional: `/gps plan` and `/gps ship` save what's pending first
 - `/gps plan` — Create tickets
 - `/gps ticket <N>` — Implement one ticket by hand
 - `/gps ship` — Implement every remaining ticket in order, one commit each
 - `/gps finish` — Archive session: commit leftover tracked changes, then open the pull request of a planned session and switch back to its base branch (or comment on / close the issue of a bounded `/gps issue` session)
-- `/gps auto [plan|ship|finish]` — Run the session from its current phase to the target (default finish) without stopping: tickets are approved as drafted, and only the ship mode is asked, once, at the start. `/gps write+finish` is the same as `/gps auto finish`
+- `/gps auto [plan|ship|finish]` — Run the session from its current phase to the target (default finish) without stopping: tickets are approved as drafted, and only the ship mode is asked, once, at the start.
 
 ## Workflow Visualization
 
@@ -44,16 +44,14 @@ Restart Claude Code. To update later:
 # In any project:
 /gps start add-dark-mode
 # ...grill conversation happens automatically (grill-with-docs if installed, else brainstorming)...
-/gps write   # once approved, saves the resume to 01-grill/resume.md
 
-# Plan tickets
+# Once the design is approved: plan tickets (saves the resume to 01-grill/resume.md first)
 /gps plan
 # ...writing-plans + unslop happen automatically...
-/gps write   # once approved, saves plan.md + tickets to disk
-# (shortcuts: /gps write+plan after the grill, /gps write+ship after the plan, /gps auto to run through to finish)
 
-# Implement every ticket, one commit each
+# Once the tickets are approved: implement each one, one commit each (saves plan.md + tickets first)
 /gps ship
+# (/gps write saves the pending output on its own; /gps auto runs through to finish)
 
 # Finish
 /gps finish

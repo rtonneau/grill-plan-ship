@@ -80,4 +80,12 @@ function removeSeed(sessionsDir, slug) {
   return true;
 }
 
-module.exports = { SEEDS_FILENAME, mergeSeeds, getSeed, removeSeed, peekSeeds };
+// Removes every slug in one write (/gps clean). Callers check the slugs with
+// peekSeeds first, so an unreadable file is never quarantined here.
+function removeSeeds(sessionsDir, slugs) {
+  const { seeds } = peekSeeds(sessionsDir);
+  for (const slug of slugs) delete seeds[slug];
+  writeSeeds(sessionsDir, seeds);
+}
+
+module.exports = { SEEDS_FILENAME, mergeSeeds, getSeed, removeSeed, removeSeeds, peekSeeds };
