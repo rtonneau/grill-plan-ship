@@ -1,8 +1,9 @@
 // scripts/lib/github.js
 //
 // Session branch, pull request and issue support for projects hosted on GitHub.
-// /gps write (plan) creates the session's branch; /gps finish pushes it and
-// opens a PR against the branch it started from. /gps issue files a GitHub
+// /gps write (plan) creates the session's branch; /gps finish commits what is
+// left, pushes it, opens a PR against the branch it started from and switches
+// back to that branch. /gps issue files a GitHub
 // issue at the grill write; /gps finish comments on it. Git and gh always run
 // via execFileSync with an argument array (never a shell string).
 //
@@ -100,9 +101,41 @@ function commitsBetween(projectRoot, base, branch) {
   return out ? out.split('\n').map((l) => l.trim()).filter(Boolean) : [];
 }
 
-function hasUncommittedChanges(projectRoot) {
-  const out = tryGit(projectRoot, ['status', '--porcelain', '--untracked-files=no']);
-  return Boolean(out);
+const nulList = (out) => out.split('\0').filter(Boolean);
+
+// Commits every change to tracked files (`git add -u`), so /gps finish leaves
+// nothing behind (e.g. a log a hook appends to). Untracked files are listed,
+// never committed; gps's own .work/ is left out of that list. Never throws:
+// { ok: true, sha, files, untracked } (sha null: nothing to commit, or not a
+// git repo) or { ok: false, reason, commands, untracked }.
+function commitRemainingChanges(projectRoot, message) {
+  if (tryGit(projectRoot, ['rev-parse', '--is-inside-work-tree']) !== 'true') {
+    return { ok: true, sha: null, files: [], untracked: [] };
+  }
+  const untracked = nulList(tryGit(projectRoot, ['ls-files', '--others', '--exclude-standard', '-z']) || '')
+    .filter((f) => !f.startsWith('.work/'));
+  try {
+    git(projectRoot, ['add', '-u']);
+    const files = nulList(git(projectRoot, ['diff', '--cached', '--name-only', '-z']));
+    if (files.length === 0) return { ok: true, sha: null, files, untracked };
+    git(projectRoot, ['commit', '-q', '-m', message]);
+    return { ok: true, sha: git(projectRoot, ['rev-parse', '--short', 'HEAD']), files, untracked };
+  } catch (err) {
+    return {
+      ok: false, reason: failureReason(err), untracked,
+      commands: ['git add -u', `git commit -m "${message.replace(/"/g, '\\"')}"`],
+    };
+  }
+}
+
+// Never throws: { ok: true } or { ok: false, reason, commands }.
+function switchBranch(projectRoot, name) {
+  try {
+    git(projectRoot, ['switch', '-q', name]);
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, reason: failureReason(err), commands: [`git switch ${name}`] };
+  }
 }
 
 function ghCommand() {
@@ -248,7 +281,8 @@ module.exports = {
   createSessionBranch,
   branchType,
   commitsBetween,
-  hasUncommittedChanges,
+  commitRemainingChanges,
+  switchBranch,
   openPullRequest,
   ghAuthenticated,
   buildIssueBody,

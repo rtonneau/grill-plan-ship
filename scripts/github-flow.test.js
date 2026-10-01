@@ -135,19 +135,28 @@ assert.strictEqual(readConfig(configPath).git, undefined);
 assert.ok(!readConfig(configPath).history.some((e) => e.event === 'branch_created'), 'bounded: no branch event');
 
 commit('theme.js', 'feat: add dark theme');
+// A tracked file changed outside any commit (e.g. a log a hook appends to).
+fs.appendFileSync(path.join(root, 'app.js'), '// hook log line\n');
 res = ok('finish.js');
+assert.match(res.out, /📦 Committed 1 remaining file\(s\) \([0-9a-f]+\): app\.js/);
+assert.strictEqual(git('log', '-1', '--format=%s'), `chore: commit remaining changes (gps finish ${sessionId})`);
+assert.strictEqual(git('status', '--porcelain', '--untracked-files=no'), '');
+assert.doesNotMatch(res.out + res.err, /Back on|Still on/, 'no branch: no switch');
+assert.match(fs.readFileSync(path.join(sessionDir, 'INDEX.md'), 'utf-8'), /## Remaining changes[\s\S]*`app\.js`/);
 assert.doesNotMatch(res.out, /Pull request/);
 assert.strictEqual(ghCalls().length, 0, 'a bounded session makes no gh call');
 assert.doesNotMatch(fs.readFileSync(path.join(sessionDir, 'INDEX.md'), 'utf-8'), /Branch & PR/);
 assert.strictEqual(git('branch', '--show-current'), 'main');
 
 // ------------------------------------- B. planned: branch at the plan write, PR
+// Started from develop (not main): the PR targets it and finish returns to it.
+git('switch', '-q', '-c', 'develop');
 ok('start-session.js', 'Search Filters');
 ({ sessionId, sessionDir, configPath } = currentSession());
 target = JSON.parse(ok('write-target.js').out);
 fs.writeFileSync(target.payloadPath, sectionsText(target, 'Users want to filter results.'));
 ok('write-apply.js');
-assert.strictEqual(git('branch', '--show-current'), 'main', 'no branch at the grill write');
+assert.strictEqual(git('branch', '--show-current'), 'develop', 'no branch at the grill write');
 ok('plan.js');
 
 target = JSON.parse(ok('write-target.js').out);
@@ -155,7 +164,7 @@ assert.strictEqual(target.target, 'plan');
 assert.ok(target.fields.includes('Branch'));
 assert.match(target.branchPattern, /feat\|fix/);
 
-// Missing / invalid branch -> payload error, nothing written, still on main.
+// Missing / invalid branch -> payload error, nothing written, still on develop.
 const ticketsDir = path.join(sessionDir, '02-plan', 'tickets');
 fs.writeFileSync(target.payloadPath, planPayload(target, '', 'filters'));
 res = run('write-apply.js');
@@ -165,22 +174,22 @@ fs.writeFileSync(target.payloadPath, planPayload(target, '**Branch:** Search Fil
 res = run('write-apply.js');
 assert.strictEqual(res.code, 1);
 assert.match(res.err, /must look like/);
-assert.strictEqual(git('branch', '--show-current'), 'main');
+assert.strictEqual(git('branch', '--show-current'), 'develop');
 assert.ok(fs.existsSync(target.payloadPath), 'payload kept for a retry');
 assert.ok(fs.readdirSync(ticketsDir).some((f) => f.includes('[slug]')), 'nothing written');
 
-// Valid branch -> created from main, recorded, tickets written.
+// Valid branch -> created from develop, recorded, tickets written.
 fs.writeFileSync(target.payloadPath, planPayload(target, '**Branch:** feat/search-filters\n', 'filters'));
 res = ok('write-apply.js');
-assert.match(res.out, /Working on branch feat\/search-filters \(from main\)/);
+assert.match(res.out, /Working on branch feat\/search-filters \(from develop\)/);
 assert.strictEqual(git('branch', '--show-current'), 'feat/search-filters');
 let config = readConfig(configPath);
 assert.strictEqual(config.git.branch, 'feat/search-filters');
-assert.strictEqual(config.git.base_branch, 'main');
+assert.strictEqual(config.git.base_branch, 'develop');
 assert.strictEqual(config.git.pr_url, null);
 assert.doesNotMatch(fs.readFileSync(path.join(sessionDir, '02-plan', 'plan.md'), 'utf-8'), /Branch/);
 const branchEvent = config.history.find((e) => e.event === 'branch_created');
-assert.deepStrictEqual(branchEvent.detail, { branch: 'feat/search-filters', base: 'main' });
+assert.deepStrictEqual(branchEvent.detail, { branch: 'feat/search-filters', base: 'develop' });
 assert.strictEqual(branchEvent.at, config.git.branch_created_at);
 assert.ok(config.history.findIndex((e) => e.event === 'branch_created') < config.history.findIndex((e) => e.event === 'plan_written'),
   'the branch was created before the plan files were written');
@@ -199,15 +208,32 @@ assert.strictEqual(fs.readFileSync(path.join(sessionDir, 'INDEX.md'), 'utf-8'), 
 assert.strictEqual(fs.readFileSync(configPath, 'utf-8'), configBefore);
 git('switch', '-q', 'feat/search-filters');
 
-// Finish pushes and opens the PR.
+// Finish commits the leftovers (tracked only), pushes, opens the PR and
+// returns to develop.
+fs.appendFileSync(path.join(root, 'app.js'), '// hook log line\n');
+fs.writeFileSync(path.join(root, 'scratch.txt'), 'not for the PR\n');
 res = ok('finish.js');
+assert.match(res.out, /📦 Committed 1 remaining file\(s\) \([0-9a-f]+\): app\.js/);
+// (.gitignore was created by /gps start in this fresh repo and never added.)
+assert.match(res.err, /⚠️ {2}Untracked files left uncommitted: \.gitignore, scratch\.txt\n/);
+assert.match(res.out, /↩️ {2}Back on develop: merge the pull request, then git pull/);
+assert.strictEqual(git('branch', '--show-current'), 'develop');
+assert.strictEqual(git('status', '--porcelain', '--untracked-files=no'), '');
+assert.ok(fs.existsSync(path.join(root, 'scratch.txt')), 'untracked file left alone');
+fs.rmSync(path.join(root, 'scratch.txt'));
+assert.strictEqual(git('log', '-1', '--format=%s', 'feat/search-filters'),
+  `chore: commit remaining changes (gps finish ${sessionId})`);
+assert.strictEqual(
+  execFileSync('git', ['--git-dir', bare, 'rev-parse', 'refs/heads/feat/search-filters'], { encoding: 'utf-8' }).trim(),
+  git('rev-parse', 'feat/search-filters'), 'the leftover commit was pushed');
 assert.match(res.out, /Pull request: https:\/\/github\.com\/acme\/app\/pull\/12/);
 assert.strictEqual(prCreates().length, 1);
 const call = prCreates()[0];
 assert.deepStrictEqual(call.args.slice(0, 8),
-  ['pr', 'create', '--base', 'main', '--head', 'feat/search-filters', '--title', 'feat: Search Filters']);
+  ['pr', 'create', '--base', 'develop', '--head', 'feat/search-filters', '--title', 'feat: Search Filters']);
 assert.match(call.body, /Users want to filter results\./);
 assert.match(call.body, /feat: add filters/);
+assert.match(call.body, /chore: commit remaining changes/);
 assert.match(call.body, /- \[x\] 01 filters/);
 assert.match(call.body, /Generated with \[Claude Code\]/);
 assert.doesNotMatch(call.body, /Closes #/);
@@ -232,10 +258,23 @@ assert.match(res.err, /No current session/);
 assert.strictEqual(prCreates().length, 1);
 // ...and a finish interrupted after the PR was opened (simulated: the
 // config keeps pr_url but not finished_at) reuses that PR on its re-run.
+// Here a pre-commit hook rejects the leftover commit: finish still succeeds,
+// but stays on the session branch so the changes are not carried away.
+git('switch', '-q', 'feat/search-filters');
 delete config.finished_at;
 fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
 fs.writeFileSync(path.join(root, '.work', 'sessions', '.current-session'), sessionId);
+const preCommit = path.join(root, '.git', 'hooks', 'pre-commit');
+fs.writeFileSync(preCommit, '#!/bin/sh\necho "lint failed" >&2\nexit 1\n', { mode: 0o755 });
+fs.appendFileSync(path.join(root, 'app.js'), '// another hook log line\n');
 res = ok('finish.js');
+assert.match(res.err, /⚠️ {2}Remaining changes not committed \(lint failed\)\. Run by hand:\n {3}git add -u\n {3}git commit -m "chore: commit remaining changes/);
+assert.match(res.err, /⚠️ {2}Still on feat\/search-filters: commit the remaining changes, then git switch develop\./);
+assert.doesNotMatch(res.out, /Back on/);
+assert.strictEqual(git('branch', '--show-current'), 'feat/search-filters');
+assert.match(fs.readFileSync(path.join(sessionDir, 'INDEX.md'), 'utf-8'), /## Remaining changes\n\nNot committed \(lint failed\)/);
+fs.rmSync(preCommit);
+git('reset', '-q', '--hard');
 assert.match(res.out, /Pull request \(already open, updated by the push\): https:\/\/github\.com\/acme\/app\/pull\/12/);
 assert.strictEqual(prCreates().length, 1, 'no second PR');
 assert.strictEqual(readConfig(configPath).history.filter((e) => e.event === 'pr_opened').length, 1);

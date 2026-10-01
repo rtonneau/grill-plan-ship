@@ -6,7 +6,7 @@ const path = require('path');
 const { execFileSync } = require('child_process');
 const {
   isGithubUrl, detectGithub, currentBranch, validateBranchName, createSessionBranch,
-  branchType, commitsBetween, hasUncommittedChanges, openPullRequest,
+  branchType, commitsBetween, commitRemainingChanges, switchBranch, openPullRequest,
   ghAuthenticated, createIssue, commentOnIssue, closeIssue, buildIssueBody,
 } = require('./github');
 
@@ -71,15 +71,39 @@ assert.strictEqual(info.pr_url, null);
 assert.ok(!Number.isNaN(Date.parse(info.branch_created_at)));
 assert.strictEqual(currentBranch(repo), 'feat/dark-mode');
 assert.strictEqual(fs.readFileSync(path.join(repo, 'app.js'), 'utf-8'), '2\n');
-assert.strictEqual(hasUncommittedChanges(repo), true);
 assert.throws(() => createSessionBranch(repo, 'feat/taken'), /git switch -c feat\/taken failed/);
 
-git('commit', '-q', '-am', 'feat: two');
-assert.strictEqual(hasUncommittedChanges(repo), false);
+// Leftovers: tracked changes committed, untracked files listed (not .work/).
+fs.writeFileSync(path.join(repo, 'notes.txt'), 'untracked\n');
+fs.mkdirSync(path.join(repo, '.work'));
+fs.writeFileSync(path.join(repo, '.work', 'state.json'), '{}\n');
+let leftover = commitRemainingChanges(repo, 'feat: two');
+assert.strictEqual(leftover.ok, true);
+assert.match(leftover.sha, /^[0-9a-f]{7,}$/);
+assert.deepStrictEqual(leftover.files, ['app.js']);
+assert.deepStrictEqual(leftover.untracked, ['notes.txt']);
+assert.strictEqual(git('log', '-1', '--format=%s'), 'feat: two');
+assert.strictEqual(git('status', '--porcelain', '--untracked-files=no'), '');
+// Nothing left -> no commit.
+leftover = commitRemainingChanges(repo, 'chore: nothing');
+assert.deepStrictEqual({ ok: leftover.ok, sha: leftover.sha, files: leftover.files }, { ok: true, sha: null, files: [] });
+assert.strictEqual(git('log', '-1', '--format=%s'), 'feat: two');
+// Not a repo -> nothing to do.
+assert.deepStrictEqual(commitRemainingChanges(tmp, 'x'), { ok: true, sha: null, files: [], untracked: [] });
+fs.rmSync(path.join(repo, 'notes.txt'));
+fs.rmSync(path.join(repo, '.work'), { recursive: true });
 assert.strictEqual(branchType(info.branch), 'feat');
 const commits = commitsBetween(repo, 'main', 'feat/dark-mode');
 assert.strictEqual(commits.length, 1);
 assert.match(commits[0], /feat: two/);
+
+// switchBranch: never throws.
+assert.deepStrictEqual(switchBranch(repo, 'main'), { ok: true });
+assert.strictEqual(currentBranch(repo), 'main');
+const badSwitch = switchBranch(repo, 'feat/missing');
+assert.strictEqual(badSwitch.ok, false);
+assert.deepStrictEqual(badSwitch.commands, ['git switch feat/missing']);
+git('switch', '-q', 'feat/dark-mode');
 
 // Detached HEAD is refused.
 git('switch', '-q', '--detach');

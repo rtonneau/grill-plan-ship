@@ -15,7 +15,7 @@ A structured workflow plugin for any code project.
 - `/gps plan` — Create tickets
 - `/gps ticket <N>` — Implement one ticket by hand
 - `/gps ship` — Implement every remaining ticket in order, one commit each
-- `/gps finish` — Archive session (open the pull request of a planned session, or comment on / close the issue of a bounded `/gps issue` session)
+- `/gps finish` — Archive session: commit leftover tracked changes, then open the pull request of a planned session and switch back to its base branch (or comment on / close the issue of a bounded `/gps issue` session)
 - `/gps auto [plan|ship|finish]` — Run the session from its current phase to the target (default finish) without stopping: tickets are approved as drafted, and only the ship mode is asked, once, at the start. `/gps write+finish` is the same as `/gps auto finish`
 
 ## Workflow Visualization
@@ -111,9 +111,10 @@ Whichever of `/gps start`, `/gps issue` or `/gps write` (plan phase) runs first 
 When `github.enabled` is true, **planned** sessions get their own branch and end with a pull request:
 
 - **`/gps write` (plan phase)** asks for a `**Branch:**` name shaped like `<feat|fix|refactor|docs|chore|perf|test>/<short-slug>` (e.g. `feat/dark-mode-toggle`), which Claude picks from the approved plan. The branch is created from whatever is checked out (uncommitted changes come along), and that branch becomes the PR's base.
-- **Bounded sessions** (grill only, no plan) create no branch and open no PR: the work lands on the branch you already have checked out.
-- **`/gps finish`** must run on the session branch. It pushes it (`git push -u origin <branch>`) and runs `gh pr create` against the base branch, with the resume's problem statement, the tickets and the commits as the PR body. The PR link goes into `INDEX.md` (`## Branch & PR`), `.session-config.json` (`git.pr_url`) and `/gps status`.
-- If the push or `gh` fails (not installed, not logged in), the session still finishes and `INDEX.md` lists the commands to run by hand.
+- **Bounded sessions** (grill only, no plan) create no branch and open no PR: the work lands on the branch you already have checked out, and `/gps finish` commits any leftover tracked changes there.
+- **`/gps finish`** must run on the session branch. It first commits whatever is left in tracked files (`git add -u`, e.g. a log a project hook appends to) so it is in the PR; untracked files are only listed. Then it pushes the branch (`git push -u origin <branch>`) and runs `gh pr create` against the base branch, with the resume's problem statement, the tickets and the commits as the PR body. The PR link goes into `INDEX.md` (`## Branch & PR`), `.session-config.json` (`git.pr_url`) and `/gps status`.
+- Finally it switches back to the base branch (the one checked out at the plan write, not necessarily `main`), so you can merge the PR on GitHub and `git pull`.
+- If the commit, push, `gh` or switch fails (pre-commit hook, `gh` not installed or not logged in), the session still finishes and the output (and `INDEX.md`) lists the commands to run by hand. After a failed commit it stays on the session branch.
 
 Projects with `github.enabled` false work exactly as before: no branch, no PR.
 

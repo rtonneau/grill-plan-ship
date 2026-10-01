@@ -18,11 +18,15 @@
  * lib/history.js) plus the session_finished event, which is recorded after
  * INDEX.md is written.
  *
- * Sessions with a branch (`git` in the config, set by the plan write in a
- * GitHub project) must have it checked out; finish pushes it and opens a
- * PR against its base branch. A failed push or gh call does not fail the
- * finish: INDEX.md and the output list the commands to run by hand.
- * Bounded sessions have no branch, so they open no PR.
+ * Changes to tracked files still uncommitted (e.g. a log a hook appends to)
+ * are committed first, on the checked-out branch; untracked files are only
+ * listed. Sessions with a branch (`git` in the config, set by the plan write
+ * in a GitHub project) must have it checked out; finish pushes it, opens a
+ * PR against its base branch, then switches back to the base branch (not
+ * after a failed commit, which would leave changes behind). A failed commit,
+ * push, gh call or switch does not fail the finish: INDEX.md and the output
+ * list the commands to run by hand. Bounded sessions have no branch, so they
+ * open no PR and stay on the current branch.
  *
  * Sessions filed with /gps issue (`issue` in the config): without a branch
  * (bounded), finish comments a summary on the GitHub issue and, with
@@ -39,14 +43,14 @@ const { resolveWriteTarget } = require('./lib/write-target');
 const { listTickets } = require('./lib/ticket-queue');
 const { splitSections } = require('./lib/write-payload');
 const {
-  PR_ATTRIBUTION, currentBranch, branchType, commitsBetween, hasUncommittedChanges, openPullRequest,
+  PR_ATTRIBUTION, currentBranch, branchType, commitsBetween, commitRemainingChanges, switchBranch, openPullRequest,
   commentOnIssue, closeIssue,
 } = require('./lib/github');
 const { readRecentCommits } = require('./lib/git');
 const { GpsError, writeJsonAtomic, runCli } = require('./lib/guard');
 const { getHistory, hasEvent, renderTimeline, recordEvent } = require('./lib/history');
 
-function buildIndex(config, finishedAt, tickets, bounded, pr, events, issueResult) {
+function buildIndex(config, finishedAt, tickets, bounded, pr, events, issueResult, leftover) {
   const lines = [
     `# Session Summary: ${config.feature_name}`,
     '',
@@ -74,11 +78,23 @@ function buildIndex(config, finishedAt, tickets, bounded, pr, events, issueResul
       ''
     );
   }
+  if (leftover.sha || !leftover.ok) lines.push(...leftoverSection(leftover));
   if (config.git) lines.push(...branchSection(config.git, pr));
   if (config.issue) lines.push(...issueSection(config, issueResult));
   lines.push(...renderTimeline(events));
   lines.push('## Next', '', 'Start a new feature with /gps start <next-feature>', '');
   return lines.join('\n');
+}
+
+function leftoverSection(leftover) {
+  const lines = ['## Remaining changes', ''];
+  if (leftover.ok) {
+    const files = leftover.files.map((f) => `\`${f}\``).join(', ');
+    lines.push(`Committed by /gps finish (\`${leftover.sha}\`): ${files}`, '');
+  } else {
+    lines.push(`Not committed (${leftover.reason}). Commit them by hand:`, '', '```bash', ...leftover.commands, '```', '');
+  }
+  return lines;
 }
 
 function branchSection(gitInfo, pr) {
@@ -255,9 +271,12 @@ function finishSession() {
         `Run git switch ${config.git.branch}, then /gps finish again.`
       );
     }
-    if (hasUncommittedChanges(projectRoot)) {
-      console.error('⚠️  Uncommitted changes to tracked files will not be in the pull request.');
-    }
+  }
+
+  // Before the push, so the leftovers are in the pull request.
+  const leftover = commitRemainingChanges(projectRoot, `chore: commit remaining changes (gps finish ${sessionId})`);
+
+  if (config.git) {
     pr = openSessionPr(projectRoot, sessionDir, config, tickets, bounded);
     if (pr.ok) {
       // Saved at once, so a finish interrupted after this point reuses the
@@ -284,7 +303,7 @@ function finishSession() {
     ...getHistory(config),
     { at: finishedAt, event: 'session_finished', phase: 'finished', files: ['INDEX.md'] },
   ];
-  fs.writeFileSync(path.join(sessionDir, 'INDEX.md'), buildIndex(config, finishedAt, tickets, bounded, pr, events, issueResult));
+  fs.writeFileSync(path.join(sessionDir, 'INDEX.md'), buildIndex(config, finishedAt, tickets, bounded, pr, events, issueResult, leftover));
 
   config.finished_at = finishedAt;
   writeJsonAtomic(configPath, config);
@@ -292,13 +311,41 @@ function finishSession() {
 
   clearCurrentSession(sessionsDir);
 
+  // Last, once every session file is written. Not after a failed commit: the
+  // changes it left would be carried over to (or block) the switch.
+  let back = null;
+  if (config.git && leftover.ok) {
+    const base = config.git.base_branch;
+    back = base
+      ? { base, ...switchBranch(projectRoot, base) }
+      : { base, ok: false, reason: 'no base branch was recorded', commands: [] };
+  }
+
   console.log(`✅ Session complete: ${sessionId}`);
   console.log(`Summary: ${path.join(sessionDir, 'INDEX.md')}`);
+  if (leftover.sha) {
+    console.log(`📦 Committed ${leftover.files.length} remaining file(s) (${leftover.sha}): ${leftover.files.join(', ')}`);
+  } else if (!leftover.ok) {
+    console.error(`⚠️  Remaining changes not committed (${leftover.reason}). Run by hand:`);
+    for (const command of leftover.commands) console.error(`   ${command}`);
+  }
+  if (leftover.untracked.length > 0) {
+    console.error(`⚠️  Untracked files left uncommitted: ${leftover.untracked.join(', ')}`);
+  }
   if (pr && pr.ok) {
     console.log(`🔀 Pull request${pr.existing ? ' (already open, updated by the push)' : ''}: ${pr.url}`);
   } else if (pr) {
     console.error(`⚠️  Pull request not opened (${pr.step === 'push' ? 'git push' : 'gh pr create'} failed: ${pr.reason}). Run by hand:`);
     for (const command of pr.commands) console.error(`   ${command}`);
+  }
+  if (back && back.ok) {
+    const next = pr.ok ? 'merge the pull request' : 'open the pull request with the commands above, merge it';
+    console.log(`↩️  Back on ${back.base}: ${next}, then git pull`);
+  } else if (back) {
+    console.error(`⚠️  Still on ${config.git.branch}: switching to the base branch failed (${back.reason}).${back.commands.length > 0 ? ' Run by hand:' : ''}`);
+    for (const command of back.commands) console.error(`   ${command}`);
+  } else if (config.git) {
+    console.error(`⚠️  Still on ${config.git.branch}: commit the remaining changes, then git switch ${config.git.base_branch}.`);
   }
   if (issueResult) {
     const number = config.issue.number;
