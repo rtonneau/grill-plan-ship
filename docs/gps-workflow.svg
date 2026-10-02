@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 1680" role="img" aria-labelledby="svg-title svg-desc" focusable="false">
-  <title id="svg-title">GPS v2.2.0 workflow diagram</title>
-  <desc id="svg-desc">Optional SCOUT, then GRILL, PLAN, SHIP, and FINISH phases mapped across command, activity, and output columns. A side lane shows /gps auto running from the current phase to finish; a band lists commands usable at any time (status, handoff, clean, config), and a footer gives the script contract every step follows.</desc>
+  <title id="svg-title">GPS v2.3.0 workflow diagram</title>
+  <desc id="svg-desc">Optional SCOUT, then GRILL, PLAN, SHIP, and FINISH phases mapped across command, activity, and output columns. A side lane shows /gps auto running from the current phase to finish; a band lists commands usable at any time (status, help, handoff, clean, init, config), and a footer gives the script contract every step follows.</desc>
 
   <defs>
     <style>
@@ -27,7 +27,7 @@
 
   <rect class="bg" x="0" y="0" width="1600" height="1680" rx="28" />
 
-  <text class="h1" x="60" y="76">grill-plan-ship (GPS) workflow · v2.2.0</text>
+  <text class="h1" x="60" y="76">grill-plan-ship (GPS) workflow · v2.3.0</text>
   <text class="sub" x="60" y="108">Core flow: /gps start (or /gps start --issue) → /gps plan → /gps ship → /gps finish. Claude does the judgment; every deterministic step is a script.</text>
 
   <rect class="header" x="190" y="150" width="360" height="52" rx="14"/>
@@ -191,9 +191,9 @@
     <text class="phase" x="110" y="1457" text-anchor="middle">ANYTIME</text>
 
     <rect class="panel" x="190" y="1390" width="325" height="120" rx="18"/>
-    <text class="mono" x="212" y="1426">/gps status</text>
-    <text class="text" x="212" y="1456">Every session, scouted ideas,</text>
-    <text class="text" x="212" y="1480">and the next pending step</text>
+    <text class="mono" x="212" y="1426">/gps status · /gps help</text>
+    <text class="text" x="212" y="1456">Every session and the next step /</text>
+    <text class="text" x="212" y="1480">the workflow, any command explained</text>
 
     <rect class="panel" x="535" y="1390" width="325" height="120" rx="18"/>
     <text class="mono" x="557" y="1426">/gps handoff · /gps status</text>
@@ -206,8 +206,8 @@
     <text class="text" x="902" y="1480">ideas, after confirmation</text>
 
     <rect class="panel" x="1225" y="1390" width="335" height="120" rx="18"/>
-    <text class="mono" x="1247" y="1426">/gps config [--rescan]</text>
-    <text class="text" x="1247" y="1456">GitHub flag in</text>
+    <text class="mono" x="1247" y="1426">/gps init · /gps config</text>
+    <text class="text" x="1247" y="1456">First-run setup commit / GitHub flag</text>
     <text class="mono" x="1247" y="1480">.work/gps-config.json</text>
   </g>
 
