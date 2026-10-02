@@ -1,29 +1,12 @@
 # grill-plan-ship
 
-A structured workflow plugin for any code project.
+A Claude Code plugin that runs any code change through four phases:
 
-**Workflow:** brainstorm (grill) → plan → implement (ship)
+**grill** (spec the work) → **plan** (atomic tickets) → **ship** (one commit per ticket) → **finish** (summary, and a pull request on GitHub projects).
 
-**Commands:**
-- `/gps scout [--from <review>]` — Turn an architecture scan, or a review you already have, into ready-to-run `/gps start` seeds
-- `/gps start <feature>` — Begin a feature
-- `/gps issue <title>` — Report a problem as a GitHub issue (local session without GitHub) and work on it
-- `/gps clean [session-id|idea-slug...]` — List sessions by idle time (`/gps status` flags `stale` at 14+ days, `very-stale` at 28+) and scouted ideas not started yet, and delete the ones you pick, after confirmation. Local session folders and ideas only; branches, PRs, issues and scout reports are kept
-- `/gps config [--rescan]` — Show the project's GitHub flag; `--rescan` detects it again, e.g. after adding a github.com `origin`, and asks before changing it
-- `/gps handoff` — Save an in-flight checkpoint before stopping
-- `/gps resume` — Catch up on a session using its checkpoint plus live state
-- `/gps write` — Save the current phase's output (brainstorm resume, or plan + tickets) to disk. Optional: `/gps plan` and `/gps ship` save what's pending first
-- `/gps plan` — Create tickets
-- `/gps ticket <N>` — Implement one ticket by hand
-- `/gps ship` — Implement every remaining ticket in order, one commit each
-- `/gps finish` — Archive session: commit leftover tracked changes, then open the pull request of a planned session and switch back to its base branch (or comment on / close the issue of a bounded `/gps issue` session)
-- `/gps auto [--delegate] [plan|ship|finish]` — Run the session from its current phase to the target (default finish) without stopping: tickets are approved as drafted, and only the ship mode is asked, once, at the start. `--delegate` skips that question: each ticket is implemented by a subagent on its hinted model, then reviewed and committed in this session.
-
-## Workflow Visualization
+Claude does the judgment work: asking questions, planning, reviewing and summarizing. Everything deterministic (session files, templates, validation, git and gh calls, report formatting) is done by small Node.js scripts with no dependencies.
 
 <img src="docs/gps-workflow.svg" alt="Diagram of the GPS workflow: optional SCOUT, then GRILL, PLAN, SHIP and FINISH with command, activity and output columns, a /gps auto lane, and the commands usable at any time." />
-
-GPS phases and outputs at a glance, including `/gps write` checkpoints after GRILL and PLAN.
 
 ## Installation
 
@@ -32,123 +15,142 @@ GPS phases and outputs at a glance, including `/gps write` checkpoints after GRI
 /plugin install grill-plan-ship
 ```
 
-Restart Claude Code. To update later:
+Restart Claude Code. Update later with `/plugin marketplace update rtonneau/grill-plan-ship`. Requires Node.js 20+. The grill and plan conversations use other plugins: `mattpocock-skills` (`grill-with-docs`) or `superpowers` (`brainstorming`), plus `superpowers` (`writing-plans`) and, optionally, `unslop`.
+
+## Quick start
 
 ```
-/plugin marketplace update rtonneau/grill-plan-ship
+/gps start add-dark-mode   # creates the session, then the grill conversation starts
+/gps plan                  # once the design is approved: saves it, then drafts tickets
+/gps ship                  # once the tickets are approved: saves them, implements each, one commit each
+/gps finish                # INDEX.md summary; on GitHub, pushes the branch and opens the PR
 ```
 
-## Quick Start
+Or, once the direction is clear, `/gps auto` runs from wherever the session is to the end without stopping.
+
+## Commands
+
+| Command | What it does |
+|---|---|
+| `/gps scout [--from <review-file>] [direction]` | Turn an architecture review, or an existing review file, into ideas for `/gps start` |
+| `/gps start [--issue] <name>` | New session, then the grill (`--issue`: a bug report, filed as a GitHub issue) |
+| `/gps status` | Every session, scouted ideas, the current phase, a saved handoff, the next command |
+| `/gps clean [id...]` | Delete old sessions or drop ideas, after showing exactly what goes |
+| `/gps config [--rescan]` | Show, or detect again, whether the project uses GitHub |
+| `/gps write` | Save the approved grill or plan to disk (`plan`, `ship` and `auto` do it for you) |
+| `/gps plan` | Save the grill if pending, then draft tickets with model hints |
+| `/gps ship [N]` | Save the plan if pending, then implement every remaining ticket (or only ticket N) |
+| `/gps finish` | Close the session: leftovers committed, INDEX.md, PR |
+| `/gps auto [--delegate] [plan\|ship\|finish]` | Run from the current phase to the target without stopping |
+| `/gps handoff` | Save an in-flight checkpoint before you stop for the day |
+
+### One example per command
 
 ```
-# In any project:
-/gps start add-dark-mode
-# ...grill conversation happens automatically (grill-with-docs if installed, else brainstorming)...
-
-# Once the design is approved: plan tickets (saves the resume to 01-grill/resume.md first)
-/gps plan
-# ...writing-plans + unslop happen automatically...
-
-# Once the tickets are approved: implement each one, one commit each (saves plan.md + tickets first)
-/gps ship
-# (/gps write saves the pending output on its own; /gps auto runs through to finish)
-
-# Finish
-/gps finish
+/gps scout only review src/parser          # architecture scan of one area -> "/gps start <slug>" lines
+/gps scout --from docs/review.md only Critical and High   # an existing review -> grouped ideas
+/gps start runconfig-resolver              # a scouted idea: the grill opens with it already loaded
+/gps start --issue crash when saving a large file          # a report; on GitHub it becomes issue #N
+/gps status                                # "dark mode — ship · 1/3 done; next 02 persist" + Next: line
+/gps clean 2026-08-01__old-spike           # dry run first, deletes only after your yes
+/gps config --rescan                       # after adding a github.com origin or running gh auth login
+/gps write                                 # save the approved design now, without starting the plan
+/gps plan                                  # writing-plans drafts the tickets, unslop tightens them
+/gps ship 3                                # implement only ticket 3, inline
+/gps finish                                # for an issue session it asks "Close issue #N as well?"
+/gps auto --delegate                       # subagent per ticket on its hinted model, reviewed and committed here
+/gps handoff                               # HANDOFF.md: where you stopped, next step, settled decisions
 ```
 
-### Start from an existing review
+## How `/gps ship` works
 
-Already have a code review or audit? Turn its findings into seeded sessions instead of retyping them:
+`/gps ship` asks once how to implement the tickets:
 
-```
-/gps scout --from docs/reviews/2026-09-22-dotfiles-review.md
-# -> one candidate per group of related findings, e.g. "safe-bootstrap-linking  Critical · Strong"
-/gps start safe-bootstrap-linking   # the grill opens with those findings already loaded
-```
+- **inline:** Claude implements each ticket in this session.
+- **subagent:** each ticket goes to a fresh subagent on the ticket's `**Model:**` hint (`haiku`, `sonnet`, `opus` or `inherit`). The subagent commits through `ticket-complete.js`, and `ticket-check.js` verifies its DONE report before the next ticket starts.
+- **subagent + inline follow-up:** the subagent implements and verifies; this session reviews the diff, re-runs the Verification Step, fixes what's needed and commits.
 
-Add a direction to narrow it: `/gps scout --from review.md only Critical and High`, or `… one candidate per finding`.
+Only one implementer is ever live. A ticket that can't be finished is recorded with `ticket-block.js` and stops the run; it is never retried automatically. Each ticket's `commit-log.md` gets its test result and review notes from Claude, and its commit, time spent and token usage from the script.
 
-## Session Structure
+## Layout
 
 ```
-.work/sessions/YYYYMMDD__<feature>/
-├── 01-grill/           ← Brainstorm output
-├── 02-plan/            ← Plan + tickets
-├── 03-implement/       ← Implementation logs
-├── .session-config.json
-└── INDEX.md
-
-.scratch/tests/YYYYMMDD__<feature>/   ← Build/run/test artifacts for the whole session
+.claude-plugin/            plugin.json, marketplace.json
+skills/gps/
+├── SKILL.md               router: command table, script contract, shared rules
+├── references/<cmd>.md    one short file per command (what Claude does, which script to run)
+├── scripts/               one script per deterministic step
+│   └── lib/               shared helpers (cli contract, session store, git, gh, phases, ...)
+└── assets/                markdown templates
+tests/                     one test per script (tests/lib/: one per lib), e2e and GitHub-flow tests
 ```
 
-`/gps start` creates the scratch directory, records it as `scratch_dir` in `.session-config.json`, and adds `.scratch/` to the project's `.gitignore` if missing. `/gps ticket` prints its path so agents keep build logs and run output there (prefixed with the ticket number, e.g. `03-build.log`). To enforce a stricter policy (capture stdout, never write to the source tree), add it to your project's CLAUDE.md.
+### Script contract
 
-## Session history
+Every script in `skills/gps/scripts/` follows the same rules (see `scripts/lib/cli.js`):
 
-Every `.session-config.json` records the life of its session, so a timeline can be built from that file alone:
+- **Arguments:** positionals, then long options (`--flag`, `--name <value>`, `--name=<value>`, repeatable `--file`). `--json` and `--help` work everywhere.
+- **stdout:** text meant to be relayed to the user as is, or with `--json` one JSON object.
+- **stderr:** `⚠️  ` warnings; on failure `❌ <what failed>` plus a hint line.
+- **Exit codes:** `0` success, `1` failure (a precondition or validation failed; nothing changed unless the message says so), `2` usage error.
 
-- `history` — append-only events `{ at, event, phase, files, detail }`: `session_started`, `grill_written`, `plan_started`, `plan_written`, `ticket_started`, `ticket_done`, `handoff_saved`, `auto_started`, `session_finished`, plus on GitHub projects `branch_created`, `issue_created`, `pr_opened`, `issue_commented`, `issue_closed`. `files` point at the session's `.md` files, relative to its directory.
-- `current_phase` — the phase after the last event. `/gps status` still derives the phase from the files and reports `phaseDrift` when the two disagree (typically a ticket set to `✅ Done` without `ticket-done.js <N>`).
-- `ticket-done.js <N>` records the exact time a ticket was completed; `/gps ship` and `/gps ticket` run it after the Status line is set.
-- `/gps finish` renders the history as a `## Timeline` table in `INDEX.md`, with links to the files.
+| Script | Purpose |
+|---|---|
+| `start.js` | create a session (`--issue` for a report) and consume a matching scout seed |
+| `status.js` | the status report |
+| `clean.js` | list, `--dry-run` or `--delete` sessions and ideas |
+| `config.js` | show or `--rescan [--apply]` the GitHub flag |
+| `set-current.js` | switch the current session (only after the user confirms) |
+| `write-prepare.js` | name the pending phase and print the payload skeleton to fill |
+| `write-apply.js` | validate the payload and write resume.md or plan.md + tickets (creates the branch / files the issue on GitHub) |
+| `plan.js` | start the plan phase |
+| `ticket-queue.js` | the tickets, their state and model hints |
+| `ticket-start.js` | prepare a ticket's workspace (next pending one by default) |
+| `dispatch-prompt.js` | the Agent tool call for a ticket's subagent |
+| `ticket-complete.js` | commit the given files, mark the ticket Done, fill its log |
+| `ticket-block.js` | record why a ticket can't be finished |
+| `ticket-check.js` | verify a ticket really is complete |
+| `finish.js` | close the session |
+| `auto-route.js` | the steps `/gps auto` will run |
+| `handoff.js` | write HANDOFF.md |
+| `scout-merge.js` | archive a review and merge its ideas into the seeds |
 
-Sessions created before this feature are backfilled from their stored timestamps (`created_at`, phase start times, `finished_at`) and shown as "(reconstructed)".
+## Session files
 
-## Project config
-
-Whichever of `/gps start`, `/gps issue` or `/gps write` (plan phase) runs first in a project writes `.work/gps-config.json`:
-
-```json
-{ "version": 1, "github": { "enabled": true, "detected_at": "2026-09-25T09:00:00.000Z" } }
+```
+.work/sessions/YYYY-MM-DD__<slug>/
+├── 01-grill/resume.md            the approved design
+├── 02-plan/plan.md               strategy + ticket overview
+├── 02-plan/tickets/NN-<slug>.md  one spec per ticket (with an optional **Model:** line)
+├── 03-implement/NN-<slug>/commit-log.md
+├── HANDOFF.md                    /gps handoff
+├── INDEX.md                      /gps finish: summary, links, timeline
+└── .session-config.json          machine state: history, phase, usage, git branch/PR, issue
+.work/gps-config.json             project flag: github.enabled
+.scratch/tests/<session-id>/      build/run/test artifacts
 ```
 
-`github.enabled` is true when `origin` is on github.com **and** `gh auth status` succeeds. It is detected once and only read afterwards. When the project changes (a github.com `origin` added, `gh auth login` done later), run `/gps config --rescan`: it detects again and, if the value changes, asks before writing it. The new value applies to sessions whose plan is not saved yet. Edit the file by hand to force GitHub features on or off (GitHub Enterprise, opting out); a rescan never overwrites that without asking. It lives under `.work/`, so it is per checkout.
+`.work/` and `.scratch/` are added to `.gitignore` by `/gps start`. Every state change is appended to the session's `history` in `.session-config.json`; `/gps finish` turns it into a `## Timeline` table. The phase is always derived from the files, and `/gps status` flags any drift from the recorded one.
 
-## Branches and Pull Requests
+## GitHub projects
 
-When `github.enabled` is true, **planned** sessions get their own branch and end with a pull request:
+`.work/gps-config.json` says whether the project uses GitHub (`origin` on github.com and `gh auth status` succeeds). It is detected once; `/gps config --rescan` detects it again, and you can edit it by hand (e.g. for GitHub Enterprise).
 
-- **`/gps write` (plan phase)** asks for a `**Branch:**` name shaped like `<feat|fix|refactor|docs|chore|perf|test>/<short-slug>` (e.g. `feat/dark-mode-toggle`), which Claude picks from the approved plan. The branch is created from whatever is checked out (uncommitted changes come along), and that branch becomes the PR's base.
-- **Bounded sessions** (grill only, no plan) create no branch and open no PR: the work lands on the branch you already have checked out, and `/gps finish` commits any leftover tracked changes there.
-- **`/gps finish`** must run on the session branch. It first commits whatever is left in tracked files (`git add -u`, e.g. a log a project hook appends to) so it is in the PR; untracked files are only listed. Then it pushes the branch (`git push -u origin <branch>`) and runs `gh pr create` against the base branch, with the resume's problem statement, the tickets and the commits as the PR body. The PR link goes into `INDEX.md` (`## Branch & PR`), `.session-config.json` (`git.pr_url`) and `/gps status`.
-- Finally it switches back to the base branch (the one checked out at the plan write, not necessarily `main`), so you can merge the PR on GitHub and `git pull`.
-- If the commit, push, `gh` or switch fails (pre-commit hook, `gh` not installed or not logged in), the session still finishes and the output (and `INDEX.md`) lists the commands to run by hand. After a failed commit it stays on the session branch.
+- **Planned sessions:** saving the plan creates a session branch (`feat/…`, `fix/…`, named by Claude after the plan) from whatever is checked out. `/gps finish` commits leftover tracked changes, pushes, opens a PR against that base branch (or reuses an open one) and switches back to the base.
+- **Bounded sessions** (grill only, no plan) stay on the current branch: no branch, no PR.
+- **Issues:** `/gps start --issue` files the issue when the grill is saved. Bounded work gets a summary comment at finish (and, if you say so, the issue is closed). Planned work's PR says `Closes #N`.
+- A failed push, `gh` call or switch never fails the finish: the commands to run by hand are printed and written to INDEX.md.
 
-Projects with `github.enabled` false work exactly as before: no branch, no PR.
+## Token usage
 
-## Issues
+Each phase file (resume, plan, each commit log) ends with that phase's real token totals, read from Claude Code's session transcripts (sub-agents included). This relies on Claude Code's undocumented transcript layout, so it reads `unavailable` when the transcripts can't be found.
 
-`/gps issue <title>` starts a session like `/gps start`, framed as a report (problem, reproduction, expected result). On a GitHub project, `/gps write` on the grill phase files the GitHub issue from the resume and records it in `.session-config.json` (`issue`) and `/gps status`.
+## Development
 
-- **Bounded work:** no branch, no PR. Reference the issue in your commits. `/gps finish` comments a summary on the issue; Claude asks whether to close it too and passes `--close-issue` on yes.
-- **Planned work:** `/gps plan` as usual. The plan write creates the branch and `/gps finish` opens a PR that says `Closes #N`, so merging it closes the issue.
-- With `github.enabled` false it is a local session: same grill, no issue.
-
-## Features
-
-✅ Language-agnostic (works with any tech stack)
-✅ Composable (uses superpowers + unslop)
-✅ Documented (every session has INDEX.md)
-✅ Versionable (.session-config.json tracks state)
-✅ Token usage tracked per phase (grill, plan, each ticket)
-
-## Per-ticket model hint
-
-Each ticket may carry a `**Model:** haiku | sonnet | opus | inherit` line, suggested while planning and recorded by `/gps write`. Writing is strict: an unknown or empty value fails the write. Reading is lenient: `/gps ship` treats a missing or hand-edited unknown value as `inherit` and warns about the unknown one. Only a `**Model:**` line outside code fences counts. In subagent mode `/gps ship` shows each remaining ticket's model, lets you accept or override them once per run, and dispatches each subagent on that model (`inherit` uses the session's model). Subagent + inline follow-up mode uses the hint the same way, but the subagent only implements and verifies; the main session then reviews its diff, re-runs verification, fixes what's needed and commits. Inline mode ignores the hint. A blocked ticket is never retried on a stronger model.
-
-## Token Usage
-
-Every phase output (`01-grill/resume.md`, `02-plan/plan.md`, each ticket's `03-implement/NN-*/commit-log.md`) ends with a `## Token Usage` section reporting that phase's real input/output/cache token totals, parsed from Claude Code's own session transcripts. If the transcript can't be found or parsed, the section reads `unavailable` instead of blocking the write.
-
-Totals include sub-agent transcripts and count each API response once. This relies on Claude Code's undocumented transcript layout (`~/.claude/projects/<cwd with non-alphanumerics as ->/<session-id>.jsonl` and `<session-id>/subagents/*.jsonl`), so `unavailable` is a known possible outcome if that layout changes.
-
-## Example Session
-
-See `examples/` for real-world sessions:
-- `geant4-chemistry-refactor/` — Scientific project
-- `react-form-validation/` — Frontend project
-- `python-etl-pipeline/` — Data project
+```
+npm test                                  # every tests/**/*.test.js
+node tests/check-skill-size.js --max 200  # the CI check: every SKILL.md at most 200 lines
+```
 
 ## License
 

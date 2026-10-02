@@ -1,29 +1,14 @@
 # /gps plan
 
-**When:** After the grill's design is approved. Saving it first with `/gps write` is optional.
+**When:** the grill design is approved.
 
-**Save the grill first:** run `node $CLAUDE_PLUGIN_ROOT/scripts/write-target.js`. If its `target` is `grill`, the resume isn't saved yet: run `references/write.md` steps 2–3 now (only when the grill design was approved in this conversation; otherwise stop and say the grill must be finished first). Relay write-apply's `✅` line but not its `Next:` suggestion, then go on. Any other `target`: go on.
+1. `write-prepare.js`. If the grill phase is pending, finish `references/write.md` steps 2–3 now (only for a design approved in this conversation; otherwise say the grill must be finished first). Relay write-apply's `✅` line, not its `Next:`.
+2. `plan.js`.
+3. Draft the tickets at once with `writing-plans` (superpowers; missing: tell the user to install it), working from the resume `plan.js` names. Then run `unslop` on each ticket (missing: skip it and say so). Give each ticket a `**Model:**` line and keep it through unslop:
+   - `haiku`: mechanical work (renames, docs, config, one file with an obvious pattern)
+   - `sonnet`: ordinary implementation
+   - `opus`: cross-file design judgment or tricky debugging
+   - `inherit`: unsure
+4. Once the user approves the tickets: `/gps ship` saves and implements them (`/gps write` only saves them; `/gps auto` runs on to finish).
 
-**Run:** `node $CLAUDE_PLUGIN_ROOT/scripts/plan.js`
-
-**What it does:**
-
-1. Resolves the current session via `.work/sessions/.current-session`, then reads its `01-grill/resume.md` (fails if it still contains unfilled placeholders)
-2. **Fails and changes nothing if `02-plan/plan.md` already exists** — its hint says whether to run `/gps write` (plan still pending) or `/gps ship` (plan already written).
-3. Creates `02-plan/plan.md` and placeholder ticket stubs in `02-plan/tickets/` for `/gps write` to replace
-4. Immediately invokes the `writing-plans` skill against the approved `resume.md` to generate the actual tickets, then invokes `unslop` on each resulting ticket (skipped with a notice if `unslop` isn't available) — do not wait for or ask the user to run these themselves. While drafting the tickets, give each one a model hint as a standalone `**Model:** <value>` line that `/gps write` records (an unknown value fails the write). Keep that line when running `unslop`. Choose the value like this:
-   - `haiku`: mechanical work (renames, docs, config, one file with an obvious pattern).
-   - `sonnet`: ordinary implementation.
-   - `opus`: cross-file design judgment or tricky debugging.
-   - `inherit`: when unsure.
-
-   The user can override the hint at ship time in subagent mode; inline mode ignores it.
-
-**Output:** The writing-plans conversation begins right away.
-
-**Next:** Once the tickets are approved, run `/gps ship`: it saves the plan and tickets first (on a GitHub project that also creates the session branch), then implements them. `/gps write` does only the saving; `/gps auto` runs through to finish.
-
-## Dependencies
-
-- `writing-plans` (superpowers) turns the approved resume into tickets. If it isn't available, stop and tell the user to install the `superpowers` plugin.
-- `unslop` runs on each generated ticket for crisp language. If it isn't available, skip that step and tell the user it was skipped.
+**Example:** `/gps plan`

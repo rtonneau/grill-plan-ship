@@ -28,7 +28,7 @@
   <rect class="bg" x="0" y="0" width="1600" height="1560" rx="28" />
 
   <text class="h1" x="60" y="76">grill-plan-ship (GPS) workflow</text>
-  <text class="sub" x="60" y="108">Core flow: /gps start (or /gps issue) → /gps plan → /gps ship → /gps finish. /gps plan and /gps ship save pending output first; /gps auto runs to the end.</text>
+  <text class="sub" x="60" y="108">Core flow: /gps start (or /gps start --issue) → /gps plan → /gps ship → /gps finish. /gps plan and /gps ship save pending output first; /gps auto runs to the end.</text>
 
   <rect class="header" x="190" y="150" width="360" height="52" rx="14"/>
   <rect class="header" x="610" y="150" width="360" height="52" rx="14"/>
@@ -65,7 +65,7 @@
 
     <rect class="panel" x="190" y="400" width="360" height="200" rx="18"/>
     <text class="mono" x="214" y="436">/gps start &lt;feature&gt;</text>
-    <text class="mono" x="214" y="464">/gps issue &lt;title&gt;  (report)</text>
+    <text class="mono" x="214" y="464">/gps start --issue &lt;title&gt;</text>
     <text class="mono" x="214" y="492">/gps write  (optional: save grill)</text>
     <text class="note" x="214" y="540">Bounded work: implement directly,</text>
     <text class="note" x="214" y="562">then /gps finish (no plan, no PR)</text>
@@ -82,7 +82,7 @@
     <text class="mono" x="1054" y="466">.work/.../01-grill/notes.md</text>
     <text class="mono" x="1054" y="494">.work/.../.session-config.json</text>
     <text class="mono" x="1054" y="522">.scratch/tests/&lt;session&gt;/</text>
-    <text class="text" x="1054" y="556">GitHub + /gps issue: grill write</text>
+    <text class="text" x="1054" y="556">GitHub + --issue: grill write</text>
     <text class="text" x="1054" y="578">files the GitHub issue</text>
   </g>
 
@@ -117,7 +117,7 @@
     <rect class="panel" x="190" y="880" width="360" height="230" rx="18"/>
     <text class="mono" x="214" y="916">/gps ship  (all remaining tickets)</text>
     <text class="note" x="214" y="940">saves the plan first if pending</text>
-    <text class="mono" x="214" y="972">/gps ticket &lt;N&gt;  (one, inline)</text>
+    <text class="mono" x="214" y="972">/gps ship &lt;N&gt;  (one, inline)</text>
 
     <rect class="panel" x="610" y="880" width="360" height="230" rx="18"/>
     <text class="text" x="634" y="918">• Mode: subagent, inline, or</text>
@@ -187,7 +187,7 @@
     <text class="text" x="212" y="1480">and the next pending step</text>
 
     <rect class="panel" x="535" y="1390" width="325" height="120" rx="18"/>
-    <text class="mono" x="557" y="1426">/gps handoff · /gps resume</text>
+    <text class="mono" x="557" y="1426">/gps handoff · /gps status</text>
     <text class="text" x="557" y="1456">Save a checkpoint to HANDOFF.md /</text>
     <text class="text" x="557" y="1480">catch up from it plus live state</text>
 
