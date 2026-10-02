@@ -6,7 +6,7 @@ A Claude Code plugin that runs any code change through four phases:
 
 Claude does the judgment work: asking questions, planning, reviewing and summarizing. Everything deterministic (session files, templates, validation, git and gh calls, report formatting) is done by small Node.js scripts with no dependencies.
 
-<img src="docs/gps-workflow.svg" alt="Diagram of the GPS workflow: optional SCOUT, then GRILL, PLAN, SHIP and FINISH with command, activity and output columns, a /gps auto lane, and the commands usable at any time." />
+<img src="docs/gps-workflow.svg" alt="Diagram of the GPS workflow: optional SCOUT, then GRILL, PLAN, SHIP and FINISH with command, activity and output columns, a /gps auto lane, the commands usable at any time, and the script contract." />
 
 ## Installation
 

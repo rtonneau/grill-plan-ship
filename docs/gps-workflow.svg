@@ -1,6 +1,6 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 1560" role="img" aria-labelledby="svg-title svg-desc" focusable="false">
-  <title id="svg-title">GPS workflow diagram</title>
-  <desc id="svg-desc">Optional SCOUT, then GRILL, PLAN, SHIP, and FINISH phases mapped across command, activity, and output columns. A side lane shows /gps auto running from the current phase to finish; a bottom band lists commands usable at any time (status, handoff, resume, clean, config).</desc>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 1680" role="img" aria-labelledby="svg-title svg-desc" focusable="false">
+  <title id="svg-title">GPS v2.0.0 workflow diagram</title>
+  <desc id="svg-desc">Optional SCOUT, then GRILL, PLAN, SHIP, and FINISH phases mapped across command, activity, and output columns. A side lane shows /gps auto running from the current phase to finish; a band lists commands usable at any time (status, handoff, clean, config), and a footer gives the script contract every step follows.</desc>
 
   <defs>
     <style>
@@ -25,10 +25,10 @@
     </marker>
   </defs>
 
-  <rect class="bg" x="0" y="0" width="1600" height="1560" rx="28" />
+  <rect class="bg" x="0" y="0" width="1600" height="1680" rx="28" />
 
-  <text class="h1" x="60" y="76">grill-plan-ship (GPS) workflow</text>
-  <text class="sub" x="60" y="108">Core flow: /gps start (or /gps start --issue) → /gps plan → /gps ship → /gps finish. /gps plan and /gps ship save pending output first; /gps auto runs to the end.</text>
+  <text class="h1" x="60" y="76">grill-plan-ship (GPS) workflow · v2.0.0</text>
+  <text class="sub" x="60" y="108">Core flow: /gps start (or /gps start --issue) → /gps plan → /gps ship → /gps finish. Claude does the judgment; every deterministic step is a script.</text>
 
   <rect class="header" x="190" y="150" width="360" height="52" rx="14"/>
   <rect class="header" x="610" y="150" width="360" height="52" rx="14"/>
@@ -47,6 +47,7 @@
     <rect class="panel" x="190" y="230" width="360" height="130" rx="18"/>
     <text class="mono" x="214" y="266">/gps scout [direction]</text>
     <text class="mono" x="214" y="294">/gps scout --from &lt;review-file&gt;</text>
+    <text class="note" x="214" y="330">scripts: scout-merge.js</text>
 
     <rect class="panel" x="610" y="230" width="360" height="130" rx="18"/>
     <text class="text" x="634" y="268">• Architecture review of the codebase</text>
@@ -67,8 +68,9 @@
     <text class="mono" x="214" y="436">/gps start &lt;feature&gt;</text>
     <text class="mono" x="214" y="464">/gps start --issue &lt;title&gt;</text>
     <text class="mono" x="214" y="492">/gps write  (optional: save grill)</text>
-    <text class="note" x="214" y="540">Bounded work: implement directly,</text>
-    <text class="note" x="214" y="562">then /gps finish (no plan, no PR)</text>
+    <text class="note" x="214" y="522">scripts: start.js, write-prepare.js → write-apply.js</text>
+    <text class="note" x="214" y="556">Bounded work: implement directly,</text>
+    <text class="note" x="214" y="578">then /gps finish (no plan, no PR)</text>
 
     <rect class="panel" x="610" y="400" width="360" height="200" rx="18"/>
     <text class="text" x="634" y="438">• Load the matching scout seed, if any</text>
@@ -79,9 +81,8 @@
 
     <rect class="panel" x="1030" y="400" width="360" height="200" rx="18"/>
     <text class="mono" x="1054" y="438">.work/.../01-grill/resume.md</text>
-    <text class="mono" x="1054" y="466">.work/.../01-grill/notes.md</text>
-    <text class="mono" x="1054" y="494">.work/.../.session-config.json</text>
-    <text class="mono" x="1054" y="522">.scratch/tests/&lt;session&gt;/</text>
+    <text class="mono" x="1054" y="466">.work/.../.session-config.json</text>
+    <text class="mono" x="1054" y="494">.scratch/tests/&lt;session&gt;/</text>
     <text class="text" x="1054" y="556">GitHub + --issue: grill write</text>
     <text class="text" x="1054" y="578">files the GitHub issue</text>
   </g>
@@ -94,6 +95,7 @@
     <text class="mono" x="214" y="676">/gps plan</text>
     <text class="note" x="214" y="700">saves the grill first if pending</text>
     <text class="mono" x="214" y="732">/gps write  (optional: save plan)</text>
+    <text class="note" x="214" y="790">scripts: plan.js, write-prepare.js → write-apply.js</text>
 
     <rect class="panel" x="610" y="640" width="360" height="200" rx="18"/>
     <text class="text" x="634" y="678">• writing-plans drafts atomic tickets</text>
@@ -118,20 +120,24 @@
     <text class="mono" x="214" y="916">/gps ship  (all remaining tickets)</text>
     <text class="note" x="214" y="940">saves the plan first if pending</text>
     <text class="mono" x="214" y="972">/gps ship &lt;N&gt;  (one, inline)</text>
+    <text class="note" x="214" y="1010">scripts: ticket-queue.js, ticket-start.js,</text>
+    <text class="note" x="214" y="1032">dispatch-prompt.js, ticket-check.js,</text>
+    <text class="note" x="214" y="1054">ticket-complete.js, ticket-block.js</text>
 
     <rect class="panel" x="610" y="880" width="360" height="230" rx="18"/>
     <text class="text" x="634" y="918">• Mode: subagent, inline, or</text>
     <text class="text" x="646" y="940">subagent + inline review-and-commit</text>
     <text class="text" x="634" y="968">• Implement, run the Verification Step</text>
     <text class="text" x="634" y="996">• Build/test artifacts in the scratch dir</text>
-    <text class="text" x="634" y="1024">• One commit per ticket</text>
-    <text class="text" x="634" y="1052">• Blocked ticket stops the run</text>
+    <text class="text" x="634" y="1024">• One commit per ticket, touched files only</text>
+    <text class="text" x="634" y="1052">• Subagent DONE re-checked by a script</text>
+    <text class="text" x="634" y="1080">• Blocked ticket stops the run</text>
 
     <rect class="panel" x="1030" y="880" width="360" height="230" rx="18"/>
     <text class="mono" x="1054" y="918">.work/.../03-implement/</text>
     <text class="mono" x="1070" y="946">NN-&lt;slug&gt;/commit-log.md</text>
-    <text class="text" x="1054" y="980">Status: ✅ Done, commits, test output,</text>
-    <text class="text" x="1054" y="1002">review notes, token usage</text>
+    <text class="text" x="1054" y="980">Claude: test result, review notes</text>
+    <text class="text" x="1054" y="1002">Script: ✅ Done, commits, time, tokens</text>
     <text class="text" x="1054" y="1036">ticket_started / done events in</text>
     <text class="text" x="1054" y="1058">.session-config.json history</text>
   </g>
@@ -143,7 +149,9 @@
     <rect class="panel" x="190" y="1150" width="360" height="190" rx="18"/>
     <text class="mono" x="214" y="1186">/gps finish</text>
     <text class="mono" x="214" y="1214">/gps finish --close-issue</text>
-    <text class="note" x="214" y="1238">bounded issue session, on request</text>
+    <text class="mono" x="214" y="1238">/gps finish --keep-issue</text>
+    <text class="note" x="214" y="1262">bounded issue session: one is required</text>
+    <text class="note" x="214" y="1296">scripts: finish.js, set-current.js</text>
 
     <rect class="panel" x="610" y="1150" width="360" height="190" rx="18"/>
     <text class="text" x="634" y="1188">• Commit leftover tracked changes</text>
@@ -200,5 +208,15 @@
     <text class="mono" x="1247" y="1426">/gps config [--rescan]</text>
     <text class="text" x="1247" y="1456">GitHub flag in</text>
     <text class="mono" x="1247" y="1480">.work/gps-config.json</text>
+  </g>
+
+  <g id="band-contract">
+    <rect x="40" y="1540" width="140" height="100" rx="26" fill="none" stroke="#9dd8ff" stroke-width="2"/>
+    <text class="phaseSmall" x="110" y="1584" text-anchor="middle">SCRIPT</text>
+    <text class="phaseSmall" x="110" y="1604" text-anchor="middle">CONTRACT</text>
+
+    <rect class="panel" x="190" y="1540" width="1370" height="100" rx="18"/>
+    <text class="mono" x="212" y="1576">node $CLAUDE_PLUGIN_ROOT/skills/gps/scripts/&lt;name&gt;.js [args] [--json] [--help]</text>
+    <text class="text" x="212" y="1610">stdout: text relayed as is (--json: one object) · ⚠️ warnings never stop · exit 1: ❌ + hint, stop · exit 2: usage error · Next: names the next command</text>
   </g>
 </svg>
