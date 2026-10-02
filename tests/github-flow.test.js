@@ -221,7 +221,8 @@ assert.match(res.err, /session .*search-filters is on branch feat\/search-filter
 assert.match(res.err, /git switch feat\/search-filters/);
 git('switch', '-q', 'feat/search-filters');
 assert.ok(!fs.existsSync(path.join(sessionDir, 'INDEX.md')));
-assert.strictEqual(fs.readFileSync(configPath, 'utf-8'), configBefore);
+// Parsed, not byte-compared: the checkout may turn LF into CRLF (core.autocrlf on Windows).
+assert.deepStrictEqual(readConfig(configPath), JSON.parse(configBefore));
 // With the session on hand, a wrong branch is still refused by finish's own check.
 git('switch', '-q', '-c', 'detour');
 res = run('finish.js');
