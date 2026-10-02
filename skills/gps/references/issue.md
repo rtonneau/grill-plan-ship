@@ -2,7 +2,7 @@
 
 **When:** Reporting a problem (bug, regression, small request) you also want to work on, instead of `/gps start`. On a GitHub project the report becomes a GitHub issue.
 
-**Run:** `node $CLAUDE_PLUGIN_ROOT/scripts/issue-session.js "<title>"`
+**Run:** `node $CLAUDE_PLUGIN_ROOT/skills/gps/scripts/issue-session.js "<title>"`
 
 **What it does:**
 

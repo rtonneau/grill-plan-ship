@@ -6,7 +6,7 @@
 
 **Steps:**
 
-1. Run `node $CLAUDE_PLUGIN_ROOT/scripts/write-target.js`. Its JSON `target` is:
+1. Run `node $CLAUDE_PLUGIN_ROOT/skills/gps/scripts/write-target.js`. Its JSON `target` is:
    - `none`: nothing to write. If `reason` is `plan-not-started`, suggest `/gps plan`. If it is `complete`, suggest `/gps status`. Stop.
    - `grill` or `plan`: continue with its `payloadPath`, `fields` and `sections`.
 2. Write the payload to `payloadPath` in a single Write call (if `existingPayload` is true, it's left from an earlier run: Read it first so the Write can replace it):
@@ -38,7 +38,7 @@
 
      <anything the implementer needs>
      ````
-3. Run `node $CLAUDE_PLUGIN_ROOT/scripts/write-apply.js`. It checks the payload, writes `resume.md` or `plan.md` and the tickets, fills Token Usage, removes the stubs and deletes the payload.
+3. Run `node $CLAUDE_PLUGIN_ROOT/skills/gps/scripts/write-apply.js`. It checks the payload, writes `resume.md` or `plan.md` and the tickets, fills Token Usage, removes the stubs and deletes the payload.
    - `❌` with a list: nothing was written. Fix those items in the payload and run it again.
    - `✅`: relay its line; it names the next command. On the plan phase of a GitHub project it also creates the branch from the current HEAD, switches to it and prints `🌿 Working on branch …`: relay that too. All later commits for this session go on that branch.
 

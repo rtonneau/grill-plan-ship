@@ -2,7 +2,7 @@
 
 **When:** Starting implementation of a single ticket by hand. To implement every remaining ticket in one go, use `/gps ship` instead.
 
-**Run:** `node $CLAUDE_PLUGIN_ROOT/scripts/ticket.js <number>`
+**Run:** `node $CLAUDE_PLUGIN_ROOT/skills/gps/scripts/ticket.js <number>`
 
 **What it does:**
 
@@ -14,6 +14,6 @@
 6. Prints ticket spec to console, including that phase key and the session's scratch dir (backfilled, with a warning, for sessions started before scratch dirs existed)
 7. Records a `ticket_started` event (once per ticket) in the session history in `.session-config.json`.
 
-When the ticket is done — its Status line set to exactly `**Status:** ✅ Done` — run `node $CLAUDE_PLUGIN_ROOT/scripts/ticket-done.js <number>` to record the completion time. It refuses unless the log says Done, and does nothing if the ticket was already recorded.
+When the ticket is done — its Status line set to exactly `**Status:** ✅ Done` — run `node $CLAUDE_PLUGIN_ROOT/skills/gps/scripts/ticket-done.js <number>` to record the completion time. It refuses unless the log says Done, and does nothing if the ticket was already recorded.
 
 **Output:** Workspace + spec printed. Ready to code.

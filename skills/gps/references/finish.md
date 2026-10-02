@@ -2,7 +2,7 @@
 
 **When:** All tickets complete (or, for a bounded session, once the resume is saved and the work is done).
 
-**Run:** `node $CLAUDE_PLUGIN_ROOT/scripts/finish.js` (add `--close-issue` only as described in step 5)
+**Run:** `node $CLAUDE_PLUGIN_ROOT/skills/gps/scripts/finish.js` (add `--close-issue` only as described in step 5)
 
 **What it does:**
 
@@ -15,6 +15,6 @@
 7. Records `finished_at` (and `git.pr_url`, `issue.commented` / `issue.closed`) in `.session-config.json`
 8. Clears `.work/sessions/.current-session`
 9. **GitHub sessions only:** switches back to the base branch (`git.base_branch`: the branch checked out when the plan write created the session branch, e.g. `main` or `O2_Included`) and prints `↩️ Back on <base>: merge the pull request, then git pull`. Relay it. Skipped after a failed step-3 commit (`⚠️ Still on <branch>`), so leftover changes stay on the session branch. If the switch fails, finish still succeeds and prints `⚠️` with the command: relay it, don't retry.
-10. Prints an `UNFINISHED_SESSIONS [...]` line. If it lists any sessions, ask the user whether to switch to one of them. Only if they say yes, run `node $CLAUDE_PLUGIN_ROOT/scripts/set-current.js <session-id>`. Otherwise suggest `/gps start <feature-name>`.
+10. Prints an `UNFINISHED_SESSIONS [...]` line. If it lists any sessions, ask the user whether to switch to one of them. Only if they say yes, run `node $CLAUDE_PLUGIN_ROOT/skills/gps/scripts/set-current.js <session-id>`. Otherwise suggest `/gps start <feature-name>`.
 
 **Output:** Summarized session with nothing left uncommitted in tracked files (and, on GitHub projects, its PR link, back on the base branch), ready to start the next feature.

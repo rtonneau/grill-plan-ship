@@ -2,7 +2,7 @@
 
 **When:** You trust the direction and want the session to run from its current phase to a target without stopping: `plan` (plan and tickets written), `ship` (every ticket implemented) or `finish` (the default: session closed, PR opened on GitHub projects).
 
-**Run:** `node $CLAUDE_PLUGIN_ROOT/scripts/auto-route.js [--delegate] [plan|ship|finish]`
+**Run:** `node $CLAUDE_PLUGIN_ROOT/skills/gps/scripts/auto-route.js [--delegate] [plan|ship|finish]`
 
 `--delegate` presets the ship mode to subagent + inline follow-up: each ticket's subagent implements it on the model from its `**Model:**` hint, then this session reviews, finishes and commits it. Pass it through when the user typed it. On a route without a ship step it is ignored with a `⚠️` line.
 

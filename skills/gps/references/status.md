@@ -4,10 +4,10 @@
 
 **What it does:**
 
-1. Runs `node $CLAUDE_PLUGIN_ROOT/scripts/status.js`, which:
+1. Runs `node $CLAUDE_PLUGIN_ROOT/skills/gps/scripts/status.js`, which:
    - Lists every session under `.work/sessions/` with its feature name, creation date, `finishedAt`, `branch`, `prUrl` and `issueUrl` (GitHub sessions; `null` otherwise), `currentPhase` (the phase the last handler recorded in the config; `null` for older sessions), `phaseDrift` (`{ recorded, derived }` when the recorded phase differs from the derived one, else `null`), and `phase` (computed from the session's files: `grill`, `plan-not-started`, `plan`, `ship`, `finish-pending`, `plan-complete` or `finished`; old `status` / `phases_completed` config fields are ignored).
    - Lists every scouted idea not started yet as `ideas` (from `.work/sessions/.pending-seeds.json`; `/gps start <slug>` removes an idea once it becomes a session, `/gps clean <slug>` drops it), strongest first: `slug`, `strength`, `severity`, `problem`, `sourceReport`, `sourcePath`, `createdAt`, `startCommand`. If that file is unreadable, `ideas` is empty and `ideasProblem` says why — status never moves or repairs it.
-   - Resolves the current session from `.work/sessions/.current-session` (same logic as every other command — there is no fallback to "the most recent session"). If the pointer is missing, invalid, points at a deleted session or at a finished one, `current` is `null` and `currentProblem` explains why and lists the unfinished sessions: show that to the user, ask which session to use, and only after they confirm run `node $CLAUDE_PLUGIN_ROOT/scripts/set-current.js <session-id>`.
+   - Resolves the current session from `.work/sessions/.current-session` (same logic as every other command — there is no fallback to "the most recent session"). If the pointer is missing, invalid, points at a deleted session or at a finished one, `current` is `null` and `currentProblem` explains why and lists the unfinished sessions: show that to the user, ask which session to use, and only after they confirm run `node $CLAUDE_PLUGIN_ROOT/skills/gps/scripts/set-current.js <session-id>`.
    - Otherwise, for the current session only, adds:
      - `phase` and `suggestedNext` (`{ command, why }`) — the next command to run and why.
      - `writeTarget` — whether `/gps write` has something pending (`grill`, `plan`, or `none`), same detection `/gps write` itself uses.

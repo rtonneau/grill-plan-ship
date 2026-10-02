@@ -36,11 +36,11 @@ All output lives in `.work/sessions/YYYY-MM-DD__<slug>/` (local date; `<slug>` i
 
 ## Rules for every command
 
-- Every command runs its handler script with the exact `node $CLAUDE_PLUGIN_ROOT/scripts/<name>.js` line given in its references file. **Never create, edit or delete session state by hand** (`.session-config.json`, `.current-session`, `.pending-seeds.json`, directories) to stand in for a handler.
+- Every command runs its handler script with the exact `node $CLAUDE_PLUGIN_ROOT/skills/gps/scripts/<name>.js` line given in its references file. **Never create, edit or delete session state by hand** (`.session-config.json`, `.current-session`, `.pending-seeds.json`, directories) to stand in for a handler.
 - If a handler exits non-zero, it prints `❌ <what failed>` and a recovery hint on the next line. Show both to the user and stop that command — do not retry with different arguments or work around it, unless its references file says how to recover (e.g. `/gps write` payload errors).
 - While a grill skill (`grill-with-docs`, `grilling`, `domain-modeling` or `brainstorming`) is running, ask every question that has a finite set of answers with the `AskUserQuestion` tool, not plain chat text. Put your recommended answer first, marked "(Recommended)". Ask one question per call. Use free-text questions only for open-ended answers. This overrides a skill's own "ask in chat" phrasing.
 - Handlers never overwrite existing work: re-running `/gps start`, `/gps issue`, `/gps plan`, `/gps ticket` or `/gps finish` against existing output either refuses (changing nothing) or resumes, as described per command.
 
 ## Switching the current session (internal, no `/gps` command)
 
-`node $CLAUDE_PLUGIN_ROOT/scripts/set-current.js <session-id>` points `.work/sessions/.current-session` at an existing, unfinished session. Run it **only after the user confirms** a switch — after `/gps finish`, or when a handler reports that the current session can't be resolved.
+`node $CLAUDE_PLUGIN_ROOT/skills/gps/scripts/set-current.js <session-id>` points `.work/sessions/.current-session` at an existing, unfinished session. Run it **only after the user confirms** a switch — after `/gps finish`, or when a handler reports that the current session can't be resolved.

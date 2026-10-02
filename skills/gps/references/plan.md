@@ -2,9 +2,9 @@
 
 **When:** After the grill's design is approved. Saving it first with `/gps write` is optional.
 
-**Save the grill first:** run `node $CLAUDE_PLUGIN_ROOT/scripts/write-target.js`. If its `target` is `grill`, the resume isn't saved yet: run `references/write.md` steps 2–3 now (only when the grill design was approved in this conversation; otherwise stop and say the grill must be finished first). Relay write-apply's `✅` line but not its `Next:` suggestion, then go on. Any other `target`: go on.
+**Save the grill first:** run `node $CLAUDE_PLUGIN_ROOT/skills/gps/scripts/write-target.js`. If its `target` is `grill`, the resume isn't saved yet: run `references/write.md` steps 2–3 now (only when the grill design was approved in this conversation; otherwise stop and say the grill must be finished first). Relay write-apply's `✅` line but not its `Next:` suggestion, then go on. Any other `target`: go on.
 
-**Run:** `node $CLAUDE_PLUGIN_ROOT/scripts/plan.js`
+**Run:** `node $CLAUDE_PLUGIN_ROOT/skills/gps/scripts/plan.js`
 
 **What it does:**
 

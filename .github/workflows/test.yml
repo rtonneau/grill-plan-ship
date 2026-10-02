@@ -18,6 +18,6 @@ jobs:
           node-version: ${{ matrix.node }}
       - name: Syntax check
         shell: bash
-        run: for f in scripts/*.js scripts/lib/*.js; do node --check "$f"; done
+        run: for f in skills/gps/scripts/*.js skills/gps/scripts/lib/*.js tests/*.js tests/lib/*.js; do node --check "$f"; done
       - name: Tests
         run: npm test

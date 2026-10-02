@@ -2,7 +2,7 @@
 
 **When:** Beginning a new feature.
 
-**Run:** `node $CLAUDE_PLUGIN_ROOT/scripts/start-session.js "<feature-name>"`
+**Run:** `node $CLAUDE_PLUGIN_ROOT/skills/gps/scripts/start-session.js "<feature-name>"`
 
 **What it does:**
 
