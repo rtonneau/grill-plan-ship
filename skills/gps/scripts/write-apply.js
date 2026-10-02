@@ -1,13 +1,16 @@
 #!/usr/bin/env node
 
 /**
- * /gps write, step 3
+ * write-apply.js [--json]
  *
+ * /gps write, step 2 (after write-prepare.js and Claude's payload).
  * Applies the payload Claude wrote to <sessionDir>/.write-payload.md:
  * checks it against the pending phase's headings, fills resume.md or
  * plan.md (with a generated Token Usage section), writes the plan's
- * NN-<slug>.md tickets and removes the [slug] stubs, then deletes the
- * payload. Writes nothing unless every check passes.
+ * NN-<slug>.md tickets (removing the [slug] stubs older sessions have),
+ * then deletes the payload. Writes nothing unless every check passes. The
+ * tickets are written before plan.md, so a write that fails halfway leaves
+ * the plan pending and the same payload can simply be applied again.
  *
  * Plan phase in a GitHub project (github.enabled in .work/gps-config.json),
  * for a session without a branch yet: also creates the session branch named
@@ -15,13 +18,14 @@
  * it in .session-config.json as `git`, for /gps finish to open the PR.
  * Bounded sessions (no plan) never get a branch.
  *
- * Grill phase of a `kind: "issue"` session (/gps issue) in a GitHub project:
+ * Grill phase of a `kind: "issue"` session (/gps start --issue) in a GitHub project:
  * also files the GitHub issue from the resume sections and records it in
  * .session-config.json as `issue`. If gh fails nothing is written.
  */
 
 const fs = require('fs');
 const path = require('path');
+const { main } = require('./lib/cli');
 const { resolveSession } = require('./lib/session-store');
 const { resolveWriteTarget, placeholderTester, checkPlanWritten } = require('./lib/write-target');
 const { computeUsage } = require('./lib/token-usage');
@@ -37,17 +41,18 @@ const {
   renderPhaseFile,
   renderTicket,
 } = require('./lib/write-payload');
-const { validateBranchName, createSessionBranch, createIssue, buildIssueBody } = require('./lib/github');
+const { validateBranchName, createSessionBranch } = require('./lib/git');
+const { createIssue, buildIssueBody } = require('./lib/github');
 const { githubEnabled } = require('./lib/project-config');
-const { GpsError, writeJsonAtomic, runCli } = require('./lib/guard');
+const { GpsError, writeJsonAtomic } = require('./lib/guard');
 
 const NOTHING_PENDING_HINT = {
   'plan-not-started': 'Run /gps plan first.',
   complete: 'Both phases are written. Run /gps status for the next command.',
 };
 
-runCli(() => {
-  const { sessionId, sessionDir, configPath, config } = resolveSession(process.cwd());
+function apply({ projectRoot, warn }) {
+  const { sessionId, sessionDir, configPath, config } = resolveSession(projectRoot);
   const { target, reason } = resolveWriteTarget(sessionDir);
   if (target === 'none') {
     throw new GpsError('Nothing to write for this session.', NOTHING_PENDING_HINT[reason]);
@@ -57,7 +62,7 @@ runCli(() => {
   if (!fs.existsSync(payloadPath)) {
     throw new GpsError(
       `No payload at ${payloadPath}.`,
-      'Run write-target.js, write the payload to its payloadPath, then run this again.'
+      'Run write-prepare.js, write the filled skeleton to its payload path, then run this again.'
     );
   }
 
@@ -77,7 +82,6 @@ runCli(() => {
     errors.push(`${path.basename(targetPath)} would still have a placeholder outside the payload's reach (e.g. a hand-edited header line). Remove it from ${targetPath} by hand.`);
   }
 
-  const projectRoot = process.cwd();
   const branch = target === 'plan' && !config.git && githubEnabled(projectRoot) ? payload.fields.Branch || '' : null;
   if (branch !== null) errors.push(...validateBranchName(projectRoot, branch));
   const issueWanted = target === 'grill' && config.kind === 'issue' && !config.issue && githubEnabled(projectRoot);
@@ -85,9 +89,12 @@ runCli(() => {
   const ticketsDir = path.join(sessionDir, '02-plan', 'tickets');
   const stubs = [];
   if (target === 'plan' && fs.existsSync(ticketsDir)) {
+    // A ticket the payload names is replaced (left by a failed earlier run);
+    // any other existing ticket would silently join the plan, so it is refused.
+    const named = new Set(payload.tickets.map((t) => t.fileName));
     for (const fileName of fs.readdirSync(ticketsDir).filter((f) => f.endsWith('.md'))) {
       if (fileName.includes('[slug]')) stubs.push(fileName);
-      else errors.push(`02-plan/tickets/${fileName} already exists. Move or delete it: only [slug] stubs are replaced.`);
+      else if (!named.has(fileName)) errors.push(`02-plan/tickets/${fileName} already exists and is not in the payload. Move or delete it.`);
     }
   }
 
@@ -139,33 +146,40 @@ runCli(() => {
     });
   }
 
+  if (target === 'plan') {
+    fs.mkdirSync(ticketsDir, { recursive: true });
+    for (const ticket of payload.tickets) {
+      fs.writeFileSync(path.join(ticketsDir, ticket.fileName), renderTicket(ticket));
+    }
+    for (const stub of stubs) fs.unlinkSync(path.join(ticketsDir, stub));
+  }
   fs.mkdirSync(path.dirname(targetPath), { recursive: true });
   fs.writeFileSync(targetPath, rendered);
 
   if (target === 'grill') {
     recordEvent(configPath, config, sessionDir, { event: 'grill_written', files: ['01-grill/resume.md'] });
     fs.unlinkSync(payloadPath);
-    console.log(`✅ Grill written for ${sessionId}. Next: /gps plan`);
-    if (issue) console.log(`📌 Issue #${issue.number}: ${issue.url}`);
-    return;
+    const lines = [`✅ Grill written for ${sessionId}: ${targetPath}`];
+    if (issue) lines.push(`📌 Issue #${issue.number}: ${issue.url}`);
+    lines.push('Next: /gps plan (bounded work skips the plan: implement it on the current branch, then /gps finish).');
+    return { text: lines.join('\n'), data: { sessionId, phase: 'grill', path: targetPath, issue } };
   }
-
-  fs.mkdirSync(ticketsDir, { recursive: true });
-  for (const ticket of payload.tickets) {
-    fs.writeFileSync(path.join(ticketsDir, ticket.fileName), renderTicket(ticket));
-  }
-  for (const stub of stubs) fs.unlinkSync(path.join(ticketsDir, stub));
 
   const { tickets, skipped } = checkPlanWritten(sessionDir);
-  for (const fileName of skipped) {
-    console.error(`⚠️  Skipped ${fileName}: ticket files must be named NN-<slug>.md`);
-  }
+  for (const fileName of skipped) warn(`Skipped ${fileName}: ticket files must be named NN-<slug>.md`);
   recordEvent(configPath, config, sessionDir, {
     event: 'plan_written',
     files: ['02-plan/plan.md', ...tickets.map((t) => sessionPath(sessionDir, t.ticketPath))],
     detail: { tickets: tickets.length },
   });
   fs.unlinkSync(payloadPath);
-  console.log(`✅ Plan written for ${sessionId}: ${tickets.length} ticket(s). Next: /gps ship`);
-  if (gitInfo) console.log(`🌿 Working on branch ${gitInfo.branch} (from ${gitInfo.base_branch}); /gps finish opens the PR.`);
-});
+  const lines = [`✅ Plan written for ${sessionId}: ${tickets.length} ticket(s).`];
+  if (gitInfo) lines.push(`🌿 Working on branch ${gitInfo.branch} (from ${gitInfo.base_branch}); /gps finish opens the PR.`);
+  lines.push('Next: /gps ship');
+  return {
+    text: lines.join('\n'),
+    data: { sessionId, phase: 'plan', path: targetPath, tickets: tickets.map((t) => `${t.num}-${t.slug}`), git: gitInfo },
+  };
+}
+
+main({ usage: 'write-apply.js [--json]', run: apply });

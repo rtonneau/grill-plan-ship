@@ -5,7 +5,7 @@ const os = require('os');
 const path = require('path');
 const { execSync } = require('child_process');
 const { setCurrentSession } = require('../../skills/gps/scripts/lib/session-store');
-const { buildStatusReport } = require('../../skills/gps/scripts/lib/status');
+const { buildStatusReport, renderStatus } = require('../../skills/gps/scripts/lib/status');
 
 const projectRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'gps-status-'));
 const sessionsDir = path.join(projectRoot, '.work', 'sessions');
@@ -145,14 +145,26 @@ report = buildStatusReport(sessionsDir, projectRoot);
 assert.strictEqual(report.current.gitLog.length, 1);
 assert.ok(report.current.gitLog[0].includes('seed session fixtures'));
 
-// No handoff saved yet -> hasHandoff is false.
+// No handoff saved yet -> handoff is null.
 report = buildStatusReport(sessionsDir, projectRoot);
-assert.strictEqual(report.current.hasHandoff, false);
+assert.strictEqual(report.current.handoff, null);
 
-// Saving one flips it to true.
-fs.writeFileSync(path.join(newSessionDir, 'HANDOFF.md'), '# Handoff\n');
+// A saved handoff is read back with its narrative, and drift against live state.
+fs.writeFileSync(path.join(newSessionDir, 'HANDOFF.md'),
+  '# Handoff\n\n**Current phase:** plan\n**Active ticket:** none\n\n## Next Step\n\nWrite the plan.\n');
 report = buildStatusReport(sessionsDir, projectRoot);
-assert.strictEqual(report.current.hasHandoff, true);
+assert.strictEqual(report.current.handoff.sections['Next Step'], 'Write the plan.');
+assert.match(report.current.handoff.drift, /"plan".*"grill"|"plan"; it is now/);
+assert.strictEqual(report.suggestedNext, report.current.suggestedNext);
+
+// renderStatus: the text relayed to the user.
+const text = renderStatus(report);
+assert.match(text, /^## Sessions/);
+assert.match(text, /\(current\)/);
+assert.match(text, /## Handoff/);
+assert.match(text, /Drift since the handoff/);
+assert.match(text, /\*\*Next Step:\*\* Write the plan\./);
+assert.match(text, /\nNext: \/gps /);
 
 // Recorded phase vs derived phase: drift is reported, never fixed silently.
 {

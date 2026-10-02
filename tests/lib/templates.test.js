@@ -17,18 +17,18 @@ assert.ok(resumeTemplate.includes('{{ feature-name }}'), 'expected resume templa
 const handlerVars = {
   '01-grill-resume.md': { 'feature-name': 'f', timestamp: 't' },
   '02-plan.md': { 'feature-name': 'f', timestamp: 't' },
-  '02-ticket.md': { N: '01', slug: '[slug]' },
-  '03-implement-log.md': { N: '01' },
+  '02-ticket.md': {},
+  '03-implement-log.md': { N: '01', slug: 's' },
   'handoff.md': {
     'feature-name': 'f', 'session-id': 's', timestamp: 't', 'current-phase': 'p', 'active-ticket': 'a',
-    'git-status-project': 'g', 'git-status-session': 'g', 'ticket-queue-summary': 'q', 'git-log': 'l',
+    'git-status-project': 'g', 'git-status-session': 'g', 'why-not-committed': 'w', 'ticket-queue-summary': 'q', 'git-log': 'l',
   },
 };
 for (const [file, vars] of Object.entries(handlerVars)) {
   const out = renderTemplate(loadTemplate(file), vars);
   assert.ok(!/\{\{[^}]+\}\}/.test(out), `${file} leaves a {{ }} placeholder after rendering`);
 }
-for (const file of ['01-grill-resume.md', '02-plan.md', '02-ticket.md', 'handoff.md']) {
+for (const file of ['01-grill-resume.md', '02-plan.md', '02-ticket.md', '03-implement-log.md', 'handoff.md']) {
   assert.ok(/<!--\s*gps:fill\b/.test(loadTemplate(file)), `${file} has no gps:fill markers`);
 }
 

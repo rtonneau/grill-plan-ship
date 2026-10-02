@@ -1,4 +1,4 @@
-// scripts/lib/project-config.js
+// skills/gps/scripts/lib/project-config.js
 //
 // Project-wide gps settings in <projectRoot>/.work/gps-config.json. Today
 // that is one flag, github.enabled: true when origin is on github.com AND

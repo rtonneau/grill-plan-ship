@@ -1,4 +1,4 @@
-// scripts/lib/write-payload.js
+// skills/gps/scripts/lib/write-payload.js
 //
 // /gps write has Claude put everything it writes into one payload file
 // (<sessionDir>/.write-payload.md): a "## <heading>" block per section of
@@ -13,6 +13,7 @@ const path = require('path');
 const { loadTemplate, renderTemplate } = require('./templates');
 const { parseTicketFilename } = require('./ticket-queue');
 const { TICKET_MODELS, fenceTracker, normalizeTicketModel } = require('./ticket-model');
+const { toLines } = require('./guard');
 
 const PAYLOAD_FILENAME = '.write-payload.md';
 const TOKEN_USAGE_HEADING = 'Token Usage';
@@ -27,10 +28,6 @@ const PHASE_FILES = {
   grill: { dir: '01-grill', file: 'resume.md', template: '01-grill-resume.md' },
   plan: { dir: '02-plan', file: 'plan.md', template: '02-plan.md' },
 };
-
-function toLines(text) {
-  return text.replace(/^\uFEFF/, '').replace(/\r\n/g, '\n').split('\n');
-}
 
 // Placeholder error text; in pre-v2 sessions "{{ … }}" alone (e.g. Vue or
 // Jinja code) also counts, which is worth saying since it looks legitimate.
@@ -230,6 +227,24 @@ function renderPhaseFile(currentText, sections, usage, fields = {}) {
   return `${parts.filter(Boolean).join('\n\n')}\n`;
 }
 
+// The payload for `phase` with every gap marked: the phase file's unfilled
+// header fields (after `extraFields`, e.g. the Branch line), its sections
+// with their fill hints, and for the plan one ticket block to repeat per
+// ticket. Claude replaces the markers; write-apply.js rejects any left.
+function buildSkeleton(phaseFileText, phase, extraFields = []) {
+  const { preamble, sections } = splitSections(phaseFileText);
+  const fields = toLines(preamble).filter((line) => {
+    const match = line.match(FIELD_RE);
+    return match && UNFILLED_RE.test(match[2]);
+  });
+  const parts = [[...extraFields, ...fields].join('\n')];
+  for (const { heading, body } of sections) {
+    if (heading !== TOKEN_USAGE_HEADING) parts.push(`## ${heading}\n\n${body}`);
+  }
+  if (phase === 'plan') parts.push(`--- ticket: 01-<slug> ---\n\n${loadTemplate('02-ticket.md').trim()}`);
+  return `${parts.filter(Boolean).join('\n\n')}\n`;
+}
+
 function renderTicket(ticket) {
   const { num, slug } = parseTicketFilename(ticket.fileName);
   return `# Ticket ${num}: ${slug}\n\n${ticket.body}\n`;
@@ -247,5 +262,6 @@ module.exports = {
   loadPhaseFile,
   renderTokenUsage,
   renderPhaseFile,
+  buildSkeleton,
   renderTicket,
 };

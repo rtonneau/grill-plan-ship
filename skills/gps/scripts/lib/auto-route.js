@@ -1,4 +1,4 @@
-// scripts/lib/auto-route.js
+// skills/gps/scripts/lib/auto-route.js
 //
 // /gps auto: the steps that carry the current session from its phase to a
 // target, in pipeline order, plus the questions to ask before the run.
@@ -6,7 +6,7 @@
 // ship mode (--delegate) replaces the ship-mode question when the route ships.
 
 const { resolveWriteTarget } = require('./write-target');
-const { isFinishedConfig } = require('./phase');
+const { isFinished } = require('./phase');
 const { GpsError } = require('./guard');
 
 const STEPS = ['write:grill', 'plan', 'write:plan', 'ship', 'finish'];
@@ -22,7 +22,7 @@ function firstStep(sessionDir) {
 }
 
 function computeRoute(sessionDir, config, target = 'finish', { shipMode } = {}) {
-  if (isFinishedConfig(config)) {
+  if (isFinished(config)) {
     throw new GpsError('This session is already finished.',
       'Run /gps status to pick another session, or /gps start <feature-name>.');
   }

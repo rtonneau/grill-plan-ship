@@ -1,41 +1,45 @@
 #!/usr/bin/env node
 
 /**
- * /gps auto [--delegate] [plan|ship|finish]
+ * auto-route.js [plan|ship|finish] [--delegate] [--json]
  *
- * Prints the steps that take the current session from its phase to the
- * target (default finish), and the questions to ask before running them.
- * --delegate presets the ship mode to subagent + inline follow-up.
- * Records an auto_started event once the route is valid. Does not run any
- * step itself: references/auto.md drives them.
+ * /gps auto: prints the steps that take the current session from its phase
+ * to the target (default finish) and the questions to ask before running
+ * them. --delegate presets the ship mode to subagent + inline follow-up.
+ * Records an auto_started event once the route is valid. Runs no step
+ * itself: references/auto.md drives them.
  */
 
+const { main } = require('./lib/cli');
 const { computeRoute } = require('./lib/auto-route');
 const { resolveSession } = require('./lib/session-store');
 const { recordEvent } = require('./lib/history');
-const { GpsError, runCli } = require('./lib/guard');
 
 const DELEGATE_SHIP_MODE = 'subagent+inline';
 
-runCli(() => {
-  const argv = process.argv.slice(2);
-  const delegate = argv.includes('--delegate');
-  const args = argv.filter((a) => a !== '--delegate');
-  if (args.length > 1) {
-    throw new GpsError('Give at most one target: plan, ship or finish.', 'Example: /gps auto ship');
-  }
+main({
+  usage: 'auto-route.js [plan|ship|finish] [--delegate] [--json]',
+  positionals: { min: 0, max: 1 },
+  options: { delegate: 'boolean' },
+  run({ positionals, options, projectRoot, warn }) {
+    const { sessionId, sessionDir, configPath, config } = resolveSession(projectRoot);
+    const { target, steps, questions, shipMode } = computeRoute(sessionDir, config, positionals[0] || 'finish',
+      { shipMode: options.delegate ? DELEGATE_SHIP_MODE : undefined });
+    if (options.delegate && !shipMode) warn('--delegate ignored: this route has no ship step.');
 
-  const { sessionId, sessionDir, configPath, config } = resolveSession(process.cwd());
-  const { target, steps, questions, shipMode } = computeRoute(sessionDir, config, args[0] ?? 'finish',
-    { shipMode: delegate ? DELEGATE_SHIP_MODE : undefined });
-  if (delegate && !shipMode) {
-    console.error('⚠️  --delegate ignored: this route has no ship step.');
-  }
+    recordEvent(configPath, config, sessionDir, {
+      event: 'auto_started',
+      detail: { target, steps: steps.join(' → '), ...(shipMode && { shipMode }) },
+    });
 
-  recordEvent(configPath, config, sessionDir, {
-    event: 'auto_started',
-    detail: { target, steps: steps.join(' → '), ...(shipMode && { shipMode }) },
-  });
-
-  console.log(JSON.stringify({ sessionId, target, steps, questions, ...(shipMode && { shipMode }) }, null, 2));
+    const lines = [`Route for ${sessionId} (target ${target}): ${steps.join(' → ')}`];
+    if (questions.includes('ship-mode')) {
+      lines.push('Ask once, before the first step: the ship mode (subagent, inline, or subagent + inline follow-up).');
+    } else if (shipMode) {
+      lines.push(`Ship mode: ${shipMode} (preset by --delegate); ask nothing.`);
+    } else {
+      lines.push('Ask nothing.');
+    }
+    return { text: lines.join('\n'), data: { sessionId, target, steps, questions, ...(shipMode && { shipMode }) } };
+  },
 });

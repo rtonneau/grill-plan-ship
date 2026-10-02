@@ -4,6 +4,7 @@
 // through the real handlers:
 //   A. bounded session: no branch, no PR, no gh call
 //   B. planned session: branch at the plan write, PR at finish, PR reused on a re-run
+//   C-H. issue sessions (/gps start --issue): issue at the grill write, comment / close / "Closes #N"
 //   I. a write that fails after the branch / the issue exists is retried without redoing it
 
 const assert = require('assert');
@@ -73,7 +74,7 @@ function currentSession() {
 }
 const readConfig = (configPath) => JSON.parse(fs.readFileSync(configPath, 'utf-8'));
 
-// "## <heading>" blocks for a write-target's sections.
+// "## <heading>" blocks for a write-prepare's sections.
 const sectionsText = (target, problem) => target.sections
   .map((h) => `## ${h}\n\n${h === 'Problem Statement' ? problem : `${h}: approved.`}\n`).join('\n');
 
@@ -82,11 +83,13 @@ const planPayload = (target, branchLine, slug) =>
   target.fields.filter((f) => f !== 'Branch').map((label) => `**${label}:** 1 day\n`).join('') +
   `${branchLine}\n${sectionsText(target, 'unused')}\n--- ticket: 01-${slug} ---\nDo the work.\n`;
 
+// Ticket 01 through ticket-start.js and ticket-complete.js (one commit).
 function markTicketDone(sessionDir, slug) {
-  ok('ticket.js', '1');
+  ok('ticket-start.js', '1');
   const log = path.join(sessionDir, '03-implement', `01-${slug}`, 'commit-log.md');
-  fs.writeFileSync(log, fs.readFileSync(log, 'utf-8').replace(/^\*\*Status:\*\*.*$/m, '**Status:** ✅ Done'));
-  ok('ticket-done.js', '1');
+  fs.writeFileSync(log, fs.readFileSync(log, 'utf-8').replace(/<!--\s*gps:fill[\s\S]*?-->/g, 'Checked.'));
+  fs.writeFileSync(path.join(root, `${slug}-ticket.js`), `// ${slug}\n`);
+  ok('ticket-complete.js', '1', '--message', `feat: ticket ${slug}`, '--file', `${slug}-ticket.js`);
 }
 
 function commit(file, message) {
@@ -99,9 +102,9 @@ const issueCalls = (verb) => ghCalls().filter((c) => c.args[0] === 'issue' && c.
 
 // /gps issue + write the grill (files the issue); returns the session paths.
 function startIssueSession(title, problem) {
-  ok('issue-session.js', title);
+  ok('start.js', '--issue', title);
   const session = currentSession();
-  const grill = JSON.parse(ok('write-target.js').out);
+  const grill = JSON.parse(ok('write-prepare.js', '--json').out);
   fs.writeFileSync(grill.payloadPath, sectionsText(grill, problem));
   ok('write-apply.js');
   return session;
@@ -118,12 +121,12 @@ git('add', 'app.js');
 git('commit', '-q', '-m', 'initial');
 
 // ------------------------------------------------ A. bounded: no branch, no PR
-ok('start-session.js', 'Dark Mode');
+ok('start.js', 'Dark Mode');
 let { sessionId, sessionDir, configPath } = currentSession();
 const projectConfig = JSON.parse(fs.readFileSync(path.join(root, '.work', 'gps-config.json'), 'utf-8'));
 assert.strictEqual(projectConfig.github.enabled, true, 'github.com origin + authenticated gh');
 
-let target = JSON.parse(ok('write-target.js').out);
+let target = JSON.parse(ok('write-prepare.js', '--json').out);
 assert.strictEqual(target.target, 'grill');
 assert.ok(!target.fields.includes('Branch'), 'the grill write asks for no branch');
 assert.strictEqual(target.branchPattern, undefined);
@@ -151,15 +154,15 @@ assert.strictEqual(git('branch', '--show-current'), 'main');
 // ------------------------------------- B. planned: branch at the plan write, PR
 // Started from develop (not main): the PR targets it and finish returns to it.
 git('switch', '-q', '-c', 'develop');
-ok('start-session.js', 'Search Filters');
+ok('start.js', 'Search Filters');
 ({ sessionId, sessionDir, configPath } = currentSession());
-target = JSON.parse(ok('write-target.js').out);
+target = JSON.parse(ok('write-prepare.js', '--json').out);
 fs.writeFileSync(target.payloadPath, sectionsText(target, 'Users want to filter results.'));
 ok('write-apply.js');
 assert.strictEqual(git('branch', '--show-current'), 'develop', 'no branch at the grill write');
 ok('plan.js');
 
-target = JSON.parse(ok('write-target.js').out);
+target = JSON.parse(ok('write-prepare.js', '--json').out);
 assert.strictEqual(target.target, 'plan');
 assert.ok(target.fields.includes('Branch'));
 assert.match(target.branchPattern, /feat\|fix/);
@@ -176,7 +179,7 @@ assert.strictEqual(res.code, 1);
 assert.match(res.err, /must look like/);
 assert.strictEqual(git('branch', '--show-current'), 'develop');
 assert.ok(fs.existsSync(target.payloadPath), 'payload kept for a retry');
-assert.ok(fs.readdirSync(ticketsDir).some((f) => f.includes('[slug]')), 'nothing written');
+assert.ok(!fs.existsSync(ticketsDir), 'nothing written');
 
 // Valid branch -> created from develop, recorded, tickets written.
 fs.writeFileSync(target.payloadPath, planPayload(target, '**Branch:** feat/search-filters\n', 'filters'));
@@ -199,12 +202,11 @@ commit('filters.js', 'feat: add filters');
 
 // Finish refuses on the wrong branch, changing nothing.
 git('switch', '-q', 'main');
-const indexBefore = fs.readFileSync(path.join(sessionDir, 'INDEX.md'), 'utf-8');
 const configBefore = fs.readFileSync(configPath, 'utf-8');
 res = run('finish.js');
 assert.strictEqual(res.code, 1);
 assert.match(res.err, /on branch feat\/search-filters, but main is checked out/);
-assert.strictEqual(fs.readFileSync(path.join(sessionDir, 'INDEX.md'), 'utf-8'), indexBefore);
+assert.ok(!fs.existsSync(path.join(sessionDir, 'INDEX.md')));
 assert.strictEqual(fs.readFileSync(configPath, 'utf-8'), configBefore);
 git('switch', '-q', 'feat/search-filters');
 
@@ -246,7 +248,7 @@ assert.match(index, /\*\*Pull request:\*\* https:\/\/github\.com\/acme\/app\/pul
 config = readConfig(configPath);
 assert.strictEqual(config.git.pr_url, 'https://github.com/acme/app/pull/12');
 
-const status = JSON.parse(ok('status.js').out);
+const status = JSON.parse(ok('status.js', '--json').out);
 const summary = status.sessions.find((s) => s.sessionId === sessionId);
 assert.strictEqual(summary.branch, 'feat/search-filters');
 assert.strictEqual(summary.prUrl, 'https://github.com/acme/app/pull/12');
@@ -283,10 +285,10 @@ assert.deepStrictEqual(readConfig(configPath).history.find((e) => e.event === 'p
 
 // ------------------------------- C. issue session: the grill write files the issue
 git('switch', '-q', 'main');
-ok('issue-session.js', 'Crash on save');
+ok('start.js', '--issue', 'Crash on save');
 ({ sessionId, sessionDir, configPath } = currentSession());
 assert.strictEqual(readConfig(configPath).kind, 'issue');
-target = JSON.parse(ok('write-target.js').out);
+target = JSON.parse(ok('write-prepare.js', '--json').out);
 assert.strictEqual(target.target, 'grill');
 fs.writeFileSync(target.payloadPath, sectionsText(target, 'Saving a large file crashes the app.'));
 
@@ -317,13 +319,16 @@ assert.deepStrictEqual(config.history.map((e) => e.event), ['session_started', '
 assert.deepStrictEqual(config.history[1].detail, { number: 34, url: 'https://github.com/acme/app/issues/34' });
 assert.strictEqual(config.history[1].at, config.issue.created_at);
 assert.strictEqual(
-  JSON.parse(ok('status.js').out).sessions.find((s) => s.sessionId === sessionId).issueUrl,
+  JSON.parse(ok('status.js', '--json').out).sessions.find((s) => s.sessionId === sessionId).issueUrl,
   'https://github.com/acme/app/issues/34'
 );
 
 // --------- C (continued). bounded issue session: finish comments, does not close
 commit('save-fix.js', 'fix: handle large saves (#34)');
-res = ok('finish.js');
+res = run('finish.js');
+assert.strictEqual(res.code, 1, 'a bounded issue session asks before finishing');
+assert.match(res.err, /Close issue #34 as well\?/);
+res = ok('finish.js', '--keep-issue');
 assert.match(res.out, /Summary posted on issue #34/);
 assert.strictEqual(issueCalls('comment').length, 1);
 assert.deepStrictEqual(issueCalls('comment')[0].args.slice(0, 3), ['issue', 'comment', '34']);
@@ -362,7 +367,7 @@ assert.deepStrictEqual(readConfig(configPath).history.map((e) => e.event),
 const linkIssue = readConfig(configPath).issue.number;
 commit('docs.js', 'fix: docs link');
 process.env.GH_STUB_FAIL_COMMENT = '1';
-res = ok('finish.js');
+res = ok('finish.js', '--keep-issue');
 delete process.env.GH_STUB_FAIL_COMMENT;
 assert.match(res.err, new RegExp(`Issue #${linkIssue}: comment failed \\(gh: HTTP 403\\)`));
 assert.match(res.err, new RegExp(`gh issue comment ${linkIssue} --body`));
@@ -376,7 +381,7 @@ git('switch', '-q', 'main');
 ({ sessionId, sessionDir, configPath } = startIssueSession('Slow search', 'Search takes ten seconds.'));
 const searchIssue = readConfig(configPath).issue.number;
 ok('plan.js');
-target = JSON.parse(ok('write-target.js').out);
+target = JSON.parse(ok('write-prepare.js', '--json').out);
 fs.writeFileSync(target.payloadPath, planPayload(target, '**Branch:** fix/slow-search\n', 'index'));
 ok('write-apply.js');
 assert.strictEqual(git('branch', '--show-current'), 'fix/slow-search');
@@ -427,13 +432,13 @@ const failWriteEnv = (needle, markerName) => ({
 
 // I1. plan write: branch created, then a ticket write fails.
 git('switch', '-q', 'main');
-ok('start-session.js', 'Retry Branch');
+ok('start.js', 'Retry Branch');
 ({ sessionId, sessionDir, configPath } = currentSession());
-target = JSON.parse(ok('write-target.js').out);
+target = JSON.parse(ok('write-prepare.js', '--json').out);
 fs.writeFileSync(target.payloadPath, sectionsText(target, 'Branch retry.'));
 ok('write-apply.js');
 ok('plan.js');
-target = JSON.parse(ok('write-target.js').out);
+target = JSON.parse(ok('write-prepare.js', '--json').out);
 fs.writeFileSync(target.payloadPath, planPayload(target, '**Branch:** feat/retry-branch\n', 'retryslug'));
 res = runWithEnv(failWriteEnv('01-retryslug', 'branch-fail-marker'), 'write-apply.js');
 assert.strictEqual(res.code, 1);
@@ -454,9 +459,9 @@ assert.ok(!fs.existsSync(target.payloadPath), 'payload removed once written');
 
 // I2. grill write of an issue session: issue filed, then resume.md fails.
 git('switch', '-q', 'main');
-ok('issue-session.js', 'Retry Issue');
+ok('start.js', '--issue', 'Retry Issue');
 ({ sessionId, sessionDir, configPath } = currentSession());
-target = JSON.parse(ok('write-target.js').out);
+target = JSON.parse(ok('write-prepare.js', '--json').out);
 fs.writeFileSync(target.payloadPath, sectionsText(target, 'Issue retry.'));
 const issueCreatesBefore = issueCalls('create').length;
 res = runWithEnv(failWriteEnv('resume.md', 'issue-fail-marker'), 'write-apply.js');

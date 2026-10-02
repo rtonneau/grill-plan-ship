@@ -1,4 +1,4 @@
-// scripts/lib/history.js
+// skills/gps/scripts/lib/history.js
 //
 // The session's timeline, stored in .session-config.json:
 //   history:       append-only list of events { at, event, phase, files?, detail?, backfilled? }
@@ -12,7 +12,7 @@
 // recordEvent never throws: history must never block a command.
 
 const path = require('path');
-const { localDate, writeJsonAtomic } = require('./guard');
+const { localDate, pad2, mdCell, writeJsonAtomic } = require('./guard');
 const { computeSessionState } = require('./phase');
 
 const TICKET_USAGE_KEY_RE = /^03-(\d+-.+)$/;
@@ -100,11 +100,9 @@ function recordEvent(configPath, config, sessionDir, { event, files, detail, at 
 function localStamp(iso) {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return String(iso);
-  const pad2 = (n) => String(n).padStart(2, '0');
   return `${localDate(d)} ${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
 }
 
-const cell = (text) => String(text).replace(/\|/g, '\\|');
 
 function detailsCell(entry) {
   const parts = Object.entries(entry.detail || {}).map(([key, value]) => `${key}: ${value}`);
@@ -117,7 +115,7 @@ function renderTimeline(events) {
   const lines = ['## Timeline', '', '| When | Phase | Event | Details | Files |', '|---|---|---|---|---|'];
   for (const e of events) {
     const files = (e.files || []).map((f) => `[${f}](${f})`).join(', ');
-    const cells = [localStamp(e.at), e.phase || '', e.event, detailsCell(e), files].map(cell);
+    const cells = [localStamp(e.at), e.phase || '', e.event, detailsCell(e), files].map(mdCell);
     lines.push(`| ${cells.join(' | ')} |`);
   }
   lines.push('');

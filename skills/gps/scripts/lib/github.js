@@ -1,11 +1,9 @@
-// scripts/lib/github.js
+// skills/gps/scripts/lib/github.js
 //
-// Session branch, pull request and issue support for projects hosted on GitHub.
-// /gps write (plan) creates the session's branch; /gps finish commits what is
-// left, pushes it, opens a PR against the branch it started from and switches
-// back to that branch. /gps issue files a GitHub
-// issue at the grill write; /gps finish comments on it. Git and gh always run
-// via execFileSync with an argument array (never a shell string).
+// GitHub support through the gh CLI: detection for .work/gps-config.json,
+// pull requests (/gps finish) and issues (/gps start --issue). gh always
+// runs via execFileSync with an argument array (never a shell string); git
+// itself is in git.js.
 //
 // GPS_GH_BIN overrides the gh executable (tests point it at a stub .js
 // script, which is run with node).
@@ -14,156 +12,21 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { execFileSync } = require('child_process');
+const { failureReason, isWorkTree, originUrl, pushBranch } = require('./git');
 
-const BRANCH_TYPES = ['feat', 'fix', 'refactor', 'docs', 'chore', 'perf', 'test'];
-const BRANCH_RE = new RegExp(`^(${BRANCH_TYPES.join('|')})/[a-z0-9]+([._-][a-z0-9]+)*$`);
-const MAX_BRANCH_LENGTH = 80;
-const BRANCH_PATTERN = `<${BRANCH_TYPES.join('|')}>/<short-slug>`;
 const PR_ATTRIBUTION = '🤖 Generated with [Claude Code](https://claude.com/claude-code)';
 const ISSUE_SECTIONS = ['Problem Statement', 'Context & Constraints', 'Success Metrics'];
 const ISSUE_URL_RE = /^https:\/\/\S+\/issues\/(\d+)$/;
-
-function git(projectRoot, args) {
-  return execFileSync('git', args, {
-    cwd: projectRoot,
-    encoding: 'utf-8',
-    stdio: ['ignore', 'pipe', 'pipe'],
-  }).trim();
-}
-
-function tryGit(projectRoot, args) {
-  try {
-    return git(projectRoot, args);
-  } catch (_err) {
-    return null;
-  }
-}
-
-// Short, readable reason from a failed execFileSync.
-function failureReason(err) {
-  const stderr = err && err.stderr ? String(err.stderr).trim() : '';
-  if (stderr) return stderr.split('\n').filter(Boolean).pop();
-  return err && err.code === 'ENOENT' ? 'command not found' : (err && err.message) || String(err);
-}
 
 function isGithubUrl(url) {
   return typeof url === 'string'
     && /^(https?:\/\/([^@/]+@)?github\.com[/:]|git@github\.com:|ssh:\/\/git@github\.com[/:])/i.test(url.trim());
 }
 
-// True when projectRoot is in a git work tree whose origin is on GitHub.
-// Reads the configured URL (not `remote get-url`, which applies insteadOf
-// rewrites), so a rewritten github.com origin still counts.
-function detectGithub(projectRoot) {
-  if (tryGit(projectRoot, ['rev-parse', '--is-inside-work-tree']) !== 'true') return false;
-  return isGithubUrl(tryGit(projectRoot, ['config', '--get', 'remote.origin.url']));
-}
-
-// detectGithub + `gh auth status`, with the reason for the result:
-// { enabled, reason } (reason is one line for /gps config).
-function diagnoseGithub(projectRoot) {
-  if (tryGit(projectRoot, ['rev-parse', '--is-inside-work-tree']) !== 'true') {
-    return { enabled: false, reason: 'not a git repository' };
-  }
-  const origin = tryGit(projectRoot, ['config', '--get', 'remote.origin.url']);
-  if (!origin) return { enabled: false, reason: 'no "origin" remote' };
-  if (!isGithubUrl(origin)) return { enabled: false, reason: `origin is not on github.com (${origin})` };
-  if (!ghAuthenticated(projectRoot)) {
-    return { enabled: false, reason: 'origin is on github.com, but gh is not authenticated (run gh auth login)' };
-  }
-  return { enabled: true, reason: 'origin is on github.com and gh is authenticated' };
-}
-
-function currentBranch(projectRoot) {
-  return tryGit(projectRoot, ['branch', '--show-current']) || null;
-}
-
-// Problems with a proposed session branch name, as payload error strings.
-function validateBranchName(projectRoot, name) {
-  if (!name) return [`Missing field "**Branch:**": name the session branch ${BRANCH_PATTERN}, e.g. feat/dark-mode-toggle.`];
-  const errors = [];
-  if (name.length > MAX_BRANCH_LENGTH || !BRANCH_RE.test(name)) {
-    errors.push(`Branch "${name}" must look like ${BRANCH_PATTERN} (lowercase a-z 0-9, "-", "_" or "." between, at most ${MAX_BRANCH_LENGTH} characters), e.g. feat/dark-mode-toggle.`);
-  } else if (tryGit(projectRoot, ['check-ref-format', '--branch', name]) === null) {
-    errors.push(`Branch "${name}" is not a valid git branch name.`);
-  } else if (tryGit(projectRoot, ['rev-parse', '--verify', '--quiet', `refs/heads/${name}`]) !== null) {
-    errors.push(`Branch "${name}" already exists. Pick another name.`);
-  }
-  if (!currentBranch(projectRoot)) {
-    errors.push('HEAD is detached: check out the branch the session should start from, then run write-apply.js again.');
-  }
-  return errors;
-}
-
-// Creates `name` from HEAD and switches to it (uncommitted changes carry
-// over). Returns the config's `git` record. Throws with git's reason.
-function createSessionBranch(projectRoot, name) {
-  const base = currentBranch(projectRoot);
-  try {
-    git(projectRoot, ['switch', '-c', name]);
-  } catch (err) {
-    throw new Error(`git switch -c ${name} failed: ${failureReason(err)}`);
-  }
-  return { branch: name, base_branch: base, branch_created_at: new Date().toISOString(), pr_url: null };
-}
-
-function branchType(branch) {
-  return String(branch).split('/')[0];
-}
-
-function commitsBetween(projectRoot, base, branch) {
-  const out = tryGit(projectRoot, ['log', '--oneline', '--no-decorate', `${base}..${branch}`]);
-  return out ? out.split('\n').map((l) => l.trim()).filter(Boolean) : [];
-}
-
-const nulList = (out) => out.split('\0').filter(Boolean);
-
-// Commits every change to tracked files (`git add -u`), so /gps finish leaves
-// nothing behind (e.g. a log a hook appends to). Untracked files are listed,
-// never committed; gps's own .work/ is left out of that list. Never throws:
-// { ok: true, sha, files, untracked } (sha null: nothing to commit, or not a
-// git repo) or { ok: false, reason, commands, untracked }.
-function commitRemainingChanges(projectRoot, message) {
-  if (tryGit(projectRoot, ['rev-parse', '--is-inside-work-tree']) !== 'true') {
-    return { ok: true, sha: null, files: [], untracked: [] };
-  }
-  const untracked = nulList(tryGit(projectRoot, ['ls-files', '--others', '--exclude-standard', '-z']) || '')
-    .filter((f) => !f.startsWith('.work/'));
-  try {
-    git(projectRoot, ['add', '-u']);
-    const files = nulList(git(projectRoot, ['diff', '--cached', '--name-only', '-z']));
-    if (files.length === 0) return { ok: true, sha: null, files, untracked };
-    git(projectRoot, ['commit', '-q', '-m', message]);
-    return { ok: true, sha: git(projectRoot, ['rev-parse', '--short', 'HEAD']), files, untracked };
-  } catch (err) {
-    return {
-      ok: false, reason: failureReason(err), untracked,
-      commands: ['git add -u', `git commit -m "${message.replace(/"/g, '\\"')}"`],
-    };
-  }
-}
-
-// Never throws: { ok: true } or { ok: false, reason, commands }.
-function switchBranch(projectRoot, name) {
-  try {
-    git(projectRoot, ['switch', '-q', name]);
-    return { ok: true };
-  } catch (err) {
-    return { ok: false, reason: failureReason(err), commands: [`git switch ${name}`] };
-  }
-}
-
 function ghCommand() {
   const override = process.env.GPS_GH_BIN;
   if (!override) return { file: 'gh', prefix: [] };
   return override.endsWith('.js') ? { file: process.execPath, prefix: [override] } : { file: override, prefix: [] };
-}
-
-function manualCommands(gitInfo, title) {
-  return [
-    `git push -u origin ${gitInfo.branch}`,
-    `gh pr create --base ${gitInfo.base_branch} --head ${gitInfo.branch} --title "${title.replace(/"/g, '\\"')}" --fill`,
-  ];
 }
 
 function runGh(projectRoot, args) {
@@ -181,6 +44,20 @@ function ghAuthenticated(projectRoot) {
   } catch (_err) {
     return false;
   }
+}
+
+// { enabled, reason }: enabled when origin is on github.com and gh is
+// logged in. Reads the configured origin URL (not `remote get-url`, which
+// applies insteadOf rewrites), so a rewritten github.com origin still counts.
+function diagnoseGithub(projectRoot) {
+  if (!isWorkTree(projectRoot)) return { enabled: false, reason: 'not a git repository' };
+  const origin = originUrl(projectRoot);
+  if (!origin) return { enabled: false, reason: 'no "origin" remote' };
+  if (!isGithubUrl(origin)) return { enabled: false, reason: `origin is not on github.com (${origin})` };
+  if (!ghAuthenticated(projectRoot)) {
+    return { enabled: false, reason: 'origin is on github.com, but gh is not authenticated (run gh auth login)' };
+  }
+  return { enabled: true, reason: 'origin is on github.com and gh is authenticated' };
 }
 
 function lastUrl(output) {
@@ -214,12 +91,12 @@ function findOpenPullRequest(projectRoot, branch) {
 // branch: then the push just updates it. Never throws: returns
 // { ok: true, url, existing } or { ok: false, step, reason, commands }.
 function openPullRequest(projectRoot, gitInfo, { title, body }) {
-  const commands = manualCommands(gitInfo, title);
-  try {
-    git(projectRoot, ['push', '-u', 'origin', gitInfo.branch]);
-  } catch (err) {
-    return { ok: false, step: 'push', reason: failureReason(err), commands };
-  }
+  const commands = [
+    `git push -u origin ${gitInfo.branch}`,
+    `gh pr create --base ${gitInfo.base_branch} --head ${gitInfo.branch} --title "${title.replace(/"/g, '\\"')}" --fill`,
+  ];
+  const pushed = pushBranch(projectRoot, gitInfo.branch);
+  if (!pushed.ok) return { ok: false, step: 'push', reason: pushed.reason, commands };
 
   const existingUrl = gitInfo.pr_url || findOpenPullRequest(projectRoot, gitInfo.branch);
   if (existingUrl) return { ok: true, url: existingUrl, existing: true };
@@ -286,21 +163,11 @@ function closeIssue(projectRoot, number) {
 }
 
 module.exports = {
-  BRANCH_TYPES,
-  BRANCH_PATTERN,
   PR_ATTRIBUTION,
   isGithubUrl,
-  detectGithub,
-  diagnoseGithub,
-  currentBranch,
-  validateBranchName,
-  createSessionBranch,
-  branchType,
-  commitsBetween,
-  commitRemainingChanges,
-  switchBranch,
-  openPullRequest,
   ghAuthenticated,
+  diagnoseGithub,
+  openPullRequest,
   buildIssueBody,
   createIssue,
   commentOnIssue,

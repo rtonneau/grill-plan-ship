@@ -1,8 +1,7 @@
-// scripts/lib/session-init.js
+// skills/gps/scripts/lib/session-init.js
 //
-// Session directory setup shared by /gps start and /gps issue.
-// Creates .work/sessions/YYYY-MM-DD__<slug>/ (01-grill/resume.md + notes.md,
-// .session-config.json, INDEX.md), the session's scratch directory, the
+// /gps start: creates .work/sessions/YYYY-MM-DD__<slug>/ (01-grill/resume.md
+// and .session-config.json), the session's scratch directory, the
 // .gitignore entries and .current-session. <slug> is the feature name
 // cleaned by slugify(); the date is the local date. If the session already
 // exists, nothing is written and it throws a GpsError.
@@ -10,7 +9,7 @@
 const fs = require('fs');
 const path = require('path');
 const { loadTemplate, renderTemplate } = require('./templates');
-const { setCurrentSession } = require('./session-store');
+const { sessionsDirOf, setCurrentSession } = require('./session-store');
 const { TEMPLATE_VERSION } = require('./write-target');
 const { touchPhase } = require('./token-usage');
 const { recordEvent } = require('./history');
@@ -19,12 +18,13 @@ const { GpsError, localDate, slugify, writeJsonAtomic } = require('./guard');
 
 // `extraConfig` is merged into .session-config.json (e.g. { kind: 'issue' });
 // the session starts with an empty history and a `session_started` event.
+// Returns what was created, for the caller to report.
 function initSession(projectRoot, featureName, extraConfig = {}) {
   const now = new Date();
   const slug = slugify(featureName, now);
   const sessionId = `${localDate(now)}__${slug}`;
 
-  const sessionsDir = path.join(projectRoot, '.work', 'sessions');
+  const sessionsDir = sessionsDirOf(projectRoot);
   const workDir = path.join(sessionsDir, sessionId);
   const grillDir = path.join(workDir, '01-grill');
 
@@ -33,10 +33,6 @@ function initSession(projectRoot, featureName, extraConfig = {}) {
       `Session ${sessionId} already exists; nothing was changed.`,
       'Run /gps status to see where it left off, or pick a different feature name.'
     );
-  }
-
-  if (slug !== featureName) {
-    console.log(`Feature name "${featureName}" cleaned to "${slug}".`);
   }
 
   fs.mkdirSync(grillDir, { recursive: true });
@@ -53,24 +49,15 @@ function initSession(projectRoot, featureName, extraConfig = {}) {
     history: [],
     ...extraConfig,
   };
-
   touchPhase(config, 'grill');
 
   const configPath = path.join(workDir, '.session-config.json');
   writeJsonAtomic(configPath, config);
 
-  const resumeContent = renderTemplate(loadTemplate('01-grill-resume.md'), {
+  fs.writeFileSync(path.join(grillDir, 'resume.md'), renderTemplate(loadTemplate('01-grill-resume.md'), {
     'feature-name': featureName,
     timestamp: config.created_at,
-  });
-
-  fs.writeFileSync(path.join(grillDir, 'resume.md'), resumeContent);
-  fs.writeFileSync(path.join(grillDir, 'notes.md'), '# Brainstorm Transcript\n\n(To be filled)\n');
-
-  fs.writeFileSync(
-    path.join(workDir, 'INDEX.md'),
-    `# Session: ${featureName}\n\nPhase: Grill (in progress)\n`
-  );
+  }));
 
   recordEvent(configPath, config, workDir, {
     event: 'session_started',
@@ -81,14 +68,7 @@ function initSession(projectRoot, featureName, extraConfig = {}) {
 
   setCurrentSession(sessionsDir, sessionId);
 
-  return { sessionId, slug, sessionsDir, workDir, grillDir, scratchDir, gitignoreAdded };
+  return { sessionId, slug, cleaned: slug !== featureName, sessionsDir, workDir, grillDir, scratchDir, gitignoreAdded };
 }
 
-function announceSession(session) {
-  console.log(`✅ Session initialized: ${session.sessionId}`);
-  console.log(`Path: ${session.workDir}`);
-  console.log(`Scratch dir: ${session.scratchDir} (run/test artifacts go here)`);
-  for (const entry of session.gitignoreAdded) console.log(`Added "${entry}" to .gitignore`);
-}
-
-module.exports = { initSession, announceSession };
+module.exports = { initSession };

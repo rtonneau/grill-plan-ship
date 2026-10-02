@@ -1,7 +1,9 @@
-// scripts/lib/ticket-model.js
+// skills/gps/scripts/lib/ticket-model.js
 // A ticket's optional "**Model:**" line: which values it may hold, how to read
 // it, and how to judge it. Shared by /gps write (strict) and /gps ship
-// (lenient); depends on nothing else in scripts/lib.
+// (lenient).
+
+const { toLines } = require('./guard');
 
 const MODEL_RE = /^\*\*Model:\*\*[ \t]*(.*?)[ \t]*$/;
 const FENCE_OPEN_RE = /^\s*(`{3,}|~{3,})/;
@@ -9,10 +11,6 @@ const FENCE_CLOSE_RE = /^\s*(`{3,}|~{3,})\s*$/;
 
 // Values the line may hold; "inherit" (or no line) means the session's own model.
 const TICKET_MODELS = Object.freeze(['haiku', 'sonnet', 'opus', 'inherit']);
-
-function toLines(text) {
-  return text.replace(/^﻿/, '').replace(/\r\n/g, '\n').split('\n');
-}
 
 // Tracks fenced code blocks the CommonMark way: a fence closes only on a
 // bare line of the same character, at least as long as the opening one,

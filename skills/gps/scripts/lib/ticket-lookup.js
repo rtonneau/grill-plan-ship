@@ -1,7 +1,8 @@
-// scripts/lib/ticket-lookup.js
+// skills/gps/scripts/lib/ticket-lookup.js
 //
-// Finds a ticket by its number for /gps ticket and ticket-done.js. Lives
-// apart from ticket-queue.js because write-target.js requires that module.
+// Finds tickets for the ticket-*.js scripts, after checking the plan is
+// written. Lives apart from ticket-queue.js because lib/write-target.js
+// requires that module.
 
 const fs = require('fs');
 const path = require('path');
@@ -9,30 +10,34 @@ const { listTickets } = require('./ticket-queue');
 const { resolveWriteTarget } = require('./write-target');
 const { GpsError } = require('./guard');
 
-// Every valid ticket with this number (duplicates are all kept), in filename
-// order. Throws a GpsError when the plan is not written or none matches.
-function findTicketsByNumber(sessionDir, ticketNum) {
-  const ticketsDir = path.join(sessionDir, '02-plan', 'tickets');
-  if (!fs.existsSync(ticketsDir)) {
-    throw new GpsError('This session has no tickets yet.', 'Run /gps plan, then /gps write, then /gps ticket <N>.');
-  }
-
+// The ticket queue (listTickets) once the plan is written; throws a
+// GpsError with the command to run otherwise. Badly named files are warned
+// about on stderr.
+function readyTickets(sessionDir) {
   const writeTarget = resolveWriteTarget(sessionDir).target;
   if (writeTarget === 'grill') {
     throw new GpsError('The grill phase is not written yet.', 'Run /gps write, then /gps plan.');
   }
   if (writeTarget === 'plan') {
-    throw new GpsError('The plan and tickets are not written yet.', 'Run /gps write to save them, then /gps ticket <N>.');
+    throw new GpsError('The plan and tickets are not written yet.', 'Run /gps write to save them, then /gps ship.');
   }
-
-  const { tickets, skipped } = listTickets(sessionDir);
-  for (const fileName of skipped) {
+  if (!fs.existsSync(path.join(sessionDir, '02-plan', 'tickets'))) {
+    throw new GpsError('This session has no tickets yet.', 'Run /gps plan, then /gps ship.');
+  }
+  const queue = listTickets(sessionDir);
+  for (const fileName of queue.skipped) {
     console.error(`⚠️  Skipped ${fileName}: ticket files must be named NN-<slug>.md`);
   }
-  const candidates = tickets.filter((t) => Number(t.num) === ticketNum);
+  if (queue.tickets.length === 0) throw new GpsError('No tickets found.', 'Run /gps plan, then /gps ship.');
+  return queue;
+}
 
+// Every valid ticket with this number (duplicates are all kept), in filename
+// order. Throws a GpsError when the plan is not written or none matches.
+function findTicketsByNumber(sessionDir, ticketNum) {
+  const candidates = readyTickets(sessionDir).tickets.filter((t) => Number(t.num) === ticketNum);
   if (candidates.length === 0) {
-    throw new GpsError(`Ticket ${ticketNum} not found.`, 'Run /gps ship or /gps status to list the tickets.');
+    throw new GpsError(`Ticket ${ticketNum} not found.`, 'Run ticket-queue.js (or /gps status) to list the tickets.');
   }
   return candidates;
 }
@@ -43,4 +48,4 @@ function findTicketByNumber(sessionDir, ticketNum) {
   return candidates.find((t) => !t.done) || candidates[0];
 }
 
-module.exports = { findTicketsByNumber, findTicketByNumber };
+module.exports = { readyTickets, findTicketsByNumber, findTicketByNumber };

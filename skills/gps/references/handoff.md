@@ -1,17 +1,10 @@
 # /gps handoff
 
-**When:** Stopping work on the current session — end of day, context running low, switching to something else — and you want a future session (yours or a fresh AI's) to pick it back up with full context, not just "what phase is pending." Takes no arguments.
+**When:** stopping work on the current session (end of day, context running low, switching tasks) so a later session can pick it up with full context.
 
-**What it does:**
+1. `handoff.js`. It writes HANDOFF.md with everything it can read from disk and git.
+2. Fill the sections it names in HANDOFF.md with the Edit tool: where work stopped, the reasoning so far (alternatives tried and rejected), the next concrete action, open questions only the user can answer, decisions already settled, and why changes aren't committed (when it asks).
 
-1. Runs `node $CLAUDE_PLUGIN_ROOT/skills/gps/scripts/handoff.js`, which resolves the current session and auto-fills everything derivable from disk/git into `HANDOFF.md` at the session root: current phase, active ticket, ticket-queue state, project-wide commits since the session started, and uncommitted changes shown separately for the whole project and for the session directory. It prints this data as JSON.
-2. Claude Code then fills in `HANDOFF.md`'s remaining narrative placeholders directly (Edit tool, not the script): where work stopped, the reasoning behind the current approach (including alternatives tried and rejected), the next concrete action to take, open questions only the user can resolve, decisions already settled (so a future session doesn't re-ask), and — only if either git status isn't "clean" — why the changes aren't committed yet.
-3. `HANDOFF.md` is a single file: each run overwrites the previous one. There is no history log.
+Each run overwrites the previous HANDOFF.md. `/gps status` shows it, with any drift since.
 
-**Output:** `HANDOFF.md` written to the session root with full narrative context.
-
-**Example:**
-
-```
-/gps handoff
-```
+**Example:** `/gps handoff`

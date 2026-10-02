@@ -1,35 +1,27 @@
-# Ticket {{ N }} Implementation
+# Ticket {{ N }}: {{ slug }}
 
 **Status:** In Progress
 
-<!-- Set the Status line to exactly "**Status:** ✅ Done" only once the Verification Step passes. -->
-
-## Commits
-
-- <!-- gps:fill commit hash and message -->
-
 ## Local Test Result
 
-```
-<!-- gps:fill test output -->
-```
+<!-- gps:fill The Verification Step command you ran and its output -->
 
 ## Review Notes
 
-<!-- gps:fill Any findings during self-review -->
-
-## Time Spent
-
-<!-- gps:fill ~X hours -->
+<!-- gps:fill What you checked against the Acceptance Criteria, and anything you changed after review -->
 
 ## Blockers / Challenges
 
-<!-- gps:fill Any issues encountered during implementation, or "None" -->
+<!-- gps:fill Problems met on the way, or "None" -->
+
+## Commits
+
+Filled by ticket-complete.js.
+
+## Time Spent
+
+Filled by ticket-complete.js.
 
 ## Token Usage
 
-- **Input:** <!-- gps:fill input tokens -->
-- **Output:** <!-- gps:fill output tokens -->
-- **Cache read:** <!-- gps:fill cache read tokens -->
-- **Cache creation:** <!-- gps:fill cache creation tokens -->
-- **Total:** <!-- gps:fill total tokens -->
+Filled by ticket-complete.js.

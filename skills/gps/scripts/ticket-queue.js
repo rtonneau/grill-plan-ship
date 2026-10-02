@@ -1,42 +1,44 @@
 #!/usr/bin/env node
 
 /**
- * /gps ship
+ * ticket-queue.js [--json]
  *
- * Prints the current session's ticket queue (which tickets are done,
- * which is next) so Claude Code knows which ticket to implement next.
- * Does not implement anything itself.
- *
- * Each ticket carries `model` (haiku|sonnet|opus|inherit, from its optional
- * **Model:** line) for the subagent dispatch; `modelInvalid` is the raw value
- * when that line holds an unknown one, which is warned about on stderr.
+ * /gps ship: lists the current session's tickets in execution order with
+ * their state and model hint, and names the next pending one. A ticket is
+ * Done only when its commit-log.md Status line is exactly
+ * "**Status:** ✅ Done". Unknown **Model:** values (hand edits) are warned
+ * about and count as inherit. Read-only.
  */
 
-const { listTickets } = require('./lib/ticket-queue');
+const { main } = require('./lib/cli');
+const { TICKET_MODELS } = require('./lib/ticket-queue');
+const { readyTickets } = require('./lib/ticket-lookup');
 const { resolveSession } = require('./lib/session-store');
-const { resolveWriteTarget } = require('./lib/write-target');
-const { GpsError, runCli } = require('./lib/guard');
 
-runCli(() => {
-  const { sessionId, sessionDir } = resolveSession(process.cwd());
-
-  const writeTarget = resolveWriteTarget(sessionDir).target;
-  if (writeTarget === 'grill' || writeTarget === 'plan') {
-    throw new GpsError(`The ${writeTarget} phase is not written yet.`, 'Run /gps write first, then /gps ship.');
-  }
-
-  const { tickets, nextPending, skipped } = listTickets(sessionDir);
-  for (const fileName of skipped) {
-    console.error(`⚠️  Skipped ${fileName}: ticket files must be named NN-<slug>.md`);
-  }
-  for (const { num, slug, modelInvalid } of tickets) {
-    if (modelInvalid !== null) {
-      console.error(`⚠️  Ticket ${num}-${slug}: unknown model "${modelInvalid}", using inherit (use haiku, sonnet, opus or inherit)`);
+main({
+  usage: 'ticket-queue.js [--json]',
+  run({ projectRoot, warn }) {
+    const { sessionId, sessionDir } = resolveSession(projectRoot);
+    const { tickets, nextPending } = readyTickets(sessionDir);
+    for (const { num, slug, modelInvalid } of tickets) {
+      if (modelInvalid !== null) {
+        warn(`Ticket ${num}-${slug}: unknown model "${modelInvalid}", using inherit (use ${TICKET_MODELS.join(', ')})`);
+      }
     }
-  }
-  if (tickets.length === 0) {
-    throw new GpsError('No tickets found.', 'Run /gps plan, then /gps write, then /gps ship.');
-  }
 
-  console.log(JSON.stringify({ sessionId, sessionDir, tickets, nextPending }, null, 2));
+    const pending = tickets.filter((t) => !t.done);
+    const lines = [
+      `Tickets of ${sessionId}: ${tickets.length - pending.length}/${tickets.length} done.`,
+      '',
+      ...tickets.map((t) => `- ${t.num} ${t.slug} — ${t.done ? 'done' : 'pending'} — model ${t.model}`),
+      '',
+    ];
+    if (nextPending) {
+      lines.push(`Next pending: ${nextPending.num} ${nextPending.slug}`, '', 'Model hints of the remaining tickets:',
+        ...pending.map((t) => `${Number(t.num)}: ${t.model}`));
+    } else {
+      lines.push('All tickets are done. Next: /gps finish');
+    }
+    return { text: lines.join('\n'), data: { sessionId, sessionDir, tickets, nextPending } };
+  },
 });

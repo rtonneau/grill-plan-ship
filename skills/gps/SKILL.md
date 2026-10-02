@@ -1,46 +1,43 @@
 ---
 name: gps
-description: "grill-plan-ship: universal workflow plugin (brainstorm → plan → implement). Use for /gps scout, /gps scout --from, /gps start, /gps issue, /gps status, /gps clean, /gps config, /gps write, /gps auto, /gps plan, /gps ticket, /gps ship, /gps finish, /gps handoff, /gps resume."
+description: "grill-plan-ship: workflow plugin (grill → plan → ship → finish). Use for /gps scout, /gps start, /gps status, /gps clean, /gps config, /gps write, /gps plan, /gps ship, /gps finish, /gps auto, /gps handoff."
 ---
 
 # grill-plan-ship
 
-Universal workflow plugin: brainstorm → plan → implement.
-
-## How to run a command
-
-Each command's full instructions live in `references/<command>.md` in this skill's directory (`/gps write` → `references/write.md`; `/gps scout --from …` → `references/scout.md`). Before doing anything else, read the file for the command you were given, and only that file. Never run a command from memory of an earlier read.
+Grill (spec the work) → Plan (atomic tickets) → Ship (one commit per ticket) → Finish (summary, and a PR on GitHub projects). Each session lives in `.work/sessions/YYYY-MM-DD__<slug>/`; the scripts own every file there.
 
 ## Commands
 
-- `/gps scout [--from <review-file>] [direction]` — Scan the codebase for architecture candidates, or read an existing review, and turn the result into ready-to-use `/gps start` seeds
-- `/gps start <feature-name>` — Begin a new feature
-- `/gps issue <title>` — Report a problem as a GitHub issue (local session without GitHub) and work on it
-- `/gps status` — Show every session's state, scouted ideas not started yet, and what's pending on the current one
-- `/gps clean [session-id|idea-slug...]` — List sessions by idle time and scouted ideas not started yet, and delete the ones you pick (after confirmation)
-- `/gps config [--rescan]` — Show the project's GitHub flag; `--rescan` detects it again (after confirmation when it changes)
-- `/gps write` — Write the current phase's output (brainstorm resume, or plan + tickets) to disk; `/gps plan` and `/gps ship` run it first when it's pending
-- `/gps plan` — Save the approved grill if it isn't yet, then generate plan + tickets
-- `/gps ticket <number>` — Implement ticket N
-- `/gps ship` — Save the approved plan + tickets if they aren't yet, then implement every remaining ticket in order, one commit each
-- `/gps finish` — Close the session and write its summary
-- `/gps auto [--delegate] [plan|ship|finish]` — Run the session from its current phase to the target (default finish) without stopping; asks the ship mode once at the start, or `--delegate` presets subagent + inline follow-up
-- `/gps handoff` — Save an in-flight checkpoint of the current session before stopping work
-- `/gps resume` — Catch up on the current session using its saved handoff plus live state
+| Command | What it does | Instructions |
+|---|---|---|
+| `/gps scout [--from <review-file>] [direction]` | Turn an architecture review, or an existing review file, into ideas for `/gps start` | `references/scout.md` |
+| `/gps start [--issue] <name>` | New session, then the grill (`--issue`: a report, filed as a GitHub issue) | `references/start.md` |
+| `/gps status` | Sessions, ideas, current phase and handoff, next command | `references/status.md` |
+| `/gps clean [id...]` | Delete sessions or drop ideas, after confirmation | `references/clean.md` |
+| `/gps config [--rescan]` | Show or re-detect the project's GitHub flag | `references/config.md` |
+| `/gps write` | Save the approved grill or plan to disk | `references/write.md` |
+| `/gps plan` | Save the grill if pending, start the plan, draft tickets | `references/plan.md` |
+| `/gps ship [N]` | Save the plan if pending, implement every remaining ticket (or only ticket N) | `references/ship.md` |
+| `/gps finish` | Close the session: leftovers committed, INDEX.md, PR | `references/finish.md` |
+| `/gps auto [--delegate] [plan\|ship\|finish]` | Run from the current phase to the target without stopping | `references/auto.md` |
+| `/gps handoff` | Save an in-flight checkpoint (HANDOFF.md) | `references/handoff.md` |
 
-## Workflow
+## How to run a command
 
-Grill (brainstorm, clarify the spec) → Plan (atomic tickets) → Ship (implement tickets one by one) → Finish (close and summarize). An optional `/gps scout` sources feature candidates before Grill. On GitHub projects (flag in `.work/gps-config.json`), saving the plan creates the session's branch and `/gps finish` opens its pull request; bounded work gets neither, and `/gps issue` files a GitHub issue at the grill write.
+Read the command's references file (in this skill's directory) before doing anything else, every time; never run a command from memory. In those files, `<name>.js` means `node $CLAUDE_PLUGIN_ROOT/skills/gps/scripts/<name>.js`. Every deterministic step is a script: run it rather than doing its work by hand.
 
-All output lives in `.work/sessions/YYYY-MM-DD__<slug>/` (local date; `<slug>` is the feature name cleaned to lowercase `a-z 0-9 . _ -`).
+## Script contract
+
+- **stdout** is text to relay to the user as is; with `--json` it is one JSON object instead.
+- **`⚠️` lines** (stderr) are warnings: relay them; they never stop a command.
+- **Exit 1** prints `❌ <what failed>` and a hint; **exit 2** is a usage error. Show both and stop the command. Don't retry with other arguments or work around it, unless the references file says how to recover.
+- **`Next:` lines** name the command to run next. Follow them unless the references file says otherwise (e.g. under `/gps auto`).
 
 ## Rules for every command
 
-- Every command runs its handler script with the exact `node $CLAUDE_PLUGIN_ROOT/skills/gps/scripts/<name>.js` line given in its references file. **Never create, edit or delete session state by hand** (`.session-config.json`, `.current-session`, `.pending-seeds.json`, directories) to stand in for a handler.
-- If a handler exits non-zero, it prints `❌ <what failed>` and a recovery hint on the next line. Show both to the user and stop that command — do not retry with different arguments or work around it, unless its references file says how to recover (e.g. `/gps write` payload errors).
-- While a grill skill (`grill-with-docs`, `grilling`, `domain-modeling` or `brainstorming`) is running, ask every question that has a finite set of answers with the `AskUserQuestion` tool, not plain chat text. Put your recommended answer first, marked "(Recommended)". Ask one question per call. Use free-text questions only for open-ended answers. This overrides a skill's own "ask in chat" phrasing.
-- Handlers never overwrite existing work: re-running `/gps start`, `/gps issue`, `/gps plan`, `/gps ticket` or `/gps finish` against existing output either refuses (changing nothing) or resumes, as described per command.
-
-## Switching the current session (internal, no `/gps` command)
-
-`node $CLAUDE_PLUGIN_ROOT/skills/gps/scripts/set-current.js <session-id>` points `.work/sessions/.current-session` at an existing, unfinished session. Run it **only after the user confirms** a switch — after `/gps finish`, or when a handler reports that the current session can't be resolved.
+- Never create, edit or delete session state by hand (`.session-config.json`, `.current-session`, `.pending-seeds.json`, session directories). Claude writes only the narrative a script points at: the write payload, a commit log's narrative sections, HANDOFF.md.
+- Scripts never overwrite work: re-running a command against existing output refuses (changing nothing) or resumes.
+- While a grill skill runs (`grill-with-docs`, `grilling`, `domain-modeling`, `brainstorming`), ask every question with a finite set of answers with `AskUserQuestion`, one question per call, recommended answer first and marked "(Recommended)". This overrides a skill's own "ask in chat".
+- Switch the current session only after the user confirms it: `set-current.js <session-id>`.
+- On GitHub projects (flag in `.work/gps-config.json`), saving the plan creates the session branch and `/gps finish` opens its pull request; bounded work (no plan) gets neither.

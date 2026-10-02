@@ -1,21 +1,66 @@
-// scripts/lib/git.js
+// skills/gps/scripts/lib/git.js
 //
-// Read-only git queries. Git is always run via execFileSync with an
-// argument array (never a shell string), so paths and session names can't
-// be interpreted by a shell. Every helper returns [] on any error (not a
-// repo, git missing, ...) and never throws.
+// Every git call the scripts make. Git always runs via execFileSync with an
+// argument array (never a shell string), so paths and names can't be
+// interpreted by a shell. Read helpers return [] / null on any error (not a
+// repo, git missing, ...); write helpers return { ok, reason, commands }
+// so a caller can print the commands to run by hand, except where noted.
 
 const path = require('path');
 const { execFileSync } = require('child_process');
 
 const DEFAULT_MAX_COMMITS = 10;
+const BRANCH_TYPES = ['feat', 'fix', 'refactor', 'docs', 'chore', 'perf', 'test'];
+const BRANCH_RE = new RegExp(`^(${BRANCH_TYPES.join('|')})/[a-z0-9]+([._-][a-z0-9]+)*$`);
+const MAX_BRANCH_LENGTH = 80;
+const BRANCH_PATTERN = `<${BRANCH_TYPES.join('|')}>/<short-slug>`;
 
 function git(projectRoot, args) {
   return execFileSync('git', args, {
     cwd: projectRoot,
     encoding: 'utf-8',
-    stdio: ['ignore', 'pipe', 'ignore'],
-  });
+    stdio: ['ignore', 'pipe', 'pipe'],
+  }).trim();
+}
+
+function tryGit(projectRoot, args) {
+  try {
+    return git(projectRoot, args);
+  } catch (_err) {
+    return null;
+  }
+}
+
+// Short, readable reason from a failed execFileSync.
+function failureReason(err) {
+  const stderr = err && err.stderr ? String(err.stderr).trim() : '';
+  if (stderr) return stderr.split('\n').filter(Boolean).pop();
+  return err && err.code === 'ENOENT' ? 'command not found' : (err && err.message) || String(err);
+}
+
+const lines = (out) => (out ? out.split('\n').map((l) => l.trim()).filter(Boolean) : []);
+const nulList = (out) => (out || '').split('\0').filter(Boolean);
+const quote = (text) => `"${String(text).replace(/"/g, '\\"')}"`;
+
+function isWorkTree(projectRoot) {
+  return tryGit(projectRoot, ['rev-parse', '--is-inside-work-tree']) === 'true';
+}
+
+function originUrl(projectRoot) {
+  return tryGit(projectRoot, ['config', '--get', 'remote.origin.url']);
+}
+
+function currentBranch(projectRoot) {
+  return tryGit(projectRoot, ['branch', '--show-current']) || null;
+}
+
+function commitExists(projectRoot, sha) {
+  return tryGit(projectRoot, ['cat-file', '-e', `${sha}^{commit}`]) !== null;
+}
+
+// "<short sha> <subject>" of a commit, or null when it does not exist.
+function describeCommit(projectRoot, sha) {
+  return tryGit(projectRoot, ['log', '-1', '--format=%h %s', `${sha}^{commit}`, '--']) || null;
 }
 
 // Project-wide commits (oneline) made since `sinceIso` (the session's
@@ -25,49 +70,151 @@ function readRecentCommits(projectRoot, sinceIso, max = DEFAULT_MAX_COMMITS) {
   const sinceMs = sinceIso ? Date.parse(sinceIso) : NaN;
   // "@<unix seconds>" is git's unambiguous raw date format.
   if (!Number.isNaN(sinceMs)) args.push(`--since=@${Math.floor(sinceMs / 1000)}`);
-  try {
-    return git(projectRoot, args).split('\n').map((line) => line.trim()).filter(Boolean);
-  } catch (_err) {
-    return [];
-  }
+  return lines(tryGit(projectRoot, args));
+}
+
+function commitsBetween(projectRoot, base, branch) {
+  return lines(tryGit(projectRoot, ['log', '--oneline', '--no-decorate', `${base}..${branch}`]));
 }
 
 function parsePorcelain(output) {
   return output
     .split('\n')
     .filter((line) => line.length > 0)
-    .map((line) => ({
-      indexStatus: line[0],
-      worktreeStatus: line[1],
-      path: line.slice(3),
-    }));
+    .map((line) => ({ indexStatus: line[0], worktreeStatus: line[1], path: line.slice(3) }));
 }
 
-// `git status --porcelain` for the whole project, or only `pathspec`
-// (relative to projectRoot) when given.
+// `git status --porcelain` for the whole project, or only `pathspec`.
 function readGitStatusEntries(projectRoot, pathspec) {
   const args = ['status', '--porcelain', '--untracked-files=all'];
   if (pathspec) args.push('--', pathspec);
   try {
-    return parsePorcelain(git(projectRoot, args));
+    return parsePorcelain(execFileSync('git', args, {
+      cwd: projectRoot, encoding: 'utf-8', stdio: ['ignore', 'pipe', 'ignore'],
+    }));
   } catch (_err) {
     return [];
   }
 }
 
-// Session-scoped status only (kept for callers that want just that).
-function readGitStatusSummary(projectRoot, sessionDir) {
-  const relPath = path.relative(projectRoot, sessionDir).replace(/\\/g, '/');
-  return readGitStatusEntries(projectRoot, relPath);
-}
-
-// Both views, shown separately: the whole project (where code changes
-// live) and the session directory (usually empty, as .work/ is gitignored).
+// Both views: the whole project (where code changes live) and the session
+// directory (usually empty, as .work/ is gitignored).
 function readGitStatus(projectRoot, sessionDir) {
+  const relPath = path.relative(projectRoot, sessionDir).replace(/\\/g, '/');
   return {
     project: readGitStatusEntries(projectRoot, null),
-    session: readGitStatusSummary(projectRoot, sessionDir),
+    session: readGitStatusEntries(projectRoot, relPath),
   };
 }
 
-module.exports = { DEFAULT_MAX_COMMITS, readRecentCommits, readGitStatusSummary, readGitStatus };
+// Problems with a proposed session branch name, as payload error strings.
+function validateBranchName(projectRoot, name) {
+  if (!name) return [`Missing field "**Branch:**": name the session branch ${BRANCH_PATTERN}, e.g. feat/dark-mode-toggle.`];
+  const errors = [];
+  if (name.length > MAX_BRANCH_LENGTH || !BRANCH_RE.test(name)) {
+    errors.push(`Branch "${name}" must look like ${BRANCH_PATTERN} (lowercase a-z 0-9, "-", "_" or "." between, at most ${MAX_BRANCH_LENGTH} characters), e.g. feat/dark-mode-toggle.`);
+  } else if (tryGit(projectRoot, ['check-ref-format', '--branch', name]) === null) {
+    errors.push(`Branch "${name}" is not a valid git branch name.`);
+  } else if (tryGit(projectRoot, ['rev-parse', '--verify', '--quiet', `refs/heads/${name}`]) !== null) {
+    errors.push(`Branch "${name}" already exists. Pick another name.`);
+  }
+  if (!currentBranch(projectRoot)) {
+    errors.push('HEAD is detached: check out the branch the session should start from, then run write-apply.js again.');
+  }
+  return errors;
+}
+
+function branchType(branch) {
+  return String(branch).split('/')[0];
+}
+
+// Creates `name` from HEAD and switches to it (uncommitted changes carry
+// over). Returns the config's `git` record. Throws with git's reason.
+function createSessionBranch(projectRoot, name) {
+  const base = currentBranch(projectRoot);
+  try {
+    git(projectRoot, ['switch', '-c', name]);
+  } catch (err) {
+    throw new Error(`git switch -c ${name} failed: ${failureReason(err)}`);
+  }
+  return { branch: name, base_branch: base, branch_created_at: new Date().toISOString(), pr_url: null };
+}
+
+// Never throws: { ok: true } or { ok: false, reason, commands }.
+function switchBranch(projectRoot, name) {
+  try {
+    git(projectRoot, ['switch', '-q', name]);
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, reason: failureReason(err), commands: [`git switch ${name}`] };
+  }
+}
+
+// Commits every change to tracked files (`git add -u`), so /gps finish leaves
+// nothing behind (e.g. a log a hook appends to). Untracked files are listed,
+// never committed; gps's own .work/ is left out of that list. Never throws:
+// { ok: true, sha, files, untracked } (sha null: nothing to commit, or not a
+// git repo) or { ok: false, reason, commands, untracked }.
+function commitRemainingChanges(projectRoot, message) {
+  if (!isWorkTree(projectRoot)) return { ok: true, sha: null, files: [], untracked: [] };
+  const untracked = nulList(tryGit(projectRoot, ['ls-files', '--others', '--exclude-standard', '-z']))
+    .filter((f) => !f.startsWith('.work/'));
+  try {
+    git(projectRoot, ['add', '-u']);
+    const files = nulList(git(projectRoot, ['diff', '--cached', '--name-only', '-z']));
+    if (files.length === 0) return { ok: true, sha: null, files, untracked };
+    git(projectRoot, ['commit', '-q', '-m', message]);
+    return { ok: true, sha: git(projectRoot, ['rev-parse', '--short', 'HEAD']), files, untracked };
+  } catch (err) {
+    return { ok: false, reason: failureReason(err), untracked, commands: ['git add -u', `git commit -m ${quote(message)}`] };
+  }
+}
+
+// Stages exactly `files` (paths relative to projectRoot) and commits them
+// with `message`; nothing else that is staged goes in. Never throws:
+// { ok: true, sha, files } or { ok: false, reason, commands }.
+function commitFiles(projectRoot, files, message) {
+  const commands = [`git add -- ${files.map(quote).join(' ')}`, `git commit -m ${quote(message)} -- ${files.map(quote).join(' ')}`];
+  if (!isWorkTree(projectRoot)) return { ok: false, reason: 'not a git repository', commands };
+  try {
+    git(projectRoot, ['add', '--', ...files]);
+    const staged = nulList(git(projectRoot, ['diff', '--cached', '--name-only', '-z', '--', ...files]));
+    if (staged.length === 0) return { ok: false, reason: 'none of the given files has changes to commit', commands };
+    git(projectRoot, ['commit', '-q', '-m', message, '--', ...files]);
+    return { ok: true, sha: git(projectRoot, ['rev-parse', '--short', 'HEAD']), files: staged };
+  } catch (err) {
+    return { ok: false, reason: failureReason(err), commands };
+  }
+}
+
+// Never throws: { ok: true } or { ok: false, reason }.
+function pushBranch(projectRoot, branch) {
+  try {
+    git(projectRoot, ['push', '-u', 'origin', branch]);
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, reason: failureReason(err) };
+  }
+}
+
+module.exports = {
+  DEFAULT_MAX_COMMITS,
+  BRANCH_TYPES,
+  BRANCH_PATTERN,
+  failureReason,
+  isWorkTree,
+  originUrl,
+  currentBranch,
+  commitExists,
+  describeCommit,
+  readRecentCommits,
+  commitsBetween,
+  readGitStatus,
+  validateBranchName,
+  branchType,
+  createSessionBranch,
+  switchBranch,
+  commitRemainingChanges,
+  commitFiles,
+  pushBranch,
+};

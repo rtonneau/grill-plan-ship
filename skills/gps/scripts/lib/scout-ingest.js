@@ -1,10 +1,14 @@
-// scripts/lib/scout-ingest.js
+// skills/gps/scripts/lib/scout-ingest.js
+//
+// /gps scout: validates the candidates Claude synthesized, archives the
+// report write-once under .work/sessions/scout-reports/ and merges the
+// candidates into the seeds file.
+
 const fs = require('fs');
 const path = require('path');
-const { mergeSeeds } = require('./seeds-store');
+const { STRENGTHS, mergeSeeds } = require('./seeds-store');
 const { GpsError, isSlug, slugify, MAX_SLUG_LENGTH } = require('./guard');
 
-const STRENGTHS = ['Strong', 'Worth exploring', 'Speculative'];
 const REQUIRED_TEXT_FIELDS = ['problem', 'solution'];
 const MAX_SEVERITY_LENGTH = 32;
 
@@ -163,4 +167,4 @@ function ingestScoutReport({ sessionsDir, reportPath, sourcePath, sourceDirectio
   return { reportDestPath, sourceReport, seeded, warnings };
 }
 
-module.exports = { STRENGTHS, MAX_SEVERITY_LENGTH, validateCandidates, ingestScoutReport };
+module.exports = { MAX_SEVERITY_LENGTH, validateCandidates, ingestScoutReport };

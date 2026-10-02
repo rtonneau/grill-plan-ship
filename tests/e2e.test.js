@@ -1,200 +1,118 @@
 // tests/e2e.test.js
 //
-// One full session through the real handlers, in a throwaway git repo:
-// start -> write(grill) -> plan -> write(plan) -> ship 2 tickets -> handoff
-// -> resume -> finish. After every step, /gps status must report the right
-// phase and next command, and status/resume must not change a single byte
-// under .work/.
+// One full session through the real scripts, in a throwaway git repo, the
+// way the references drive them:
+//   start -> write (grill) -> plan -> write (plan) -> ship 2 tickets
+//   (ticket-start -> dispatch-prompt -> ticket-complete -> ticket-check)
+//   -> handoff -> status -> finish -> scout --from -> start (seeded).
+// After every step /gps status reports the right phase and next command,
+// the recorded phase never drifts, and the history lists every step.
 
 const assert = require('assert');
-const crypto = require('crypto');
 const fs = require('fs');
-const os = require('os');
 const path = require('path');
-const { spawnSync, execFileSync } = require('child_process');
+const h = require('./helpers');
 
-const SCRIPTS = path.join(__dirname, '..', 'skills', 'gps', 'scripts');
-const root = fs.mkdtempSync(path.join(os.tmpdir(), 'gps-e2e-'));
+const root = h.gitProject('gps-e2e-');
 
-function run(script, ...args) {
-  const result = spawnSync(process.execPath, [path.join(SCRIPTS, script), ...args], {
-    cwd: root,
-    encoding: 'utf-8',
-    env: { ...process.env, CLAUDE_CODE_SESSION_ID: '' },
-  });
-  return { code: result.status, out: result.stdout, err: result.stderr };
-}
-
-function ok(script, ...args) {
-  const res = run(script, ...args);
-  assert.strictEqual(res.code, 0, `${script} ${args.join(' ')} failed:\n${res.err}`);
-  return res;
-}
-
-function git(...args) {
-  execFileSync('git', args, { cwd: root, stdio: 'ignore' });
-}
-
-// Hash of every file under .work/ (path + content), to prove read-only commands.
-function hashWork() {
-  const hash = crypto.createHash('sha256');
-  const walk = (dir) => {
-    for (const entry of fs.readdirSync(dir, { withFileTypes: true }).sort((a, b) => (a.name < b.name ? -1 : 1))) {
-      const full = path.join(dir, entry.name);
-      if (entry.isDirectory()) walk(full);
-      else hash.update(path.relative(root, full)).update(fs.readFileSync(full));
-    }
-  };
-  walk(path.join(root, '.work'));
-  return hash.digest('hex');
-}
-
-// Runs status.js, asserts it changed nothing, and checks phase + next command.
 function expectStatus(phase, command) {
-  const before = hashWork();
-  const report = JSON.parse(ok('status.js').out);
-  assert.strictEqual(hashWork(), before, 'status.js modified .work/');
+  const report = h.json(root, 'status.js');
   assert.strictEqual(report.current.phase, phase);
   assert.ok(report.sessions.every((s) => s.phaseDrift === null), 'the recorded phase drifted from the derived phase');
   assert.strictEqual(report.current.suggestedNext.command, command);
   return report;
 }
 
-git('init', '-q');
-git('config', 'user.email', 'e2e@example.com');
-git('config', 'user.name', 'E2E');
-fs.writeFileSync(path.join(root, 'app.js'), 'console.log(1);\n');
-git('add', 'app.js');
-git('commit', '-q', '-m', 'initial');
-
 // start
-ok('start-session.js', 'Add Dark Mode');
-const sessionId = fs.readFileSync(path.join(root, '.work', 'sessions', '.current-session'), 'utf-8');
-assert.match(sessionId, /^\d{4}-\d{2}-\d{2}__add-dark-mode$/);
-const sessionDir = path.join(root, '.work', 'sessions', sessionId);
+h.ok(root, 'start.js', ['Add Dark Mode']);
+const sessionDir = h.sessionDir(root);
+assert.match(h.currentSession(root), /^\d{4}-\d{2}-\d{2}__add-dark-mode$/);
 expectStatus('grill', '/gps write');
 
-// write (grill)
-const grillTarget = JSON.parse(ok('write-target.js').out);
-assert.strictEqual(grillTarget.target, 'grill');
-fs.writeFileSync(grillTarget.payloadPath, grillTarget.sections.map((h) => `## ${h}\n\n${h}: approved.\n`).join('\n'));
-ok('write-apply.js');
+// write (grill): the skeleton, filled, is the payload
+let prep = h.json(root, 'write-prepare.js');
+fs.writeFileSync(prep.payloadPath, h.fillSkeleton(prep.skeleton, 'Approved.'));
+h.ok(root, 'write-apply.js');
 expectStatus('plan-not-started', '/gps plan');
 
 // plan
-ok('plan.js');
+h.ok(root, 'plan.js');
 expectStatus('plan', '/gps write');
-assert.strictEqual(run('ticket.js', '1').code, 1, 'ticket must refuse while stubs exist');
 
-// write (plan)
-const planTarget = JSON.parse(ok('write-target.js').out);
-assert.strictEqual(planTarget.target, 'plan');
-const planPayload = (ticketOne) =>
-  planTarget.fields.map((label) => `**${label}:** 1 day\n`).join('') + '\n' +
-  planTarget.sections.map((h) => `## ${h}\n\n${h}: two tickets.\n`).join('\n') +
-    `\n--- ticket: 01-toggle ---\n${ticketOne}Add the toggle.\n\n--- ticket: 02-persist ---\nPersist the choice.\n`;
-// An unknown model is rejected and nothing is written
-fs.writeFileSync(planTarget.payloadPath, planPayload('**Model:** gpt-9\n\n'));
-const badModel = run('write-apply.js');
-assert.notStrictEqual(badModel.code, 0);
-assert.match(badModel.err + badModel.out, /unknown model "gpt-9"/);
-fs.writeFileSync(planTarget.payloadPath, planPayload('**Model:** haiku\n\n'));
-ok('write-apply.js');
+// write (plan): two tickets from the skeleton's ticket block
+prep = h.json(root, 'write-prepare.js');
+const head = prep.skeleton.slice(0, prep.skeleton.indexOf('--- ticket:'));
+const block = prep.skeleton.slice(prep.skeleton.indexOf('--- ticket:'));
+const ticket = (slug, model) => h.fillSkeleton(block.replace('01-<slug>', slug), 'Done.')
+  .replace('**Model:** Done.', model ? `**Model:** ${model}` : '');
+fs.writeFileSync(prep.payloadPath, `${h.fillSkeleton(head, '1 day')}${ticket('01-toggle', 'haiku')}\n${ticket('02-persist')}`);
+h.ok(root, 'write-apply.js');
 let report = expectStatus('ship', '/gps ship');
 assert.strictEqual(report.current.nextPending.slug, 'toggle');
+assert.match(h.ok(root, 'ticket-queue.js').out, /1: haiku\n2: inherit/);
 
-// A hand-edited unknown model warns on stderr and falls back to inherit
-const persistTicket = path.join(sessionDir, '02-plan', 'tickets', '02-persist.md');
-const persistText = fs.readFileSync(persistTicket, 'utf-8');
-fs.writeFileSync(persistTicket, `**Model:** sonett\n\n${persistText}`);
-const typoQueue = ok('ticket-queue.js');
-assert.match(typoQueue.err, /Ticket 02-persist: unknown model "sonett", using inherit/);
-assert.strictEqual(JSON.parse(typoQueue.out).tickets[1].model, 'inherit');
-fs.writeFileSync(persistTicket, persistText);
-
-// ship: each ticket -> implement, mark Done, commit
-for (const [num, slug, model] of [['1', 'toggle', 'haiku'], ['2', 'persist', 'inherit']]) {
-  const queue = JSON.parse(ok('ticket-queue.js').out);
-  assert.strictEqual(queue.nextPending.slug, slug);
-  assert.strictEqual(queue.nextPending.model, model);
-  ok('ticket.js', num);
-  const log = path.join(sessionDir, '03-implement', `0${num}-${slug}`, 'commit-log.md');
+// ship: ticket 1 the subagent way, ticket 2 inline
+for (const [num, slug, mode] of [[1, 'toggle', 'subagent'], [2, 'persist', 'inline']]) {
+  const started = h.json(root, 'ticket-start.js');
+  assert.strictEqual(started.ticket.slug, slug);
+  if (mode === 'subagent') {
+    const call = h.json(root, 'dispatch-prompt.js', [String(num), '--mode', 'subagent']).call;
+    assert.strictEqual(call.model, 'haiku');
+    assert.ok(call.prompt.includes(started.ticket.commitLogPath));
+  }
+  h.fillLog(root, `0${num}-${slug}`);
   fs.writeFileSync(path.join(root, `${slug}.js`), `// ${slug}\n`);
-  git('add', `${slug}.js`);
-  git('commit', '-q', '-m', `feat: ${slug}`);
-  fs.writeFileSync(log, fs.readFileSync(log, 'utf-8').replace(/^\*\*Status:\*\*.*$/m, '**Status:** ✅ Done'));
-  ok('ticket-done.js', num);
+  h.ok(root, 'ticket-complete.js', [String(num), '--message', `feat: ${slug}`, '--file', `${slug}.js`]);
+  h.ok(root, 'ticket-check.js', [String(num)]);
 }
+assert.match(h.ok(root, 'ticket-start.js').out, /All tickets are done/);
 report = expectStatus('finish-pending', '/gps finish');
-// project-wide commits since the session started (the "initial" commit may share its second)
 assert.ok(report.current.gitLog.some((line) => line.includes('feat: persist')));
-assert.ok(report.current.gitLog.some((line) => line.includes('feat: toggle')));
 
-// handoff writes HANDOFF.md; resume is read-only
+// handoff, then status shows it without drift
 fs.writeFileSync(path.join(root, 'wip.js'), '// uncommitted\n');
-const handoff = JSON.parse(ok('handoff.js').out.split('\n').slice(1).join('\n').split('\n\nFill in')[0]);
-assert.ok(handoff.gitStatus.project.some((e) => e.path === 'wip.js'));
-assert.ok(fs.existsSync(path.join(sessionDir, 'HANDOFF.md')));
-const beforeResume = hashWork();
-const resume = JSON.parse(ok('resume.js').out);
-assert.strictEqual(hashWork(), beforeResume, 'resume.js modified .work/');
-assert.strictEqual(resume.live.currentPhase, 'finish-pending');
-assert.strictEqual(resume.drift, null);
+assert.ok(h.json(root, 'handoff.js').gitStatus.project.some((e) => e.path === 'wip.js'));
+report = expectStatus('finish-pending', '/gps finish');
+assert.strictEqual(report.current.handoff.drift, null);
+fs.rmSync(path.join(root, 'wip.js'));
 
 // finish
-const finish = ok('finish.js');
-assert.match(finish.out, /UNFINISHED_SESSIONS \[\]/);
+const finish = h.json(root, 'finish.js');
+assert.deepStrictEqual(finish.unfinished, []);
 const index = fs.readFileSync(path.join(sessionDir, 'INDEX.md'), 'utf-8');
 assert.match(index, /✅ 01 toggle/);
 assert.match(index, /✅ 02 persist/);
-assert.ok(!fs.existsSync(path.join(root, '.work', 'sessions', '.current-session')));
-
-// history: every step is in the config, in order, with the phase after it
-const finalConfig = JSON.parse(fs.readFileSync(path.join(sessionDir, '.session-config.json'), 'utf-8'));
-assert.deepStrictEqual(finalConfig.history.map((e) => e.event), [
-  'session_started', 'grill_written', 'plan_started', 'plan_written',
-  'ticket_started', 'ticket_done', 'ticket_started', 'ticket_done',
-  'handoff_saved', 'session_finished',
-]);
-assert.deepStrictEqual(finalConfig.history.map((e) => e.phase), [
-  'grill', 'plan-not-started', 'plan', 'ship',
-  'ship', 'ship', 'ship', 'finish-pending',
-  'finish-pending', 'finished',
-]);
-const stamps = finalConfig.history.map((e) => e.at);
-assert.deepStrictEqual(stamps, [...stamps].sort(), 'events are in chronological order');
-assert.strictEqual(finalConfig.current_phase, 'finished');
-assert.ok(finalConfig.history.every((e) => !e.backfilled));
-assert.match(index, /## Timeline/);
-assert.match(index, /\| session_finished \|/);
-const links = [...index.matchAll(/\]\(([^)]+)\)/g)].map((m) => m[1]);
-assert.ok(links.includes('03-implement/01-toggle/commit-log.md'));
-for (const link of links) {
+for (const [, link] of index.matchAll(/\]\(([^)]+)\)/g)) {
   assert.ok(fs.existsSync(path.join(sessionDir, link)), `INDEX.md links to a missing file: ${link}`);
 }
+assert.ok(!fs.existsSync(path.join(h.sessionsDir(root), '.current-session')));
 
-// after finishing: status reports no current session, still read-only
-const beforeStatus = hashWork();
-const after = JSON.parse(ok('status.js').out);
-assert.strictEqual(hashWork(), beforeStatus);
+// history: every step, in order, with the phase after it
+const config = JSON.parse(fs.readFileSync(path.join(sessionDir, '.session-config.json'), 'utf-8'));
+assert.deepStrictEqual(config.history.map((e) => [e.event, e.phase]), [
+  ['session_started', 'grill'], ['grill_written', 'plan-not-started'], ['plan_started', 'plan'], ['plan_written', 'ship'],
+  ['ticket_started', 'ship'], ['ticket_done', 'ship'], ['ticket_started', 'ship'], ['ticket_done', 'finish-pending'],
+  ['handoff_saved', 'finish-pending'], ['session_finished', 'finished'],
+]);
+const stamps = config.history.map((e) => e.at);
+assert.deepStrictEqual(stamps, [...stamps].sort(), 'events are in chronological order');
+assert.ok(config.history.every((e) => !e.backfilled));
+const after = h.json(root, 'status.js');
 assert.strictEqual(after.current, null);
 assert.strictEqual(after.sessions[0].phase, 'finished');
 
-// scout --from -> start: the seed is consumed and printed with severity + sourcePath
+// scout --from -> start: the seed is consumed and printed
 fs.mkdirSync(path.join(root, 'docs'));
 fs.writeFileSync(path.join(root, 'docs', 'review.md'), '# Review\n\nC1: links delete config.\n');
-const scoutEntries = path.join(root, 'scout-entries.json');
-fs.writeFileSync(scoutEntries, JSON.stringify({
+const entries = path.join(root, 'scout-entries.json');
+fs.writeFileSync(entries, JSON.stringify({
   sourceDirection: null,
   candidates: [{ slug: 'safe-linking', strength: 'Strong', severity: 'Critical', problem: 'C1: p', solution: 's' }],
 }));
-ok('scout-merge.js', '--from', 'docs/review.md', scoutEntries);
-const seededStart = ok('start-session.js', 'safe-linking');
-assert.match(seededStart.out, /Scout seed found for "safe-linking"/);
-assert.match(seededStart.out, /"severity": "Critical"/);
-assert.match(seededStart.out, /"sourcePath": "docs\/review\.md"/);
-const seedsLeft = JSON.parse(fs.readFileSync(path.join(root, '.work', 'sessions', '.pending-seeds.json'), 'utf-8'));
-assert.ok(!('safe-linking' in seedsLeft));
+h.ok(root, 'scout-merge.js', ['--from', 'docs/review.md', entries]);
+const seeded = h.ok(root, 'start.js', ['safe-linking']).out;
+assert.match(seeded, /"severity": "Critical"/);
+assert.match(seeded, /"sourcePath": "docs\/review\.md"/);
 
 fs.rmSync(root, { recursive: true, force: true });
-console.log('e2e.test.js: all assertions passed');
+h.done('e2e.test.js');

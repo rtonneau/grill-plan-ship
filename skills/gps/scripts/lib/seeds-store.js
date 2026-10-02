@@ -1,9 +1,16 @@
-// scripts/lib/seeds-store.js
+// skills/gps/scripts/lib/seeds-store.js
+//
+// Scouted ideas not started yet: .work/sessions/.pending-seeds.json, keyed
+// by slug. /gps scout merges into it, /gps start consumes one, /gps clean
+// drops some, /gps status only peeks.
+
 const fs = require('fs');
 const path = require('path');
 const { writeJsonAtomic } = require('./guard');
 
 const SEEDS_FILENAME = '.pending-seeds.json';
+// Seed strengths, strongest first.
+const STRENGTHS = ['Strong', 'Worth exploring', 'Speculative'];
 
 function seedsPath(sessionsDir) {
   return path.join(sessionsDir, SEEDS_FILENAME);
@@ -88,4 +95,4 @@ function removeSeeds(sessionsDir, slugs) {
   writeSeeds(sessionsDir, seeds);
 }
 
-module.exports = { SEEDS_FILENAME, mergeSeeds, getSeed, removeSeed, removeSeeds, peekSeeds };
+module.exports = { SEEDS_FILENAME, STRENGTHS, mergeSeeds, getSeed, removeSeed, removeSeeds, peekSeeds };

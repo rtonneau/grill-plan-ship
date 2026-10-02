@@ -1,21 +1,30 @@
-// scripts/lib/guard.js
+// skills/gps/scripts/lib/guard.js
 //
-// Shared safety helpers for every handler: slug cleaning/validation,
-// JSON read/write that never silently corrupts state, and a CLI wrapper
-// that turns failures into a one-line "❌ message" + recovery hint
-// instead of a stack trace.
+// Shared helpers for every script: the error types the CLI contract maps
+// to exit codes (see cli.js), slug cleaning/validation, dates, and JSON
+// read/write that never silently corrupts state.
 
 const fs = require('fs');
 const path = require('path');
 
 const SLUG_RE = /^[a-z0-9]+([._-][a-z0-9]+)*$/;
 const MAX_SLUG_LENGTH = 64;
+const DAY_MS = 24 * 60 * 60 * 1000;
 
+// A failed precondition or validation: exit 1, "❌ message" + hint.
 class GpsError extends Error {
   constructor(message, hint) {
     super(message);
     this.name = 'GpsError';
     this.hint = hint || null;
+  }
+}
+
+// Bad arguments: exit 2; the hint defaults to the script's usage line.
+class UsageError extends GpsError {
+  constructor(message, hint) {
+    super(message, hint);
+    this.name = 'UsageError';
   }
 }
 
@@ -26,6 +35,22 @@ function pad2(n) {
 // YYYY-MM-DD in the machine's local timezone (not UTC).
 function localDate(now = new Date()) {
   return `${now.getFullYear()}-${pad2(now.getMonth() + 1)}-${pad2(now.getDate())}`;
+}
+
+// Whole days from an ISO timestamp to `now`, or null when it is unreadable.
+function daysSince(iso, now = new Date()) {
+  const time = iso ? Date.parse(iso) : NaN;
+  return Number.isNaN(time) ? null : Math.max(0, Math.floor((now.getTime() - time) / DAY_MS));
+}
+
+// Text as lines: BOM dropped, CRLF normalized.
+function toLines(text) {
+  return String(text).replace(/^﻿/, '').replace(/\r\n/g, '\n').split('\n');
+}
+
+// Text safe inside a markdown table cell (pipes escaped, one line).
+function mdCell(text) {
+  return String(text === null || text === undefined ? '' : text).replace(/\|/g, '\\|').replace(/\r?\n/g, ' ');
 }
 
 function isSlug(value) {
@@ -74,6 +99,15 @@ function readJson(filePath, label = path.basename(filePath)) {
   }
 }
 
+// The parsed JSON file, or null when it is missing or unreadable.
+function readJsonOrNull(filePath) {
+  try {
+    return JSON.parse(fs.readFileSync(filePath, 'utf-8'));
+  } catch (_err) {
+    return null;
+  }
+}
+
 // Writes JSON via a temp file + rename, so an interrupted write never
 // leaves a half-written file in place.
 function writeJsonAtomic(filePath, data) {
@@ -82,30 +116,19 @@ function writeJsonAtomic(filePath, data) {
   fs.renameSync(tmpPath, filePath);
 }
 
-// Runs a handler's main function; GpsErrors print "❌ message" (+ hint)
-// and exit 1, anything else prints its message without a stack trace.
-function runCli(main) {
-  try {
-    main();
-  } catch (err) {
-    if (err instanceof GpsError) {
-      console.error(`❌ ${err.message}`);
-      if (err.hint) console.error(`   ${err.hint}`);
-    } else {
-      console.error(`❌ Unexpected error: ${err && err.message ? err.message : err}`);
-    }
-    process.exit(1);
-  }
-}
-
 module.exports = {
   SLUG_RE,
   MAX_SLUG_LENGTH,
   GpsError,
+  UsageError,
+  pad2,
   localDate,
+  daysSince,
+  toLines,
+  mdCell,
   isSlug,
   slugify,
   readJson,
+  readJsonOrNull,
   writeJsonAtomic,
-  runCli,
 };

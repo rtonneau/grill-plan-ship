@@ -1,53 +1,49 @@
 #!/usr/bin/env node
 
 /**
- * /gps finish
+ * finish.js [--close-issue | --keep-issue] [--json]
  *
- * Closes the current session: writes INDEX.md (session summary), records
- * finished_at in .session-config.json, clears .current-session, and lists
- * the sessions still unfinished so Claude can offer to switch to one
- * (via set-current.js, after the user confirms).
+ * /gps finish: closes the current session: writes INDEX.md (session
+ * summary), records finished_at in .session-config.json, clears
+ * .current-session, and lists the sessions still unfinished so Claude can
+ * offer to switch to one (set-current.js, after the user confirms).
  *
  * Refuses (changing nothing) when:
  * - the session is already finished;
  * - the grill or plan phase is not written yet;
- * - any ticket is not Done.
+ * - any ticket is not Done;
+ * - a GitHub session's branch is not checked out;
+ * - a bounded issue session gets neither --close-issue nor --keep-issue
+ *   (the user's answer to "close issue #N as well?").
  * A bounded session (resume written, no plan) may finish with no tickets.
- *
- * INDEX.md gets a "## Timeline" built from the session history (see
- * lib/history.js) plus the session_finished event, which is recorded after
- * INDEX.md is written.
  *
  * Changes to tracked files still uncommitted (e.g. a log a hook appends to)
  * are committed first, on the checked-out branch; untracked files are only
  * listed. Sessions with a branch (`git` in the config, set by the plan write
- * in a GitHub project) must have it checked out; finish pushes it, opens a
- * PR against its base branch, then switches back to the base branch (not
+ * in a GitHub project) are pushed, get a PR against their base branch (an
+ * existing one is reused), then the base branch is checked out again (not
  * after a failed commit, which would leave changes behind). A failed commit,
  * push, gh call or switch does not fail the finish: INDEX.md and the output
- * list the commands to run by hand. Bounded sessions have no branch, so they
- * open no PR and stay on the current branch.
+ * list the commands to run by hand.
  *
- * Sessions filed with /gps issue (`issue` in the config): without a branch
- * (bounded), finish comments a summary on the GitHub issue and, with
- * `--close-issue`, closes it. With a branch, the PR body says "Closes #N"
- * and merging the PR closes the issue. A failed gh call never fails finish.
+ * Issue sessions (`issue` in the config): without a branch (bounded),
+ * finish comments a summary on the issue and, with --close-issue, closes
+ * it. With a branch, the PR body says "Closes #N".
  */
 
 const fs = require('fs');
 const path = require('path');
-const {
-  resolveSession, isFinished, clearCurrentSession, listUnfinishedSessions,
-} = require('./lib/session-store');
+const { main } = require('./lib/cli');
+const { resolveSession, clearCurrentSession, listUnfinishedSessions, SET_CURRENT } = require('./lib/session-store');
+const { isFinished } = require('./lib/phase');
 const { resolveWriteTarget } = require('./lib/write-target');
 const { listTickets } = require('./lib/ticket-queue');
 const { splitSections } = require('./lib/write-payload');
 const {
-  PR_ATTRIBUTION, currentBranch, branchType, commitsBetween, commitRemainingChanges, switchBranch, openPullRequest,
-  commentOnIssue, closeIssue,
-} = require('./lib/github');
-const { readRecentCommits } = require('./lib/git');
-const { GpsError, writeJsonAtomic, runCli } = require('./lib/guard');
+  currentBranch, branchType, commitsBetween, commitRemainingChanges, switchBranch, readRecentCommits,
+} = require('./lib/git');
+const { PR_ATTRIBUTION, openPullRequest, commentOnIssue, closeIssue } = require('./lib/github');
+const { GpsError, UsageError, writeJsonAtomic } = require('./lib/guard');
 const { getHistory, hasEvent, renderTimeline, recordEvent } = require('./lib/history');
 
 function buildIndex(config, finishedAt, tickets, bounded, pr, events, issueResult, leftover) {
@@ -233,14 +229,12 @@ function wrapUpIssue(projectRoot, sessionDir, configPath, config, close) {
   return result;
 }
 
-function finishSession() {
-  const { sessionsDir, sessionId, sessionDir, configPath, config } = resolveSession(process.cwd());
-
+// Refuses, changing nothing, unless the session can be finished.
+function checkFinishable(projectRoot, sessionId, sessionDir, config, options) {
   if (isFinished(config)) {
     throw new GpsError(`Session ${sessionId} is already finished; nothing was changed.`,
       'Run /gps status to pick another session, or /gps start <feature-name>.');
   }
-
   const writeTarget = resolveWriteTarget(sessionDir);
   if (writeTarget.target === 'grill') {
     throw new GpsError('The grill phase is not written yet; nothing was changed.', 'Run /gps write first.');
@@ -248,8 +242,6 @@ function finishSession() {
   if (writeTarget.target === 'plan') {
     throw new GpsError('The plan and tickets are not written yet; nothing was changed.', 'Run /gps write, then /gps ship.');
   }
-
-  const bounded = writeTarget.reason === 'plan-not-started';
   const { tickets } = listTickets(sessionDir);
   const pending = tickets.filter((t) => !t.done);
   if (pending.length > 0) {
@@ -258,11 +250,6 @@ function finishSession() {
       'Run /gps ship to finish them.'
     );
   }
-
-  const projectRoot = process.cwd();
-  let pr = null;
-  const closeRequested = process.argv.slice(2).includes('--close-issue');
-  const boundedIssue = Boolean(config.issue) && !config.git;
   if (config.git) {
     const onBranch = currentBranch(projectRoot);
     if (onBranch !== config.git.branch) {
@@ -272,10 +259,28 @@ function finishSession() {
       );
     }
   }
+  if (config.issue && !config.git && !options['close-issue'] && !options['keep-issue']) {
+    throw new GpsError(`Session ${sessionId} reports issue #${config.issue.number}; nothing was changed.`,
+      `Ask the user "Close issue #${config.issue.number} as well?", then run finish.js --close-issue (yes) or --keep-issue (no).`);
+  }
+  return { tickets, bounded: writeTarget.reason === 'plan-not-started' };
+}
+
+function finishSession({ options, projectRoot, warn }) {
+  if (options['close-issue'] && options['keep-issue']) throw new UsageError('Use --close-issue or --keep-issue, not both.');
+  const { sessionsDir, sessionId, sessionDir, configPath, config } = resolveSession(projectRoot);
+  const { tickets, bounded } = checkFinishable(projectRoot, sessionId, sessionDir, config, options);
+  const boundedIssue = Boolean(config.issue) && !config.git;
+  if (!boundedIssue && (options['close-issue'] || options['keep-issue'])) {
+    warn(`--${options['close-issue'] ? 'close' : 'keep'}-issue ignored: ${config.issue
+      ? 'the pull request closes the issue when it is merged.'
+      : 'this session has no GitHub issue.'}`);
+  }
 
   // Before the push, so the leftovers are in the pull request.
   const leftover = commitRemainingChanges(projectRoot, `chore: commit remaining changes (gps finish ${sessionId})`);
 
+  let pr = null;
   if (config.git) {
     pr = openSessionPr(projectRoot, sessionDir, config, tickets, bounded);
     if (pr.ok) {
@@ -289,26 +294,19 @@ function finishSession() {
     }
   }
 
-  let issueResult = null;
-  if (boundedIssue) {
-    issueResult = wrapUpIssue(projectRoot, sessionDir, configPath, config, closeRequested);
-  } else if (closeRequested) {
-    console.error(`⚠️  --close-issue ignored: ${config.issue
-      ? 'the pull request closes the issue when it is merged.'
-      : 'this session has no GitHub issue.'}`);
-  }
+  const issueResult = boundedIssue ? wrapUpIssue(projectRoot, sessionDir, configPath, config, options['close-issue']) : null;
 
   const finishedAt = new Date().toISOString();
   const events = [
     ...getHistory(config),
     { at: finishedAt, event: 'session_finished', phase: 'finished', files: ['INDEX.md'] },
   ];
-  fs.writeFileSync(path.join(sessionDir, 'INDEX.md'), buildIndex(config, finishedAt, tickets, bounded, pr, events, issueResult, leftover));
+  const indexPath = path.join(sessionDir, 'INDEX.md');
+  fs.writeFileSync(indexPath, buildIndex(config, finishedAt, tickets, bounded, pr, events, issueResult, leftover));
 
   config.finished_at = finishedAt;
   writeJsonAtomic(configPath, config);
   recordEvent(configPath, config, sessionDir, { event: 'session_finished', files: ['INDEX.md'], at: finishedAt });
-
   clearCurrentSession(sessionsDir);
 
   // Last, once every session file is written. Not after a failed commit: the
@@ -321,50 +319,52 @@ function finishSession() {
       : { base, ok: false, reason: 'no base branch was recorded', commands: [] };
   }
 
-  console.log(`✅ Session complete: ${sessionId}`);
-  console.log(`Summary: ${path.join(sessionDir, 'INDEX.md')}`);
+  const lines = [`✅ Session complete: ${sessionId}`, `Summary: ${indexPath}`];
+  const byHand = (message, commands) => {
+    warn(`${message}${commands.length > 0 ? ' Run by hand:' : ''}`);
+    for (const command of commands) console.error(`   ${command}`);
+  };
   if (leftover.sha) {
-    console.log(`📦 Committed ${leftover.files.length} remaining file(s) (${leftover.sha}): ${leftover.files.join(', ')}`);
+    lines.push(`📦 Committed ${leftover.files.length} remaining file(s) (${leftover.sha}): ${leftover.files.join(', ')}`);
   } else if (!leftover.ok) {
-    console.error(`⚠️  Remaining changes not committed (${leftover.reason}). Run by hand:`);
-    for (const command of leftover.commands) console.error(`   ${command}`);
+    byHand(`Remaining changes not committed (${leftover.reason}).`, leftover.commands);
   }
-  if (leftover.untracked.length > 0) {
-    console.error(`⚠️  Untracked files left uncommitted: ${leftover.untracked.join(', ')}`);
-  }
+  if (leftover.untracked.length > 0) warn(`Untracked files left uncommitted: ${leftover.untracked.join(', ')}`);
   if (pr && pr.ok) {
-    console.log(`🔀 Pull request${pr.existing ? ' (already open, updated by the push)' : ''}: ${pr.url}`);
+    lines.push(`🔀 Pull request${pr.existing ? ' (already open, updated by the push)' : ''}: ${pr.url}`);
   } else if (pr) {
-    console.error(`⚠️  Pull request not opened (${pr.step === 'push' ? 'git push' : 'gh pr create'} failed: ${pr.reason}). Run by hand:`);
-    for (const command of pr.commands) console.error(`   ${command}`);
+    byHand(`Pull request not opened (${pr.step === 'push' ? 'git push' : 'gh pr create'} failed: ${pr.reason}).`, pr.commands);
   }
   if (back && back.ok) {
-    const next = pr.ok ? 'merge the pull request' : 'open the pull request with the commands above, merge it';
-    console.log(`↩️  Back on ${back.base}: ${next}, then git pull`);
+    lines.push(`↩️  Back on ${back.base}: ${pr.ok ? 'merge the pull request' : 'open the pull request with the commands above, merge it'}, then git pull`);
   } else if (back) {
-    console.error(`⚠️  Still on ${config.git.branch}: switching to the base branch failed (${back.reason}).${back.commands.length > 0 ? ' Run by hand:' : ''}`);
-    for (const command of back.commands) console.error(`   ${command}`);
+    byHand(`Still on ${config.git.branch}: switching to the base branch failed (${back.reason}).`, back.commands);
   } else if (config.git) {
-    console.error(`⚠️  Still on ${config.git.branch}: commit the remaining changes, then git switch ${config.git.base_branch}.`);
+    warn(`Still on ${config.git.branch}: commit the remaining changes, then git switch ${config.git.base_branch}.`);
   }
   if (issueResult) {
     const number = config.issue.number;
-    if (issueResult.commented) console.log(`💬 Summary posted on issue #${number}: ${config.issue.url}`);
-    if (issueResult.closed) console.log(`✅ Issue #${number} closed`);
-    for (const failure of issueResult.failures) {
-      console.error(`⚠️  Issue #${number}: ${failure.step} failed (${failure.reason}). Run by hand:`);
-      for (const command of failure.commands) console.error(`   ${command}`);
-    }
+    if (issueResult.commented) lines.push(`💬 Summary posted on issue #${number}: ${config.issue.url}`);
+    if (issueResult.closed) lines.push(`✅ Issue #${number} closed`);
+    for (const failure of issueResult.failures) byHand(`Issue #${number}: ${failure.step} failed (${failure.reason}).`, failure.commands);
   }
 
   const unfinished = listUnfinishedSessions(sessionsDir);
-  console.log(`\nUNFINISHED_SESSIONS ${JSON.stringify(unfinished)}`);
-  if (unfinished.length > 0) {
-    console.log(`\n${unfinished.length} unfinished session(s) remain. Ask the user whether to switch to one;`);
-    console.log('if they say yes, run: node $CLAUDE_PLUGIN_ROOT/skills/gps/scripts/set-current.js <session-id>');
-  } else {
-    console.log('\nNo unfinished sessions. Start a new feature with /gps start <feature-name>.');
-  }
+  lines.push('', unfinished.length > 0
+    ? `Unfinished sessions: ${unfinished.map((s) => s.sessionId).join(', ')}. Next: ask the user whether to switch to one (${SET_CURRENT}).`
+    : 'No unfinished sessions. Next: /gps start <feature-name>.');
+
+  return {
+    text: lines.join('\n'),
+    data: {
+      sessionId, indexPath, finishedAt, leftover, pr, back, issue: issueResult,
+      unfinished: unfinished.map((s) => s.sessionId),
+    },
+  };
 }
 
-runCli(finishSession);
+main({
+  usage: 'finish.js [--close-issue | --keep-issue] [--json]',
+  options: { 'close-issue': 'boolean', 'keep-issue': 'boolean' },
+  run: finishSession,
+});

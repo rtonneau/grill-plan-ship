@@ -1,49 +1,62 @@
 #!/usr/bin/env node
 
 /**
- * /gps clean
+ * clean.js [--json]                    list sessions (most idle first) and scouted ideas
+ * clean.js --dry-run <id>... [--json]  validate the ids, print exactly what would go
+ * clean.js --delete <id>... [--json]   delete those sessions and drop those ideas
  *
- *   node clean.js                 list every session with its idleness, and the
- *                                 scouted ideas not started yet (read-only)
- *   node clean.js --delete <id>...
- *                                 delete the named sessions and drop the named ideas
- *                                 (an id is a session id or an idea slug)
- *
- * Claude runs --delete only after the user has confirmed the list in chat.
- * The current session is never deleted; branches, PRs, issues and scout
- * reports are left alone.
+ * /gps clean. An id is a session id or an idea slug. Every id is validated
+ * before anything is removed; the current session is never deleted.
+ * Claude runs --delete only after the user confirmed the --dry-run output.
+ * .current-session, scout reports, branches, PRs and issues are left alone.
  */
 
 const fs = require('fs');
-const path = require('path');
-const { listCleanable, listIdeas, deleteEntries } = require('./lib/clean');
+const { main } = require('./lib/cli');
+const { sessionsDirOf } = require('./lib/session-store');
+const { listCleanable, listIdeas, planDeletion, applyDeletion, renderList, renderPlan } = require('./lib/clean');
 const { STALE_DAYS, VERY_STALE_DAYS } = require('./lib/staleness');
-const { GpsError, runCli } = require('./lib/guard');
+const { GpsError, UsageError } = require('./lib/guard');
 
 const NOTHING = ['Nothing to clean: no sessions or scouted ideas.', 'Run /gps start <feature-name> or /gps scout first.'];
 
-runCli(() => {
-  const sessionsDir = path.join(process.cwd(), '.work', 'sessions');
-  const args = process.argv.slice(2);
+main({
+  usage: 'clean.js [--dry-run|--delete <id>...] [--json]',
+  positionals: { min: 0, max: Infinity },
+  options: { 'dry-run': 'boolean', delete: 'boolean' },
+  run({ positionals: ids, options, projectRoot }) {
+    const sessionsDir = sessionsDirOf(projectRoot);
+    const dryRun = options['dry-run'];
+    if (dryRun && options.delete) throw new UsageError('Use --dry-run or --delete, not both.');
+    if ((dryRun || options.delete) !== ids.length > 0) {
+      throw new UsageError(ids.length > 0 ? 'Ids need --dry-run or --delete.' : 'Name the ids to remove.');
+    }
+    if (!fs.existsSync(sessionsDir)) throw new GpsError(...NOTHING);
 
-  if (!fs.existsSync(sessionsDir)) throw new GpsError(...NOTHING);
+    if (ids.length === 0) {
+      const sessions = listCleanable(sessionsDir);
+      const { ideas, problem } = listIdeas(sessionsDir);
+      if (sessions.length === 0 && ideas.length === 0 && !problem) throw new GpsError(...NOTHING);
+      return {
+        text: renderList(sessions, ideas, problem),
+        data: { staleAfterDays: STALE_DAYS, veryStaleAfterDays: VERY_STALE_DAYS, sessions, ideas, ideasProblem: problem },
+      };
+    }
 
-  if (args.length === 0) {
-    const sessions = listCleanable(sessionsDir);
-    const { ideas, problem } = listIdeas(sessionsDir);
-    if (sessions.length === 0 && ideas.length === 0 && !problem) throw new GpsError(...NOTHING);
-    console.log(JSON.stringify({
-      staleAfterDays: STALE_DAYS, veryStaleAfterDays: VERY_STALE_DAYS, sessions, ideas, ideasProblem: problem,
-    }, null, 2));
-    return;
-  }
-
-  if (args[0] !== '--delete' || args.length < 2) {
-    throw new GpsError(`Unexpected arguments: ${args.join(' ')}`,
-      'Usage: node clean.js (list) or node clean.js --delete <session-id|idea-slug>...');
-  }
-
-  const removed = deleteEntries(sessionsDir, args.slice(1));
-  for (const sessionId of removed.sessions) console.log(`✅ Deleted session ${sessionId}.`);
-  for (const slug of removed.ideas) console.log(`✅ Dropped scouted idea ${slug}.`);
+    const plan = planDeletion(sessionsDir, ids);
+    if (dryRun) {
+      return {
+        text: `${renderPlan(plan)}\nNext: confirm with the user, then run clean.js --delete ${ids.join(' ')}.`,
+        data: { dryRun: true, ...plan },
+      };
+    }
+    applyDeletion(sessionsDir, plan);
+    return {
+      text: [
+        ...plan.sessions.map((s) => `✅ Deleted session ${s.sessionId}.`),
+        ...plan.ideas.map((i) => `✅ Dropped scouted idea ${i.slug}.`),
+      ].join('\n'),
+      data: { deleted: { sessions: plan.sessions.map((s) => s.sessionId), ideas: plan.ideas.map((i) => i.slug) } },
+    };
+  },
 });

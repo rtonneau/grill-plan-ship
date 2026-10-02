@@ -1,4 +1,4 @@
-// scripts/lib/scratch-dir.js
+// skills/gps/scripts/lib/scratch-dir.js
 const fs = require('fs');
 const path = require('path');
 

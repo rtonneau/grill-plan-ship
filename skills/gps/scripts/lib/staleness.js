@@ -1,4 +1,4 @@
-// scripts/lib/staleness.js
+// skills/gps/scripts/lib/staleness.js
 //
 // How long a session has been idle. Last activity is the newest event of the
 // session's history (older sessions get the backfilled view), falling back
@@ -6,9 +6,9 @@
 
 const fs = require('fs');
 const path = require('path');
+const { daysSince } = require('./guard');
 const { getHistory } = require('./history');
 
-const DAY_MS = 24 * 60 * 60 * 1000;
 const STALE_DAYS = 14;
 const VERY_STALE_DAYS = 28;
 
@@ -49,9 +49,13 @@ function stalenessOf(idleDays) {
 
 function computeIdleness(sessionsDir, sessionId, config, now = new Date()) {
   const at = lastActivityAt(path.join(sessionsDir, sessionId), config);
-  const time = at ? toTime(at) : null;
-  const idleDays = time === null ? null : Math.max(0, Math.floor((now.getTime() - time) / DAY_MS));
+  const idleDays = daysSince(at, now);
   return { lastActivityAt: at, idleDays, staleness: stalenessOf(idleDays) };
 }
 
-module.exports = { STALE_DAYS, VERY_STALE_DAYS, lastActivityAt, stalenessOf, computeIdleness };
+// Sort comparator: most idle first, unknown idleness last.
+function byIdleDaysDesc(a, b) {
+  return (b.idleDays === null ? -1 : b.idleDays) - (a.idleDays === null ? -1 : a.idleDays);
+}
+
+module.exports = { STALE_DAYS, VERY_STALE_DAYS, lastActivityAt, stalenessOf, computeIdleness, byIdleDaysDesc };

@@ -1,8 +1,11 @@
-// scripts/lib/ticket-queue.js
+// skills/gps/scripts/lib/ticket-queue.js
+//
+// The session's tickets (02-plan/tickets/NN-<slug>.md) in execution order,
+// each with its commit-log path, Done state and model hint.
 const fs = require('fs');
 const path = require('path');
 const { isSlug } = require('./guard');
-const { TICKET_MODELS, readTicketModel, normalizeTicketModel } = require('./ticket-model');
+const { TICKET_MODELS, normalizeTicketModel } = require('./ticket-model');
 
 const STATUS_DONE_RE = /^\*\*Status:\*\*\s*✅\s*Done\s*$/m;
 
@@ -12,12 +15,6 @@ function parseTicketFilename(fileName) {
   const match = fileName.match(/^(\d+)-(.+)\.md$/);
   if (!match || !isSlug(match[2])) return null;
   return { num: match[1], slug: match[2] };
-}
-
-// A ticket's model, "inherit" when the line is missing or unknown (see
-// ticket-model.js). Kept for callers that only want the model.
-function ticketModel(ticketText) {
-  return normalizeTicketModel(ticketText).model;
 }
 
 // The ticket spec's model and, when its **Model:** line holds something
@@ -80,4 +77,4 @@ function listTickets(sessionDir) {
   return { tickets, nextPending, skipped };
 }
 
-module.exports = { TICKET_MODELS, parseTicketFilename, readTicketModel, ticketModel, isTicketDone, listTickets };
+module.exports = { TICKET_MODELS, STATUS_DONE_RE, parseTicketFilename, isTicketDone, listTickets };

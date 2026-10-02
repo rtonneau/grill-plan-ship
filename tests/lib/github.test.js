@@ -5,10 +5,12 @@ const os = require('os');
 const path = require('path');
 const { execFileSync } = require('child_process');
 const {
-  isGithubUrl, detectGithub, currentBranch, validateBranchName, createSessionBranch,
-  branchType, commitsBetween, commitRemainingChanges, switchBranch, openPullRequest,
-  ghAuthenticated, createIssue, commentOnIssue, closeIssue, buildIssueBody,
+  isGithubUrl, diagnoseGithub, openPullRequest, ghAuthenticated, createIssue, commentOnIssue, closeIssue, buildIssueBody,
 } = require('../../skills/gps/scripts/lib/github');
+const {
+  originUrl, currentBranch, validateBranchName, createSessionBranch,
+  branchType, commitsBetween, commitRemainingChanges, switchBranch,
+} = require('../../skills/gps/scripts/lib/git');
 
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'gps-github-'));
 const repo = path.join(tmp, 'repo');
@@ -30,8 +32,8 @@ for (const url of [null, '', 'https://gitlab.com/acme/app.git', 'https://github.
   assert.strictEqual(isGithubUrl(url), false, String(url));
 }
 
-// Not a repo -> off.
-assert.strictEqual(detectGithub(repo), false);
+// Not a repo -> off (decided before gh is ever asked).
+assert.deepStrictEqual(diagnoseGithub(repo), { enabled: false, reason: 'not a git repository' });
 
 git('init', '-q', '-b', 'main');
 git('config', 'user.email', 't@example.com');
@@ -41,15 +43,15 @@ git('add', 'app.js');
 git('commit', '-q', '-m', 'initial');
 
 // Repo without origin, then non-GitHub origin -> off; GitHub origin -> on.
-assert.strictEqual(detectGithub(repo), false);
+assert.deepStrictEqual(diagnoseGithub(repo), { enabled: false, reason: 'no "origin" remote' });
 git('remote', 'add', 'origin', 'https://gitlab.com/acme/app.git');
-assert.strictEqual(detectGithub(repo), false);
+assert.match(diagnoseGithub(repo).reason, /origin is not on github\.com/);
 git('remote', 'set-url', 'origin', 'https://github.com/acme/app.git');
-assert.strictEqual(detectGithub(repo), true);
+assert.strictEqual(isGithubUrl(originUrl(repo)), true);
 // Pushes really go to a local bare repo; detection still sees github.com.
 execFileSync('git', ['init', '-q', '--bare', bare], { stdio: 'ignore' });
 git('config', `url.${bare.replace(/\\/g, '/')}.insteadOf`, 'https://github.com/acme/app.git');
-assert.strictEqual(detectGithub(repo), true);
+assert.strictEqual(isGithubUrl(originUrl(repo)), true);
 
 // Branch name validation.
 assert.deepStrictEqual(validateBranchName(repo, 'feat/dark-mode-toggle'), []);

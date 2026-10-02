@@ -29,7 +29,7 @@
 
 - **Git status (project):** {{ git-status-project }}
 - **Git status (session dir):** {{ git-status-session }}
-- **Why not committed:** <!-- gps:fill reason, or "n/a" if both git statuses are clean -->
+- **Why not committed:** {{ why-not-committed }}
 
 ## Machine State (auto-filled)
 

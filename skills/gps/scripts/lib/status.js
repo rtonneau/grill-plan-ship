@@ -1,27 +1,26 @@
-// scripts/lib/status.js
+// skills/gps/scripts/lib/status.js
+//
+// /gps status: every session, every scouted idea not started yet, and for
+// the current session its phase, tickets, recent commits and saved handoff
+// (with drift against live state). buildStatusReport gathers the data;
+// renderStatus turns it into the text relayed to the user. Read-only.
+
 const fs = require('fs');
 const path = require('path');
-const { listSessionDirs, resolveCurrentPointer, pointerError } = require('./session-store');
+const {
+  listSessionDirs, readConfigOrNull, resolveCurrentPointer, pointerError,
+} = require('./session-store');
 const { computeSessionState } = require('./phase');
 const { readRecentCommits } = require('./git');
-const { SEEDS_FILENAME, peekSeeds } = require('./seeds-store');
-const { computeIdleness } = require('./staleness');
-
-const STRENGTH_ORDER = ['Strong', 'Worth exploring', 'Speculative'];
-
-function readConfig(sessionsDir, sessionId) {
-  const configPath = path.join(sessionsDir, sessionId, '.session-config.json');
-  try {
-    return JSON.parse(fs.readFileSync(configPath, 'utf-8'));
-  } catch (_err) {
-    return null;
-  }
-}
+const { SEEDS_FILENAME, STRENGTHS, peekSeeds } = require('./seeds-store');
+const { computeIdleness, STALE_DAYS } = require('./staleness');
+const { readHandoff } = require('./handoff');
+const { mdCell } = require('./guard');
 
 // Phase is computed from the session's files; status / phases_completed
 // fields in older configs are ignored.
 function summarizeSession(sessionsDir, sessionId) {
-  const config = readConfig(sessionsDir, sessionId);
+  const config = readConfigOrNull(sessionsDir, sessionId);
   const { phase } = computeSessionState(path.join(sessionsDir, sessionId), config);
   return {
     sessionId,
@@ -41,13 +40,13 @@ function summarizeSession(sessionsDir, sessionId) {
   };
 }
 
-// Scouted ideas not yet turned into sessions (/gps start removes a seed, /gps clean drops one),
-// strongest first; scout order is kept within a strength.
+// Scouted ideas not yet turned into sessions, strongest first; scout order
+// is kept within a strength.
 function listPendingIdeas(sessionsDir) {
   const { seeds, problem } = peekSeeds(sessionsDir);
   const rank = (strength) => {
-    const i = STRENGTH_ORDER.indexOf(strength);
-    return i === -1 ? STRENGTH_ORDER.length : i;
+    const i = STRENGTHS.indexOf(strength);
+    return i === -1 ? STRENGTHS.length : i;
   };
   const ideas = Object.entries(seeds)
     .map(([slug, seed], index) => ({ slug, seed: seed || {}, index }))
@@ -69,8 +68,7 @@ function listPendingIdeas(sessionsDir) {
 }
 
 function buildStatusReport(sessionsDir, projectRoot) {
-  const sessionIds = listSessionDirs(sessionsDir);
-  const sessions = sessionIds.map((sessionId) => summarizeSession(sessionsDir, sessionId));
+  const sessions = listSessionDirs(sessionsDir).map((sessionId) => summarizeSession(sessionsDir, sessionId));
   const { ideas, ideasProblem } = listPendingIdeas(sessionsDir);
 
   const pointer = resolveCurrentPointer(sessionsDir);
@@ -85,30 +83,98 @@ function buildStatusReport(sessionsDir, projectRoot) {
     }
     return report;
   }
-  const currentSessionId = pointer.sessionId;
 
-  const sessionDir = path.join(sessionsDir, currentSessionId);
-  const config = readConfig(sessionsDir, currentSessionId);
+  const sessionId = pointer.sessionId;
+  const sessionDir = path.join(sessionsDir, sessionId);
+  const config = readConfigOrNull(sessionsDir, sessionId);
   const { writeTarget, ticketQueue, phase, suggestedNext } = computeSessionState(sessionDir, config);
-  const gitLog = readRecentCommits(projectRoot, config ? config.created_at : null);
-  const hasHandoff = fs.existsSync(path.join(sessionDir, 'HANDOFF.md'));
+  const nextPending = ticketQueue.nextPending;
+  const activeTicket = nextPending ? `${nextPending.num}-${nextPending.slug}` : null;
 
   return {
     sessions,
     ideas,
     ideasProblem,
     current: {
-      sessionId: currentSessionId,
+      sessionId,
       phase,
       suggestedNext,
       writeTarget,
       tickets: ticketQueue.tickets,
-      nextPending: ticketQueue.nextPending,
+      nextPending,
       skippedTicketFiles: ticketQueue.skipped,
-      gitLog,
-      hasHandoff,
+      gitLog: readRecentCommits(projectRoot, config ? config.created_at : null),
+      handoff: readHandoff(sessionDir, { phase, activeTicket }),
     },
+    suggestedNext,
   };
 }
 
-module.exports = { buildStatusReport };
+
+function sessionLine(s, currentId) {
+  const parts = [`- ${s.sessionId === currentId ? '**' : ''}${s.featureName || s.sessionId}${s.sessionId === currentId ? '** (current)' : ''} — ${s.phase}`];
+  if (s.branch) parts.push(`branch \`${s.branch}\``);
+  if (s.prUrl) parts.push(`PR ${s.prUrl}`);
+  if (s.issueUrl) parts.push(`issue ${s.issueUrl}`);
+  if (s.staleness) parts.push(`${s.staleness}, idle ${s.idleDays} days`);
+  let line = parts.join(' · ');
+  if (s.phaseDrift) {
+    line += `\n  ⚠️ recorded phase "${s.phaseDrift.recorded}" differs from its files ("${s.phaseDrift.derived}"); `
+      + 'usually a ticket set to Done by hand, not with ticket-complete.js. The files are the truth.';
+  }
+  return line;
+}
+
+function ideasTable(ideas) {
+  return [
+    '| Idea | Badge | Problem | Start |',
+    '|---|---|---|---|',
+    ...ideas.map((i) => `| ${mdCell(i.slug)} | ${mdCell(i.severity ? `${i.severity} · ${i.strength}` : i.strength)} | ${mdCell(i.problem)} | \`${i.startCommand}\` |`),
+  ];
+}
+
+function currentBlock(current, sessions) {
+  const name = (sessions.find((s) => s.sessionId === current.sessionId) || {}).featureName || current.sessionId;
+  const done = current.tickets.filter((t) => t.done).length;
+  const lines = [`## Current: ${name}`, '', `- **Session:** ${current.sessionId}`, `- **Phase:** ${current.phase}`];
+  if (current.tickets.length > 0) {
+    const next = current.nextPending ? `; next ${current.nextPending.num} ${current.nextPending.slug}` : '';
+    lines.push(`- **Tickets:** ${done}/${current.tickets.length} done${next}`);
+  }
+  for (const fileName of current.skippedTicketFiles) lines.push(`- ⚠️ Ignored ${fileName}: ticket files must be named NN-<slug>.md`);
+  lines.push('', '**Commits since the session started:**', '');
+  lines.push(...(current.gitLog.length > 0 ? current.gitLog.map((c) => `- ${c}`) : ['- none']));
+
+  const handoff = current.handoff;
+  if (handoff) {
+    lines.push('', `## Handoff (saved ${handoff.meta.Saved || 'earlier'})`, '');
+    if (handoff.drift) lines.push(`⚠️ Drift since the handoff: ${handoff.drift}.`, '');
+    for (const [heading, body] of Object.entries(handoff.sections)) {
+      if (heading.startsWith('Machine State')) continue;
+      const text = (body || '').replace(/<!--\s*gps:fill[\s\S]*?-->/g, '(not filled)') || '(empty)';
+      lines.push(`**${heading}:**${text.includes('\n') ? '\n' : ' '}${text}`, '');
+    }
+  }
+  return lines;
+}
+
+function renderStatus(report) {
+  const currentId = report.current ? report.current.sessionId : null;
+  const lines = [];
+  if (report.sessions.length > 0) {
+    lines.push('## Sessions', '', ...report.sessions.map((s) => sessionLine(s, currentId)), '');
+  }
+  if (report.ideas.length > 0) lines.push('## Scouted ideas not started', '', ...ideasTable(report.ideas), '');
+  if (report.ideasProblem) lines.push(`⚠️ ${report.ideasProblem}`, '');
+  if (report.current) lines.push(...currentBlock(report.current, report.sessions), '');
+  if (report.currentProblem && report.currentProblem.code !== 'no-sessions') {
+    lines.push(`⚠️ ${report.currentProblem.message}`, report.currentProblem.hint, '');
+  }
+  if (report.sessions.some((s) => s.staleness)) {
+    lines.push(`Sessions idle ${STALE_DAYS}+ days are flagged stale; /gps clean removes the ones you no longer need.`, '');
+  }
+  if (report.suggestedNext) lines.push(`Next: ${report.suggestedNext.command} — ${report.suggestedNext.why}`);
+  return lines.join('\n').trimEnd();
+}
+
+module.exports = { buildStatusReport, renderStatus };

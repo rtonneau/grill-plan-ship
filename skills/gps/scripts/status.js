@@ -1,28 +1,28 @@
 #!/usr/bin/env node
 
 /**
- * /gps status
+ * status.js [--json]
  *
- * Prints a snapshot of every session under .work/sessions/ and every
- * scouted idea not started yet (.pending-seeds.json), plus a
- * detailed breakdown of the current session (pending phase, ticket
- * queue, recent commits), so Claude Code can reorient after returning
- * to a project or losing context. Read-only: mutates nothing.
+ * /gps status: every session (phase, branch/PR/issue, staleness, phase
+ * drift), every scouted idea not started yet, and for the current session
+ * its phase, tickets, recent commits and saved handoff (with drift against
+ * live state), ending with the next command to run. Read-only.
  */
 
 const fs = require('fs');
-const path = require('path');
-const { buildStatusReport } = require('./lib/status');
-const { GpsError, runCli } = require('./lib/guard');
+const { main } = require('./lib/cli');
+const { sessionsDirOf } = require('./lib/session-store');
+const { buildStatusReport, renderStatus } = require('./lib/status');
+const { GpsError } = require('./lib/guard');
 
-runCli(() => {
-  const projectRoot = process.cwd();
-  const sessionsDir = path.join(projectRoot, '.work', 'sessions');
-  const noSessions = new GpsError('No sessions found.', 'Run /gps start <feature-name> (or /gps scout for ideas) first.');
-
-  if (!fs.existsSync(sessionsDir)) throw noSessions;
-  const report = buildStatusReport(sessionsDir, projectRoot);
-  if (report.sessions.length === 0 && report.ideas.length === 0 && !report.ideasProblem) throw noSessions;
-
-  console.log(JSON.stringify(report, null, 2));
+main({
+  usage: 'status.js [--json]',
+  run({ projectRoot }) {
+    const sessionsDir = sessionsDirOf(projectRoot);
+    const noSessions = new GpsError('No sessions found.', 'Run /gps start <feature-name> (or /gps scout for ideas) first.');
+    if (!fs.existsSync(sessionsDir)) throw noSessions;
+    const report = buildStatusReport(sessionsDir, projectRoot);
+    if (report.sessions.length === 0 && report.ideas.length === 0 && !report.ideasProblem) throw noSessions;
+    return { text: renderStatus(report), data: report };
+  },
 });

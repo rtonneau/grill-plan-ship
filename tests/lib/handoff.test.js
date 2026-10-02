@@ -3,7 +3,10 @@ const assert = require('assert');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-const { buildHandoffData, derivePhaseLabel } = require('../../skills/gps/scripts/lib/handoff');
+const {
+  buildHandoffData, parseHandoffMarkdown, readHandoff,
+} = require('../../skills/gps/scripts/lib/handoff');
+const { derivePhaseLabel } = require('../../skills/gps/scripts/lib/phase');
 
 function writeConfig(sessionDir, overrides) {
   fs.writeFileSync(
@@ -78,6 +81,40 @@ data = buildHandoffData(sessionDir, projectRoot);
 assert.strictEqual(data.currentPhase, 'finish-pending');
 assert.strictEqual(data.activeTicket, null);
 assert.deepStrictEqual(data.ticketQueueSummary, ['01-add-thing: done']);
+
+// -- parseHandoffMarkdown, tested directly against a sample document --
+const sample = [
+  '# Handoff: test-feature',
+  '',
+  '**Session:** 2026-09-22__test-feature',
+  '**Current phase:** ship',
+  '**Active ticket:** 01-add-thing',
+  '',
+  '## Where I Stopped',
+  '',
+  'Debugging the flaky test.',
+  '',
+  '## Next Step',
+  '',
+  'Re-run the test in isolation.',
+  '',
+].join('\n');
+
+const parsed = parseHandoffMarkdown(sample);
+assert.strictEqual(parsed.meta['Session'], '2026-09-22__test-feature');
+assert.strictEqual(parsed.meta['Current phase'], 'ship');
+assert.strictEqual(parsed.meta['Active ticket'], '01-add-thing');
+assert.strictEqual(parsed.sections['Where I Stopped'], 'Debugging the flaky test.');
+assert.strictEqual(parsed.sections['Next Step'], 'Re-run the test in isolation.');
+
+// -- readHandoff: null without HANDOFF.md, drift when it no longer matches live state --
+assert.strictEqual(readHandoff(sessionDir, { phase: 'finish-pending', activeTicket: null }), null);
+fs.writeFileSync(path.join(sessionDir, 'HANDOFF.md'), '**Current phase:** ship\n**Active ticket:** 01-add-thing\n\n## Next Step\n\nFinish it.\n');
+assert.strictEqual(readHandoff(sessionDir, { phase: 'ship', activeTicket: '01-add-thing' }).drift, null);
+const stale = readHandoff(sessionDir, { phase: 'finish-pending', activeTicket: null });
+assert.strictEqual(stale.sections['Next Step'], 'Finish it.');
+assert.match(stale.drift, /current phase was "ship"; it is now "finish-pending"/);
+assert.match(stale.drift, /active ticket was "01-add-thing"; it is now "none"/);
 
 fs.rmSync(projectRoot, { recursive: true, force: true });
 console.log('handoff.test.js: all assertions passed');

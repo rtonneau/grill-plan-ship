@@ -1,4 +1,4 @@
-// scripts/lib/token-usage.js
+// skills/gps/scripts/lib/token-usage.js
 //
 // Records which phase(s) of a session touched which Claude Code session
 // ID(s), then computes real token usage for a phase by summing the

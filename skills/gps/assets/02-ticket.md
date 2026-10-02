@@ -1,11 +1,7 @@
-# Ticket {{ N }}: {{ slug }}
-
-<!-- Optional model hint for /gps ship: add a line `**Model:** haiku | sonnet | opus | inherit` (one value); no line means inherit. -->
+**Model:** <!-- gps:fill haiku | sonnet | opus | inherit -->
 
 **Acceptance Criteria:**
-- [ ] <!-- gps:fill Criterion 1 (testable) -->
-- [ ] <!-- gps:fill Criterion 2 (testable) -->
-- [ ] <!-- gps:fill Criterion 3 (testable) -->
+- [ ] <!-- gps:fill testable criterion (one line each) -->
 
 **Files to Touch:**
 - `<!-- gps:fill path -->`
@@ -22,4 +18,4 @@ Expected:
 
 **Notes:**
 
-<!-- gps:fill Anything Claude Code should know before implementing -->
+<!-- gps:fill Anything the implementer needs to know -->

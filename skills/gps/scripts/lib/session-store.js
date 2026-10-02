@@ -1,10 +1,21 @@
-// scripts/lib/session-store.js
+// skills/gps/scripts/lib/session-store.js
+//
+// Where sessions live (.work/sessions/<id>/.session-config.json) and which
+// one is current (.work/sessions/.current-session). Never falls back to
+// "the most recent session": a bad pointer is an error with a hint.
+
 const fs = require('fs');
 const path = require('path');
-const { GpsError, readJson } = require('./guard');
-const { isFinishedConfig } = require('./phase');
+const { GpsError, readJson, readJsonOrNull } = require('./guard');
+const { isFinished } = require('./phase');
 
 const CURRENT_SESSION_FILENAME = '.current-session';
+const CONFIG_FILENAME = '.session-config.json';
+const SET_CURRENT = 'node $CLAUDE_PLUGIN_ROOT/skills/gps/scripts/set-current.js <session-id>';
+
+function sessionsDirOf(projectRoot) {
+  return path.join(projectRoot, '.work', 'sessions');
+}
 
 function setCurrentSession(sessionsDir, sessionId) {
   fs.writeFileSync(path.join(sessionsDir, CURRENT_SESSION_FILENAME), sessionId, 'utf-8');
@@ -14,28 +25,31 @@ function clearCurrentSession(sessionsDir) {
   fs.rmSync(path.join(sessionsDir, CURRENT_SESSION_FILENAME), { force: true });
 }
 
+// Session ids (directories holding a config), in directory order.
 function listSessionDirs(sessionsDir) {
+  if (!fs.existsSync(sessionsDir)) return [];
   return fs.readdirSync(sessionsDir, { withFileTypes: true })
     .filter((entry) => entry.isDirectory())
-    .filter((entry) => fs.existsSync(path.join(sessionsDir, entry.name, '.session-config.json')))
+    .filter((entry) => fs.existsSync(path.join(sessionsDir, entry.name, CONFIG_FILENAME)))
     .map((entry) => entry.name);
 }
 
+// A session's parsed config, or null when it is missing or unreadable.
 function readConfigOrNull(sessionsDir, sessionId) {
-  const configPath = path.join(sessionsDir, sessionId, '.session-config.json');
-  if (!fs.existsSync(configPath)) return null;
+  return readJsonOrNull(path.join(sessionsDir, sessionId, CONFIG_FILENAME));
+}
+
+// The raw pointer, even when it names a finished or missing session.
+function readCurrentPointer(sessionsDir) {
   try {
-    return JSON.parse(fs.readFileSync(configPath, 'utf-8'));
+    return fs.readFileSync(path.join(sessionsDir, CURRENT_SESSION_FILENAME), 'utf-8').trim();
   } catch (_err) {
     return null;
   }
 }
 
-const isFinished = isFinishedConfig;
-
 // Sessions that /gps finish has not closed, newest first.
 function listUnfinishedSessions(sessionsDir) {
-  if (!fs.existsSync(sessionsDir)) return [];
   return listSessionDirs(sessionsDir)
     .map((sessionId) => ({ sessionId, config: readConfigOrNull(sessionsDir, sessionId) }))
     .filter(({ config }) => !isFinished(config))
@@ -62,25 +76,17 @@ function isSafeSessionName(sessionId) {
 // null | 'no-sessions' | 'no-pointer' | 'invalid-pointer' |
 // 'missing-session' | 'finished-session'.
 function resolveCurrentPointer(sessionsDir) {
-  if (!fs.existsSync(sessionsDir) || listSessionDirs(sessionsDir).length === 0) {
-    return { sessionId: null, problem: 'no-sessions' };
-  }
-  const pointerPath = path.join(sessionsDir, CURRENT_SESSION_FILENAME);
-  if (!fs.existsSync(pointerPath)) return { sessionId: null, problem: 'no-pointer' };
-
-  const sessionId = fs.readFileSync(pointerPath, 'utf-8').trim();
+  if (listSessionDirs(sessionsDir).length === 0) return { sessionId: null, problem: 'no-sessions' };
+  const sessionId = readCurrentPointer(sessionsDir);
+  if (sessionId === null) return { sessionId: null, problem: 'no-pointer' };
   if (!isSafeSessionName(sessionId)) return { sessionId: null, problem: 'invalid-pointer', pointer: sessionId };
-  if (!fs.existsSync(path.join(sessionsDir, sessionId, '.session-config.json'))) {
+  if (!fs.existsSync(path.join(sessionsDir, sessionId, CONFIG_FILENAME))) {
     return { sessionId: null, problem: 'missing-session', pointer: sessionId };
   }
   if (isFinished(readConfigOrNull(sessionsDir, sessionId))) {
     return { sessionId: null, problem: 'finished-session', pointer: sessionId };
   }
   return { sessionId, problem: null };
-}
-
-function getCurrentSessionId(sessionsDir) {
-  return resolveCurrentPointer(sessionsDir).sessionId;
 }
 
 const POINTER_MESSAGES = {
@@ -100,34 +106,37 @@ function pointerError(sessionsDir, { problem, pointer }) {
   const hint = unfinished.length === 0
     ? 'There are no unfinished sessions. Run /gps start <feature-name>.'
     : `Unfinished sessions: ${unfinished.join(', ')}. Ask the user which one to use, then run ` +
-      'node $CLAUDE_PLUGIN_ROOT/skills/gps/scripts/set-current.js <session-id> (or /gps start <feature-name> for a new one).';
+      `${SET_CURRENT} (or /gps start <feature-name> for a new one).`;
   return new GpsError(message, hint);
 }
 
 // Resolves the current session for a handler, or throws a GpsError with a
 // recovery hint. Returns paths plus the parsed config.
 function resolveSession(projectRoot) {
-  const sessionsDir = path.join(projectRoot, '.work', 'sessions');
+  const sessionsDir = sessionsDirOf(projectRoot);
   const pointer = resolveCurrentPointer(sessionsDir);
   if (pointer.problem) throw pointerError(sessionsDir, pointer);
   const { sessionId } = pointer;
 
   const sessionDir = path.join(sessionsDir, sessionId);
-  const configPath = path.join(sessionDir, '.session-config.json');
+  const configPath = path.join(sessionDir, CONFIG_FILENAME);
   const config = readJson(configPath, `.session-config.json of ${sessionId}`);
   return { sessionsDir, sessionId, sessionDir, configPath, config };
 }
 
 module.exports = {
   CURRENT_SESSION_FILENAME,
+  CONFIG_FILENAME,
+  SET_CURRENT,
+  sessionsDirOf,
   setCurrentSession,
   clearCurrentSession,
-  isFinished,
   listUnfinishedSessions,
   listSessionDirs,
+  readConfigOrNull,
+  readCurrentPointer,
   isSafeSessionName,
   resolveCurrentPointer,
   pointerError,
-  getCurrentSessionId,
   resolveSession,
 };

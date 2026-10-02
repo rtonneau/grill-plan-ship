@@ -3,7 +3,10 @@ const assert = require('assert');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-const { TICKET_MODELS, parseTicketFilename, ticketModel, listTickets } = require('../../skills/gps/scripts/lib/ticket-queue');
+const { TICKET_MODELS, parseTicketFilename, listTickets } = require('../../skills/gps/scripts/lib/ticket-queue');
+const { normalizeTicketModel } = require('../../skills/gps/scripts/lib/ticket-model');
+
+const ticketModel = (text) => normalizeTicketModel(text).model;
 
 // parseTicketFilename
 assert.deepStrictEqual(parseTicketFilename('01-add-login.md'), { num: '01', slug: 'add-login' });
@@ -11,7 +14,7 @@ assert.strictEqual(parseTicketFilename('04-[slug].md'), null);
 assert.strictEqual(parseTicketFilename('01-Bad Name.md'), null);
 assert.strictEqual(parseTicketFilename('not-a-ticket.txt'), null);
 
-// ticketModel: valid values (any case), and "inherit" for missing or unknown ones
+// A ticket's model: valid values (any case), and "inherit" for missing or unknown ones
 assert.strictEqual(ticketModel('# T\n\n**Model:** haiku\n\n**Acceptance Criteria:**\n'), 'haiku');
 assert.strictEqual(ticketModel('**Model:**   Sonnet  \n'), 'sonnet');
 assert.strictEqual(ticketModel('**Model:** opus\n'), 'opus');

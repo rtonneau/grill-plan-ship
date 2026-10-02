@@ -4,7 +4,11 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { execSync } = require('child_process');
-const { readRecentCommits, readGitStatusSummary, readGitStatus } = require('../../skills/gps/scripts/lib/git');
+const {
+  readRecentCommits, readGitStatus, commitFiles, commitExists, describeCommit,
+} = require('../../skills/gps/scripts/lib/git');
+
+const readGitStatusSummary = (root, dir) => readGitStatus(root, dir).session;
 
 const projectRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'gps-git-'));
 const sessionDir = path.join(projectRoot, '.work', 'sessions', '2026-09-22__test-feature');
@@ -73,6 +77,25 @@ const both = readGitStatus(projectRoot, sessionDir);
 assert.strictEqual(both.session.length, 1);
 assert.strictEqual(both.project.length, 2);
 assert.ok(both.project.some((e) => e.path.endsWith('unrelated.txt')));
+
+// commitFiles: commits exactly the given files, nothing else that is staged.
+fs.writeFileSync(path.join(projectRoot, 'code.js'), 'y\n');
+fs.writeFileSync(path.join(projectRoot, 'other.js'), 'staged but not ours\n');
+execSync('git add other.js', { cwd: projectRoot, stdio: 'ignore' });
+const committed = commitFiles(projectRoot, ['code.js'], 'feat: only code');
+assert.strictEqual(committed.ok, true, committed.reason);
+assert.deepStrictEqual(committed.files, ['code.js']);
+assert.ok(commitExists(projectRoot, committed.sha));
+assert.match(describeCommit(projectRoot, committed.sha), /^[0-9a-f]{7,} feat: only code$/);
+assert.strictEqual(execSync('git diff --cached --name-only', { cwd: projectRoot, encoding: 'utf-8' }).trim(), 'other.js');
+// Nothing to commit, missing paths and non-repos are reported, never thrown.
+assert.match(commitFiles(projectRoot, ['code.js'], 'again').reason, /has changes to commit/);
+assert.strictEqual(commitFiles(projectRoot, ['nope.js'], 'x').ok, false);
+assert.strictEqual(commitExists(projectRoot, 'deadbeef'), false);
+assert.strictEqual(describeCommit(projectRoot, 'deadbeef'), null);
+const notRepo = fs.mkdtempSync(path.join(os.tmpdir(), 'gps-norepo-'));
+assert.strictEqual(commitFiles(notRepo, ['a'], 'x').reason, 'not a git repository');
+fs.rmSync(notRepo, { recursive: true, force: true });
 
 fs.rmSync(projectRoot, { recursive: true, force: true });
 console.log('git.test.js: all assertions passed');

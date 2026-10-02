@@ -1,4 +1,4 @@
-// scripts/lib/phase.js
+// skills/gps/scripts/lib/phase.js
 //
 // The session's phase is derived from its files (resume/plan placeholders,
 // ticket commit logs) — never from fields stored in .session-config.json.
@@ -8,14 +8,14 @@
 const { resolveWriteTarget } = require('./write-target');
 const { listTickets } = require('./ticket-queue');
 
-function isFinishedConfig(config) {
+function isFinished(config) {
   return Boolean(config && (config.finished_at || config.status === 'completed'));
 }
 
 // Phase labels: grill | plan-not-started | plan | ship | finish-pending |
 // plan-complete (plan written with zero tickets) | finished.
 function derivePhaseLabel(writeTarget, ticketQueue, config) {
-  if (isFinishedConfig(config)) return 'finished';
+  if (isFinished(config)) return 'finished';
   if (writeTarget.target === 'grill') return 'grill';
   if (writeTarget.target === 'plan') return 'plan';
   if (writeTarget.reason === 'plan-not-started') return 'plan-not-started';
@@ -41,7 +41,7 @@ function suggestNext(phase, ticketQueue) {
       return {
         command: '/gps ship',
         why: next
-          ? `Ticket ${next.num} (${next.slug}) is next. Use /gps ticket ${Number(next.num)} to work on it alone.`
+          ? `Ticket ${next.num} (${next.slug}) is next. Use /gps ship ${Number(next.num)} to work on it alone.`
           : 'Tickets are pending.',
       };
     }
@@ -55,7 +55,7 @@ function suggestNext(phase, ticketQueue) {
   }
 }
 
-// Everything status/handoff/resume need about where a session stands.
+// Everything status and handoff need about where a session stands.
 function computeSessionState(sessionDir, config) {
   const writeTarget = resolveWriteTarget(sessionDir);
   const ticketQueue = listTickets(sessionDir);
@@ -63,4 +63,4 @@ function computeSessionState(sessionDir, config) {
   return { writeTarget, ticketQueue, phase, suggestedNext: suggestNext(phase, ticketQueue) };
 }
 
-module.exports = { isFinishedConfig, derivePhaseLabel, suggestNext, computeSessionState };
+module.exports = { isFinished, derivePhaseLabel, suggestNext, computeSessionState };

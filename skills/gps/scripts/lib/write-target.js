@@ -1,8 +1,13 @@
-// scripts/lib/write-target.js
+// skills/gps/scripts/lib/write-target.js
+//
+// Which phase /gps write still has to save: the grill (resume.md has
+// placeholders) or the plan (plan.md or a ticket has placeholders), else
+// none with a reason.
+
 const fs = require('fs');
 const path = require('path');
 const { listTickets } = require('./ticket-queue');
-const { GpsError } = require('./guard');
+const { GpsError, readJsonOrNull } = require('./guard');
 
 // Current templates mark unfilled content with <!-- gps:fill ... -->, so
 // legitimate "{{ ... }}" in user content (Vue, Jinja, Handlebars, Go
@@ -14,12 +19,8 @@ const FILL_RE = /<!--\s*gps:fill\b/;
 const LEGACY_PLACEHOLDER_RE = /\{\{[^}]+\}\}/;
 
 function readTemplateVersion(sessionDir) {
-  try {
-    const config = JSON.parse(fs.readFileSync(path.join(sessionDir, '.session-config.json'), 'utf-8'));
-    return Number(config.template_version) || 1;
-  } catch (_err) {
-    return 1;
-  }
+  const config = readJsonOrNull(path.join(sessionDir, '.session-config.json'));
+  return (config && Number(config.template_version)) || 1;
 }
 
 // Returns a function telling whether a piece of text still has unfilled

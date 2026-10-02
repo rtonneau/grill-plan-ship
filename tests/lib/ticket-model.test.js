@@ -19,13 +19,14 @@ assert.deepStrictEqual(normalizeTicketModel('no line\n'), { model: 'inherit', ra
 
 // The model list in the docs matches the code, so they can't drift apart
 const refs = path.join(__dirname, '..', '..', 'skills', 'gps', 'references');
-for (const file of ['write.md', 'plan.md', 'ship.md']) {
+for (const file of ['plan.md', 'ship.md']) {
   const text = fs.readFileSync(path.join(refs, file), 'utf-8');
   for (const model of TICKET_MODELS) {
     assert.ok(text.includes(`\`${model}\``) || text.includes(model), `${file} does not mention model "${model}"`);
   }
 }
-const writeDoc = fs.readFileSync(path.join(refs, 'write.md'), 'utf-8');
-assert.ok(writeDoc.includes(`<${TICKET_MODELS.join(' | ')}>`), 'write.md template line must list every TICKET_MODELS value in order');
+// The payload skeleton's ticket block lists every value, in order.
+const ticketTemplate = fs.readFileSync(path.join(__dirname, '..', '..', 'skills', 'gps', 'assets', '02-ticket.md'), 'utf-8');
+assert.ok(ticketTemplate.includes(TICKET_MODELS.join(' | ')), '02-ticket.md must list every TICKET_MODELS value in order');
 
 console.log('✅ ticket-model tests passed');
