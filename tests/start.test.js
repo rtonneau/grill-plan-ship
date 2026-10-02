@@ -99,4 +99,14 @@ const h = require('./helpers');
   assert.doesNotMatch(h.ok(clean, 'start.js', ['feat']).err, /git-ignored/);
 }
 
+{
+  // In a git repo whose gps setup is not committed, start suggests /gps init; once it is, it doesn't.
+  const root = h.gitProject();
+  assert.match(h.ok(root, 'start.js', ['one']).out, /Tip: \/gps init \(once per project\)/);
+  h.ok(root, 'init.js', ['--apply']);
+  assert.doesNotMatch(h.ok(root, 'start.js', ['two']).out, /Tip: \/gps init/);
+  // Outside git there is nothing to commit, so no tip.
+  assert.doesNotMatch(h.ok(h.tempProject(), 'start.js', ['three']).out, /Tip: \/gps init/);
+}
+
 h.done('start.test.js');

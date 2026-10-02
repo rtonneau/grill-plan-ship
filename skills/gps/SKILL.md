@@ -1,7 +1,7 @@
 ---
 name: gps
-description: "grill-plan-ship: workflow plugin (grill → plan → ship → finish). Use for /gps scout, /gps start, /gps status, /gps clean, /gps config, /gps write, /gps plan, /gps ship, /gps finish, /gps auto, /gps handoff."
-argument-hint: "<scout|start|status|clean|config|write|plan|ship|finish|auto|handoff> [args]"
+description: "grill-plan-ship: workflow plugin (grill → plan → ship → finish). Use for /gps init, /gps scout, /gps start, /gps status, /gps clean, /gps config, /gps write, /gps plan, /gps ship, /gps finish, /gps auto, /gps handoff, /gps help."
+argument-hint: "<init|scout|start|status|clean|config|write|plan|ship|finish|auto|handoff|help> [args]"
 allowed-tools: Bash(node ${CLAUDE_SKILL_DIR}/scripts/*)
 ---
 
@@ -13,6 +13,7 @@ Grill (spec the work) → Plan (atomic tickets) → Ship (one commit per ticket)
 
 | Command | What it does | Instructions |
 |---|---|---|
+| `/gps init` | Check the project and commit gps's setup once (optional) | `references/init.md` |
 | `/gps scout [--from <review-file>] [direction]` | Review the codebase's architecture (or read a review file with `--from`) and turn the findings into ideas for `/gps start` | `references/scout.md` |
 | `/gps start [--issue] <name>` | New session, then the grill (`--issue`: a report, filed as a GitHub issue) | `references/start.md` |
 | `/gps status` | Sessions, ideas, current phase and handoff, next command | `references/status.md` |
@@ -24,6 +25,7 @@ Grill (spec the work) → Plan (atomic tickets) → Ship (one commit per ticket)
 | `/gps finish` | Close the session: leftovers committed, INDEX.md, PR | `references/finish.md` |
 | `/gps auto [--delegate] [plan\|ship\|finish]` | Run from the current phase to the target without stopping | `references/auto.md` |
 | `/gps handoff` | Save an in-flight checkpoint (HANDOFF.md) | `references/handoff.md` |
+| `/gps help [command\|question]` | What to do next, what a command does, how the workflow fits together | `references/help.md` |
 
 ## How to run a command
 

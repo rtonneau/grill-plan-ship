@@ -3,7 +3,8 @@ const assert = require('assert');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-const { LOCAL_ONLY, initSession } = require('../../skills/gps/scripts/lib/session-init');
+const { initSession } = require('../../skills/gps/scripts/lib/session-init');
+const { LOCAL_ONLY } = require('../../skills/gps/scripts/lib/setup');
 const { localDate } = require('../../skills/gps/scripts/lib/guard');
 
 const projectRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'gps-init-'));

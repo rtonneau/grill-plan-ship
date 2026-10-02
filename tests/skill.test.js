@@ -58,6 +58,7 @@ const expected = {
   config: ['config.js'], write: ['write-prepare.js', 'write-apply.js'], plan: ['write-prepare.js', 'plan.js'],
   ship: ['write-prepare.js', 'ticket-queue.js', 'ticket-start.js', 'dispatch-prompt.js', 'ticket-check.js', 'ticket-complete.js', 'ticket-block.js'],
   finish: ['finish.js', 'set-current.js'], auto: ['auto-route.js', 'ticket-check.js'], handoff: ['handoff.js'],
+  help: ['help.js', 'status.js'], init: ['init.js'],
 };
 assert.deepStrictEqual(Object.keys(expected).sort(), listed);
 for (const [command, names] of Object.entries(expected)) {
@@ -76,6 +77,7 @@ assert.match(refs.auto, /`⚠️` lines included/);
 assert.match(refs.finish, /--close-issue` \(yes\) or `--keep-issue` \(no\)/);
 assert.match(refs.start, /Ready for me to implement this\?/);
 assert.match(refs.clean, /--dry-run/);
+assert.match(refs.help, /Never run a command that changes state/);
 for (const name of ['SKILL.md', ...Object.keys(refs)]) {
   const text = name === 'SKILL.md' ? skill : refs[name];
   assert.doesNotMatch(text, /\/gps (ticket|issue|resume)\b/, `${name} names a removed command`);

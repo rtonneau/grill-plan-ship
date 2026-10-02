@@ -158,6 +158,17 @@ function switchBranch(projectRoot, name) {
   }
 }
 
+// True when `relPath` is in the index (committed or staged).
+function isTracked(projectRoot, relPath) {
+  return tryGit(projectRoot, ['ls-files', '--error-unmatch', '--', relPath]) !== null;
+}
+
+// True when `relPath` has changes git would commit: modified, staged or
+// untracked (ignored files never count).
+function pathHasChanges(projectRoot, relPath) {
+  return readGitStatusEntries(projectRoot, relPath).length > 0;
+}
+
 // True when git ignores `relPath` (e.g. an older .gitignore with ".work/").
 function isIgnored(projectRoot, relPath) {
   return tryGit(projectRoot, ['check-ignore', '-q', '--no-index', '--', relPath]) !== null;
@@ -263,6 +274,8 @@ module.exports = {
   branchType,
   createSessionBranch,
   switchBranch,
+  isTracked,
+  pathHasChanges,
   isIgnored,
   commitRemainingChanges,
   commitWorkDir,
