@@ -216,7 +216,7 @@
     <text class="phaseSmall" x="110" y="1604" text-anchor="middle">CONTRACT</text>
 
     <rect class="panel" x="190" y="1540" width="1370" height="100" rx="18"/>
-    <text class="mono" x="212" y="1576">node $CLAUDE_PLUGIN_ROOT/skills/gps/scripts/&lt;name&gt;.js [args] [--json] [--help]</text>
+    <text class="mono" x="212" y="1576">node ${CLAUDE_SKILL_DIR}/scripts/&lt;name&gt;.js [args] [--json] [--help]</text>
     <text class="text" x="212" y="1610">stdout: text relayed as is (--json: one object) · ⚠️ warnings never stop · exit 1: ❌ + hint, stop · exit 2: usage error · Next: names the next command</text>
   </g>
 </svg>

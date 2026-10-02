@@ -1,6 +1,8 @@
 ---
 name: gps
 description: "grill-plan-ship: workflow plugin (grill → plan → ship → finish). Use for /gps scout, /gps start, /gps status, /gps clean, /gps config, /gps write, /gps plan, /gps ship, /gps finish, /gps auto, /gps handoff."
+argument-hint: "<scout|start|status|clean|config|write|plan|ship|finish|auto|handoff> [args]"
+allowed-tools: Bash(node ${CLAUDE_SKILL_DIR}/scripts/*)
 ---
 
 # grill-plan-ship
@@ -11,7 +13,7 @@ Grill (spec the work) → Plan (atomic tickets) → Ship (one commit per ticket)
 
 | Command | What it does | Instructions |
 |---|---|---|
-| `/gps scout [--from <review-file>] [direction]` | Turn an architecture review, or an existing review file, into ideas for `/gps start` | `references/scout.md` |
+| `/gps scout [--from <review-file>] [direction]` | Review the codebase's architecture (or read a review file with `--from`) and turn the findings into ideas for `/gps start` | `references/scout.md` |
 | `/gps start [--issue] <name>` | New session, then the grill (`--issue`: a report, filed as a GitHub issue) | `references/start.md` |
 | `/gps status` | Sessions, ideas, current phase and handoff, next command | `references/status.md` |
 | `/gps clean [id...]` | Delete sessions or drop ideas, after confirmation | `references/clean.md` |
@@ -25,19 +27,19 @@ Grill (spec the work) → Plan (atomic tickets) → Ship (one commit per ticket)
 
 ## How to run a command
 
-Read the command's references file (in this skill's directory) before doing anything else, every time; never run a command from memory. In those files, `<name>.js` means `node $CLAUDE_PLUGIN_ROOT/skills/gps/scripts/<name>.js`. Every deterministic step is a script: run it rather than doing its work by hand.
+Read the command's references file (in this skill's directory) before doing anything else, every time: the steps and script flags change between versions, so a remembered step can call something that no longer exists. In those files, `<name>.js` means `node ${CLAUDE_SKILL_DIR}/scripts/<name>.js`; run it with that exact path, unquoted, so it matches the skill's pre-approved commands. Every deterministic step is a script: run it rather than doing its work by hand, because the script also validates its input and records the step in the session history.
 
 ## Script contract
 
 - **stdout** is text to relay to the user as is; with `--json` it is one JSON object instead.
 - **`⚠️` lines** (stderr) are warnings: relay them; they never stop a command.
-- **Exit 1** prints `❌ <what failed>` and a hint; **exit 2** is a usage error. Show both and stop the command. Don't retry with other arguments or work around it, unless the references file says how to recover.
+- **Exit 1** prints `❌ <what failed>` and a hint; **exit 2** is a usage error. Show both and stop the command. Don't retry with other arguments or work around it, unless the references file says how to recover: a failing script means a precondition isn't met, and a workaround leaves the session in a state the other scripts don't expect.
 - **`Next:` lines** name the command to run next. Follow them unless the references file says otherwise (e.g. under `/gps auto`).
 
 ## Rules for every command
 
-- Never create, edit or delete session state by hand (`.session-config.json`, `.current-session`, `.pending-seeds.json`, session directories). Claude writes only the narrative a script points at: the write payload, a commit log's narrative sections, HANDOFF.md.
-- Scripts never overwrite work: re-running a command against existing output refuses (changing nothing) or resumes.
-- While a grill skill runs (`grill-with-docs`, `grilling`, `domain-modeling`, `brainstorming`), ask every question with a finite set of answers with `AskUserQuestion`, one question per call, recommended answer first and marked "(Recommended)". This overrides a skill's own "ask in chat".
-- Switch the current session only after the user confirms it: `set-current.js <session-id>`.
+- Never create, edit or delete session state by hand (`.session-config.json`, `.current-session`, `.pending-seeds.json`, session directories). The scripts validate that state and record each change in its history; a hand edit skips both, and `status`, `auto` and `finish` then disagree with what is on disk. Claude writes only the narrative a script points at: the write payload, a commit log's narrative sections, HANDOFF.md.
+- Scripts never overwrite work: re-running a command against existing output refuses (changing nothing) or resumes. So re-running is always safe; deleting output to force a fresh run is not.
+- Ask every question that has a finite set of answers with `AskUserQuestion`: grill questions, the ship mode, confirmations such as closing an issue, applying a rescan or deleting sessions. One question per call, recommended answer first and marked "(Recommended)". A choice the user can click is faster to answer and can't be misread. Inside a grill skill (`grill-with-docs`, `grilling`, `domain-modeling`, `brainstorming`) this overrides the skill's own "ask in chat"; keep free text for open-ended answers.
+- Switch the current session only after the user confirms it (`set-current.js <session-id>`): every later command acts on the current session.
 - On GitHub projects (flag in `.work/gps-config.json`), saving the plan creates the session branch and `/gps finish` opens its pull request; bounded work (no plan) gets neither.

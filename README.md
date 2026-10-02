@@ -15,7 +15,7 @@ Claude does the judgment work: asking questions, planning, reviewing and summari
 /plugin install grill-plan-ship
 ```
 
-Restart Claude Code. Update later with `/plugin marketplace update rtonneau/grill-plan-ship`. Requires Node.js 20+. The grill and plan conversations use other plugins: `mattpocock-skills` (`grill-with-docs`) or `superpowers` (`brainstorming`), plus `superpowers` (`writing-plans`) and, optionally, `unslop`.
+Restart Claude Code. Update later with `/plugin marketplace update rtonneau/grill-plan-ship`. Requires Node.js 20+. The grill and plan conversations work best with other plugins: `mattpocock-skills` (`grill-with-docs`) or `superpowers` (`brainstorming`), plus `superpowers` (`writing-plans`) and, optionally, `unslop`. Without them, `/gps` falls back to a built-in grill and drafts the tickets itself.
 
 ## Quick start
 
@@ -105,7 +105,7 @@ Every script in `skills/gps/scripts/` follows the same rules (see `scripts/lib/c
 | `write-apply.js` | validate the payload and write resume.md or plan.md + tickets (creates the branch / files the issue on GitHub) |
 | `plan.js` | start the plan phase |
 | `ticket-queue.js` | the tickets, their state and model hints |
-| `ticket-start.js` | prepare a ticket's workspace (next pending one by default) |
+| `ticket-start.js` | prepare a ticket's workspace (next pending one by default); `--mode` records the ship mode the next `/gps ship` offers first |
 | `dispatch-prompt.js` | the Agent tool call for a ticket's subagent |
 | `ticket-complete.js` | commit the given files, mark the ticket Done, fill its log |
 | `ticket-block.js` | record why a ticket can't be finished |
