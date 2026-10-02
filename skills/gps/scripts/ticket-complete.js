@@ -11,7 +11,10 @@
  *      else that is staged goes in), or records an existing --commit;
  *   2. sets the log's Status to "✅ Done" and fills Commits, Time Spent
  *      (since ticket-start.js) and Token Usage;
- *   3. records a `ticket_done` event in the session history.
+ *   3. records a `ticket_done` event in the session history;
+ *   4. commits .work/ (the completed log and history) as its own
+ *      `chore(gps)` commit, since the log names the ticket's commit; a
+ *      failed record commit only warns.
  * A failed commit (e.g. a pre-commit hook) changes nothing: the ticket stays
  * In Progress. A ticket already completed is reported and left alone.
  */
@@ -23,7 +26,7 @@ const { resolveSession } = require('./lib/session-store');
 const { findTicketsByNumber } = require('./lib/ticket-lookup');
 const { listTickets } = require('./lib/ticket-queue');
 const { unfilledSections, completeLog } = require('./lib/commit-log');
-const { commitFiles, describeCommit } = require('./lib/git');
+const { commitFiles, describeCommit, commitWorkDir, describeWorkCommit } = require('./lib/git');
 const { computeUsage } = require('./lib/token-usage');
 const { getHistory, hasEvent, recordEvent, sessionPath } = require('./lib/history');
 const { GpsError, UsageError } = require('./lib/guard');
@@ -48,7 +51,7 @@ main({
   usage: 'ticket-complete.js <number> (--message <text> --file <path>... | --commit <sha>) [--json]',
   positionals: { min: 1, max: 1 },
   options: { message: 'string', file: 'list', commit: 'string' },
-  run({ positionals: [arg], options, projectRoot }) {
+  run({ positionals: [arg], options, projectRoot, warn }) {
     if (!/^\d+$/.test(arg)) throw new UsageError(`Invalid ticket number: ${arg}`);
     if (options.commit && (options.message || options.file.length > 0)) {
       throw new UsageError('--commit records an existing commit: leave out --message and --file.');
@@ -113,12 +116,17 @@ main({
       at: finishedAt,
     });
 
+    const record = commitWorkDir(projectRoot, `chore(gps): ticket ${key} done`);
+    const recorded = describeWorkCommit(record);
+    if (recorded.warning) warn(recorded.warning);
+
     const next = listTickets(sessionDir).nextPending;
     const what = committedFiles.length > 0 ? `committed ${sha} (${committedFiles.length} file(s))` : `recorded commit ${sha}`;
     return {
       text: `✅ Ticket ${ticket.num} (${ticket.slug}) done: ${what}.\n`
+        + (recorded.line ? `${recorded.line}\n` : '')
         + `Next: ${next ? `ticket ${next.num} (${next.slug})` : 'every ticket is done: /gps finish'}`,
-      data: { ticket: key, commit: sha, files: committedFiles, nextPending: next ? keyOf(next) : null },
+      data: { ticket: key, commit: sha, files: committedFiles, record, nextPending: next ? keyOf(next) : null },
     };
   },
 });

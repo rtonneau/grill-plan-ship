@@ -4,13 +4,14 @@
  * start.js <feature-name...> [--issue] [--json]
  *
  * /gps start: creates the session (directory, resume template, scratch dir,
- * .gitignore entry for .scratch/, .current-session) and records GitHub detection in
+ * .gitignore entries for per-machine files, .current-session) and records GitHub detection in
  * .work/gps-config.json the first time. With --issue the session is a
  * report (kind "issue"): on a GitHub project the grill write files it as
  * a GitHub issue; otherwise a warning says it stays local.
  *
  * A scouted idea whose slug matches the session's is consumed: printed as
  * the grill's starting context and removed from .pending-seeds.json.
+ * Warns when .work/ is git-ignored (gps then commits none of its files).
  */
 
 const path = require('path');
@@ -18,6 +19,7 @@ const { main } = require('./lib/cli');
 const { ensureProjectConfig } = require('./lib/project-config');
 const { initSession } = require('./lib/session-init');
 const { getSeed, removeSeed } = require('./lib/seeds-store');
+const { isWorkTree, isIgnored } = require('./lib/git');
 const { UsageError } = require('./lib/guard');
 
 main({
@@ -36,6 +38,10 @@ main({
     if (options.issue && !github) {
       warn('GitHub is not enabled for this project: this is a local session, no issue will be created '
         + '(set github.enabled in .work/gps-config.json to change that).');
+    }
+    if (isWorkTree(projectRoot) && isIgnored(projectRoot, '.work/')) {
+      warn('.work/ is git-ignored, so gps commits none of its session files. '
+        + 'Remove the ".work/" line from .gitignore to keep them with the code.');
     }
 
     const resumePath = path.join(session.grillDir, 'resume.md');

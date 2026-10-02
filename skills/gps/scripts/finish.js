@@ -17,14 +17,17 @@
  *   (the user's answer to "close issue #N as well?").
  * A bounded session (resume written, no plan) may finish with no tickets.
  *
- * Changes to tracked files still uncommitted (e.g. a log a hook appends to)
- * are committed first, on the checked-out branch; untracked files are only
- * listed. Sessions with a branch (`git` in the config, set by the plan write
- * in a GitHub project) are pushed, get a PR against their base branch (an
- * existing one is reused), then the base branch is checked out again (not
- * after a failed commit, which would leave changes behind). A failed commit,
- * push, gh call or switch does not fail the finish: INDEX.md and the output
- * list the commands to run by hand.
+ * Changes to tracked files outside .work/ still uncommitted (e.g. a log a
+ * hook appends to) are committed first, on the checked-out branch;
+ * untracked files are only listed. Sessions with a branch (`git` in the
+ * config, set by the plan write in a GitHub project) are pushed and get a
+ * PR against their base branch (an existing one is reused). Then INDEX.md
+ * and the finished state are written and .work/ is committed on its own
+ * (the session record, glossary and ADRs), pushed again for a branch
+ * session, and the base branch is checked out again (not after a failed
+ * commit, which would leave changes behind). A failed commit, push, gh call
+ * or switch does not fail the finish: the output lists the commands to run
+ * by hand.
  *
  * Issue sessions (`issue` in the config): without a branch (bounded),
  * finish comments a summary on the issue and, with --close-issue, closes
@@ -40,7 +43,8 @@ const { resolveWriteTarget } = require('./lib/write-target');
 const { listTickets } = require('./lib/ticket-queue');
 const { splitSections } = require('./lib/write-payload');
 const {
-  currentBranch, branchType, commitsBetween, commitRemainingChanges, switchBranch, readRecentCommits,
+  currentBranch, branchType, commitsBetween, commitRemainingChanges, commitWorkDir, describeWorkCommit,
+  pushBranch, switchBranch, readRecentCommits,
 } = require('./lib/git');
 const { PR_ATTRIBUTION, openPullRequest, commentOnIssue, closeIssue } = require('./lib/github');
 const { GpsError, UsageError, writeJsonAtomic } = require('./lib/guard');
@@ -309,10 +313,15 @@ function finishSession({ options, projectRoot, warn }) {
   recordEvent(configPath, config, sessionDir, { event: 'session_finished', files: ['INDEX.md'], at: finishedAt });
   clearCurrentSession(sessionsDir);
 
-  // Last, once every session file is written. Not after a failed commit: the
-  // changes it left would be carried over to (or block) the switch.
+  // The final record goes in its own commit, then to the pull request.
+  const record = commitWorkDir(projectRoot, `chore(gps): finish ${sessionId}`);
+  let repushed = null;
+  if (config.git && pr && pr.step !== 'push' && record.sha) repushed = pushBranch(projectRoot, config.git.branch);
+
+  // Last, once every session file is committed. Not after a failed commit:
+  // the changes it left would be carried over to (or block) the switch.
   let back = null;
-  if (config.git && leftover.ok) {
+  if (config.git && leftover.ok && record.ok) {
     const base = config.git.base_branch;
     back = base
       ? { base, ...switchBranch(projectRoot, base) }
@@ -330,6 +339,12 @@ function finishSession({ options, projectRoot, warn }) {
     byHand(`Remaining changes not committed (${leftover.reason}).`, leftover.commands);
   }
   if (leftover.untracked.length > 0) warn(`Untracked files left uncommitted: ${leftover.untracked.join(', ')}`);
+  const recorded = describeWorkCommit(record);
+  if (recorded.line) lines.push(recorded.line);
+  if (recorded.warning) warn(recorded.warning);
+  if (repushed && !repushed.ok) {
+    byHand(`The session record was not pushed (${repushed.reason}).`, [`git push -u origin ${config.git.branch}`]);
+  }
   if (pr && pr.ok) {
     lines.push(`🔀 Pull request${pr.existing ? ' (already open, updated by the push)' : ''}: ${pr.url}`);
   } else if (pr) {
@@ -357,7 +372,7 @@ function finishSession({ options, projectRoot, warn }) {
   return {
     text: lines.join('\n'),
     data: {
-      sessionId, indexPath, finishedAt, leftover, pr, back, issue: issueResult,
+      sessionId, indexPath, finishedAt, leftover, record, pr, back, issue: issueResult,
       unfinished: unfinished.map((s) => s.sessionId),
     },
   };

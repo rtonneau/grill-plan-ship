@@ -2,8 +2,9 @@
 //
 // /gps start: creates .work/sessions/YYYY-MM-DD__<slug>/ (01-grill/resume.md
 // and .session-config.json), the session's scratch directory, the
-// .gitignore entry for .scratch/ and .current-session. .work/ is left
-// out of .gitignore: whether to commit it is the project's choice.
+// .gitignore entries (LOCAL_ONLY) and .current-session. .work/ itself is
+// committed: gps commits it at the plan write, each ticket and the finish;
+// only the per-machine files below stay out of git.
 // <slug> is the feature name cleaned by slugify(); the date is the local
 // date. If the session already exists, nothing is written and it throws a
 // GpsError.
@@ -17,6 +18,16 @@ const { touchPhase } = require('./token-usage');
 const { recordEvent } = require('./history');
 const { ensureScratchDir, ensureGitignoreEntry } = require('./scratch-dir');
 const { GpsError, localDate, slugify, writeJsonAtomic } = require('./guard');
+
+// Per-machine files under .work/ that must never be shared: the current
+// session pointer, scouted ideas not started yet (and their corrupt
+// backups) and a /gps write payload in progress.
+const LOCAL_ONLY = [
+  '.scratch/',
+  '.work/sessions/.current-session',
+  '.work/sessions/.pending-seeds.json*',
+  '.work/sessions/*/.write-payload.md',
+];
 
 // `extraConfig` is merged into .session-config.json (e.g. { kind: 'issue' });
 // the session starts with an empty history and a `session_started` event.
@@ -40,7 +51,7 @@ function initSession(projectRoot, featureName, extraConfig = {}) {
   fs.mkdirSync(grillDir, { recursive: true });
 
   const scratchDir = ensureScratchDir(projectRoot, sessionId);
-  const gitignoreAdded = ['.scratch/'].filter((entry) => ensureGitignoreEntry(projectRoot, entry));
+  const gitignoreAdded = LOCAL_ONLY.filter((entry) => ensureGitignoreEntry(projectRoot, entry));
 
   const config = {
     session_id: sessionId,
@@ -73,4 +84,4 @@ function initSession(projectRoot, featureName, extraConfig = {}) {
   return { sessionId, slug, cleaned: slug !== featureName, sessionsDir, workDir, grillDir, scratchDir, gitignoreAdded };
 }
 
-module.exports = { initSession };
+module.exports = { LOCAL_ONLY, initSession };

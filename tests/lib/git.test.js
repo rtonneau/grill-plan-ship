@@ -6,6 +6,7 @@ const path = require('path');
 const { execSync } = require('child_process');
 const {
   readRecentCommits, readGitStatus, commitFiles, commitExists, describeCommit,
+  commitWorkDir, describeWorkCommit, branchesHolding, isIgnored,
 } = require('../../skills/gps/scripts/lib/git');
 
 const readGitStatusSummary = (root, dir) => readGitStatus(root, dir).session;
@@ -100,4 +101,54 @@ assert.strictEqual(commitFiles(notRepo, ['a'], 'x').reason, 'not a git repositor
 fs.rmSync(notRepo, { recursive: true, force: true });
 
 fs.rmSync(projectRoot, { recursive: true, force: true });
+// commitWorkDir: .work/ in its own commit; other staged files stay staged,
+// git-ignored per-machine files stay out.
+{
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'gps-workdir-'));
+  assert.deepStrictEqual(commitWorkDir(root, 'm'), { ok: true, sha: null, files: [], skipped: 'not a git repository' });
+  const sh = (cmd) => execSync(cmd, { cwd: root, encoding: 'utf-8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
+  sh('git init -q -b main');
+  sh('git config user.email "test@example.com"');
+  sh('git config user.name "Test"');
+  fs.writeFileSync(path.join(root, 'app.js'), '1\n');
+  sh('git add app.js');
+  sh('git commit -q -m initial');
+  assert.deepStrictEqual(commitWorkDir(root, 'm'), { ok: true, sha: null, files: [], skipped: null }, 'no .work/ yet');
+
+  fs.mkdirSync(path.join(root, '.work', 'sessions', 's1'), { recursive: true });
+  fs.writeFileSync(path.join(root, '.work', 'sessions', 's1', 'plan.md'), 'plan\n');
+  fs.writeFileSync(path.join(root, '.work', 'sessions', '.current-session'), 's1');
+  fs.writeFileSync(path.join(root, '.gitignore'), '.work/sessions/.current-session\n');
+  fs.writeFileSync(path.join(root, 'app.js'), '2\n');
+  sh('git add app.js');
+  const record = commitWorkDir(root, 'chore(gps): plan s1');
+  assert.ok(record.ok && record.sha);
+  assert.deepStrictEqual(record.files, ['.work/sessions/s1/plan.md']);
+  assert.strictEqual(sh('git log -1 --format=%s'), 'chore(gps): plan s1');
+  assert.strictEqual(sh('git diff --cached --name-only'), 'app.js', 'other staged files stay staged');
+  assert.match(describeWorkCommit(record).line, /Session record committed \([0-9a-f]+\): 1 file\(s\) in \.work\//);
+  assert.deepStrictEqual(commitWorkDir(root, 'm'), { ok: true, sha: null, files: [], skipped: null }, 'nothing new');
+  assert.deepStrictEqual(describeWorkCommit(commitWorkDir(root, 'm')), { line: null, warning: null });
+
+  // branchesHolding finds the branch a path was committed on.
+  assert.deepStrictEqual(branchesHolding(root, '.work/sessions/s1/plan.md'), ['main']);
+  assert.deepStrictEqual(branchesHolding(root, '.work/sessions/nope/plan.md'), []);
+
+  // A git-ignored .work/ (older gps) is skipped with a warning, never forced in.
+  fs.writeFileSync(path.join(root, '.gitignore'), '.work/\n');
+  assert.ok(isIgnored(root, '.work/'));
+  fs.writeFileSync(path.join(root, '.work', 'sessions', 's1', 'more.md'), 'x\n');
+  const skipped = commitWorkDir(root, 'm');
+  assert.deepStrictEqual(skipped, { ok: true, sha: null, files: [], skipped: '.work/ is git-ignored' });
+  assert.match(describeWorkCommit(skipped).warning, /\.work\/ is git-ignored/);
+
+  // A failed commit (pre-commit hook) is reported with the commands to run.
+  fs.writeFileSync(path.join(root, '.gitignore'), '');
+  fs.writeFileSync(path.join(root, '.git', 'hooks', 'pre-commit'), '#!/bin/sh\necho "lint failed" >&2\nexit 1\n', { mode: 0o755 });
+  const failed = commitWorkDir(root, 'm');
+  assert.strictEqual(failed.ok, false);
+  assert.strictEqual(failed.reason, 'lint failed');
+  assert.match(describeWorkCommit(failed).warning, /not committed \(lint failed\)\. Run by hand: git add -- \.work && git commit/);
+}
+
 console.log('git.test.js: all assertions passed');
