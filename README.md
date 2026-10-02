@@ -15,7 +15,7 @@ Claude does the judgment work: asking questions, planning, reviewing and summari
 /plugin install grill-plan-ship
 ```
 
-Restart Claude Code. Update later with `/plugin marketplace update rtonneau/grill-plan-ship`. Requires Node.js 20+. The grill and plan conversations use other plugins: `mattpocock-skills` (`grill-with-docs`) or `superpowers` (`brainstorming`), plus `superpowers` (`writing-plans`) and, optionally, `unslop`.
+Restart Claude Code. Update later with `/plugin marketplace update rtonneau/grill-plan-ship`. Requires Node.js 20+. The grill and plan conversations work best with other plugins: `mattpocock-skills` (`grill-with-docs`) or `superpowers` (`brainstorming`), plus `superpowers` (`writing-plans`) and, optionally, `unslop`. Without them, `/gps` falls back to a built-in grill (an interview that also keeps a project glossary and ADRs in `.work/`, adapted from the `grilling` and `domain-modeling` skills of [mattpocock-skills](https://github.com/mattpocock/skills.git)) and drafts the tickets itself.
 
 ## Quick start
 
@@ -105,7 +105,7 @@ Every script in `skills/gps/scripts/` follows the same rules (see `scripts/lib/c
 | `write-apply.js` | validate the payload and write resume.md or plan.md + tickets (creates the branch / files the issue on GitHub) |
 | `plan.js` | start the plan phase |
 | `ticket-queue.js` | the tickets, their state and model hints |
-| `ticket-start.js` | prepare a ticket's workspace (next pending one by default) |
+| `ticket-start.js` | prepare a ticket's workspace (next pending one by default); `--mode` records the ship mode the next `/gps ship` offers first |
 | `dispatch-prompt.js` | the Agent tool call for a ticket's subagent |
 | `ticket-complete.js` | commit the given files, mark the ticket Done, fill its log |
 | `ticket-block.js` | record why a ticket can't be finished |
@@ -114,6 +114,7 @@ Every script in `skills/gps/scripts/` follows the same rules (see `scripts/lib/c
 | `auto-route.js` | the steps `/gps auto` will run |
 | `handoff.js` | write HANDOFF.md |
 | `scout-merge.js` | archive a review and merge its ideas into the seeds |
+| `domain-doc.js` | built-in grill: create `.work/GLOSSARY.md`, or the next numbered ADR in `.work/adr/` |
 
 ## Session files
 
@@ -127,10 +128,12 @@ Every script in `skills/gps/scripts/` follows the same rules (see `scripts/lib/c
 ├── INDEX.md                      /gps finish: summary, links, timeline
 └── .session-config.json          machine state: history, phase, usage, git branch/PR, issue
 .work/gps-config.json             project flag: github.enabled
+.work/GLOSSARY.md                 built-in grill: the project's domain terms
+.work/adr/NNNN-<slug>.md          built-in grill: hard-to-reverse decisions and why
 .scratch/tests/<session-id>/      build/run/test artifacts
 ```
 
-`.work/` and `.scratch/` are added to `.gitignore` by `/gps start`. Every state change is appended to the session's `history` in `.session-config.json`; `/gps finish` turns it into a `## Timeline` table. The phase is always derived from the files, and `/gps status` flags any drift from the recorded one.
+`/gps start` adds `.scratch/` to `.gitignore` but leaves `.work/` alone: commit the sessions, glossary and ADRs to share them, or ignore `.work/` (or parts of it) yourself. Ticket commits never include `.work/` files; `/gps finish` commits changes to tracked files only, so `.work/` is committed there only once you have added it to git yourself. Every state change is appended to the session's `history` in `.session-config.json`; `/gps finish` turns it into a `## Timeline` table. The phase is always derived from the files, and `/gps status` flags any drift from the recorded one.
 
 ## GitHub projects
 

@@ -5,7 +5,7 @@ const path = require('path');
 const h = require('./helpers');
 
 {
-  // Creates the session, its scratch dir, the .gitignore entries and the pointer.
+  // Creates the session, its scratch dir, the .scratch/ .gitignore entry and the pointer; .work/ is not ignored.
   const root = h.tempProject();
   const res = h.ok(root, 'start.js', ['feat']);
   assert.match(res.out, /✅ Session started: \d{4}-\d{2}-\d{2}__feat\n/);
@@ -14,7 +14,7 @@ const h = require('./helpers');
   assert.match(id, /^\d{4}-\d{2}-\d{2}__feat$/);
   assert.ok(fs.existsSync(path.join(root, '.scratch', 'tests', id)));
   const gitignore = fs.readFileSync(path.join(root, '.gitignore'), 'utf-8');
-  assert.match(gitignore, /^\.work\/$/m);
+  assert.doesNotMatch(gitignore, /^\.work\/$/m);
   assert.match(gitignore, /^\.scratch\/$/m);
   assert.deepStrictEqual(fs.readdirSync(h.sessionDir(root)).sort(), ['.session-config.json', '01-grill']);
   assert.deepStrictEqual(h.history(root).map((e) => [e.event, e.phase]), [['session_started', 'grill']]);

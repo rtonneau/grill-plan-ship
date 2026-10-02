@@ -31,13 +31,14 @@ const { GpsError, UsageError } = require('./lib/guard');
 const OFF_LIMITS = ['.work/', '.scratch/'];
 
 // Project-relative, forward-slash paths; refuses paths outside the project
-// or inside gps's own (gitignored) directories.
+// or inside gps's own directories (session state and scratch output are
+// never part of a ticket's commit).
 function normalizeFiles(projectRoot, files) {
   return files.map((file) => {
     const rel = path.relative(projectRoot, path.resolve(projectRoot, file)).split(path.sep).join('/');
     if (!rel || rel.startsWith('../') || path.isAbsolute(rel)) throw new UsageError(`--file ${file} is outside the project.`);
     if (OFF_LIMITS.some((dir) => rel.startsWith(dir))) {
-      throw new UsageError(`--file ${file} is inside ${OFF_LIMITS.join(' or ')}, which gps keeps out of git.`);
+      throw new UsageError(`--file ${file} is inside ${OFF_LIMITS.join(' or ')}, which never belongs in a ticket's commit.`);
     }
     return rel;
   });

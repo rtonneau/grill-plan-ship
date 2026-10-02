@@ -13,9 +13,9 @@ const session = initSession(projectRoot, 'Add Dark Mode!', { kind: 'issue' });
 assert.strictEqual(session.slug, 'add-dark-mode');
 assert.strictEqual(session.cleaned, true);
 assert.strictEqual(session.sessionId, `${localDate()}__add-dark-mode`);
-assert.deepStrictEqual(session.gitignoreAdded, ['.work/', '.scratch/']);
+assert.deepStrictEqual(session.gitignoreAdded, ['.scratch/']);
 assert.strictEqual(session.scratchDir, `.scratch/tests/${session.sessionId}`);
-assert.strictEqual(fs.readFileSync(path.join(projectRoot, '.gitignore'), 'utf-8'), 'node_modules/\n.work/\n.scratch/\n');
+assert.strictEqual(fs.readFileSync(path.join(projectRoot, '.gitignore'), 'utf-8'), 'node_modules/\n.scratch/\n');
 
 // Only the config and the resume template: nothing that is never filled.
 assert.deepStrictEqual(fs.readdirSync(session.workDir).sort(), ['.session-config.json', '01-grill']);

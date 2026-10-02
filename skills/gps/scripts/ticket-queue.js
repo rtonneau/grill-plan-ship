@@ -7,7 +7,8 @@
  * their state and model hint, and names the next pending one. A ticket is
  * Done only when its commit-log.md Status line is exactly
  * "**Status:** ✅ Done". Unknown **Model:** values (hand edits) are warned
- * about and count as inherit. Read-only.
+ * about and count as inherit. Also prints the ship mode used last in this
+ * session (config.ship_mode, set by ticket-start.js --mode), if any. Read-only.
  */
 
 const { main } = require('./lib/cli');
@@ -18,7 +19,8 @@ const { resolveSession } = require('./lib/session-store');
 main({
   usage: 'ticket-queue.js [--json]',
   run({ projectRoot, warn }) {
-    const { sessionId, sessionDir } = resolveSession(projectRoot);
+    const { sessionId, sessionDir, config } = resolveSession(projectRoot);
+    const shipMode = config.ship_mode || null;
     const { tickets, nextPending } = readyTickets(sessionDir);
     for (const { num, slug, modelInvalid } of tickets) {
       if (modelInvalid !== null) {
@@ -29,6 +31,7 @@ main({
     const pending = tickets.filter((t) => !t.done);
     const lines = [
       `Tickets of ${sessionId}: ${tickets.length - pending.length}/${tickets.length} done.`,
+      ...(shipMode ? [`Last ship mode: ${shipMode}`] : []),
       '',
       ...tickets.map((t) => `- ${t.num} ${t.slug} — ${t.done ? 'done' : 'pending'} — model ${t.model}`),
       '',
@@ -39,6 +42,6 @@ main({
     } else {
       lines.push('All tickets are done. Next: /gps finish');
     }
-    return { text: lines.join('\n'), data: { sessionId, sessionDir, tickets, nextPending } };
+    return { text: lines.join('\n'), data: { sessionId, sessionDir, tickets, nextPending, shipMode } };
   },
 });

@@ -2,9 +2,11 @@
 //
 // /gps start: creates .work/sessions/YYYY-MM-DD__<slug>/ (01-grill/resume.md
 // and .session-config.json), the session's scratch directory, the
-// .gitignore entries and .current-session. <slug> is the feature name
-// cleaned by slugify(); the date is the local date. If the session already
-// exists, nothing is written and it throws a GpsError.
+// .gitignore entry for .scratch/ and .current-session. .work/ is left
+// out of .gitignore: whether to commit it is the project's choice.
+// <slug> is the feature name cleaned by slugify(); the date is the local
+// date. If the session already exists, nothing is written and it throws a
+// GpsError.
 
 const fs = require('fs');
 const path = require('path');
@@ -38,7 +40,7 @@ function initSession(projectRoot, featureName, extraConfig = {}) {
   fs.mkdirSync(grillDir, { recursive: true });
 
   const scratchDir = ensureScratchDir(projectRoot, sessionId);
-  const gitignoreAdded = ['.work/', '.scratch/'].filter((entry) => ensureGitignoreEntry(projectRoot, entry));
+  const gitignoreAdded = ['.scratch/'].filter((entry) => ensureGitignoreEntry(projectRoot, entry));
 
   const config = {
     session_id: sessionId,

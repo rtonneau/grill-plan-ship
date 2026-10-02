@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 1680" role="img" aria-labelledby="svg-title svg-desc" focusable="false">
-  <title id="svg-title">GPS v2.0.0 workflow diagram</title>
+  <title id="svg-title">GPS v2.1.0 workflow diagram</title>
   <desc id="svg-desc">Optional SCOUT, then GRILL, PLAN, SHIP, and FINISH phases mapped across command, activity, and output columns. A side lane shows /gps auto running from the current phase to finish; a band lists commands usable at any time (status, handoff, clean, config), and a footer gives the script contract every step follows.</desc>
 
   <defs>
@@ -27,7 +27,7 @@
 
   <rect class="bg" x="0" y="0" width="1600" height="1680" rx="28" />
 
-  <text class="h1" x="60" y="76">grill-plan-ship (GPS) workflow · v2.0.0</text>
+  <text class="h1" x="60" y="76">grill-plan-ship (GPS) workflow · v2.1.0</text>
   <text class="sub" x="60" y="108">Core flow: /gps start (or /gps start --issue) → /gps plan → /gps ship → /gps finish. Claude does the judgment; every deterministic step is a script.</text>
 
   <rect class="header" x="190" y="150" width="360" height="52" rx="14"/>
@@ -68,13 +68,13 @@
     <text class="mono" x="214" y="436">/gps start &lt;feature&gt;</text>
     <text class="mono" x="214" y="464">/gps start --issue &lt;title&gt;</text>
     <text class="mono" x="214" y="492">/gps write  (optional: save grill)</text>
-    <text class="note" x="214" y="522">scripts: start.js, write-prepare.js → write-apply.js</text>
+    <text class="note" x="214" y="522">scripts: start.js, domain-doc.js, write-*.js</text>
     <text class="note" x="214" y="556">Bounded work: implement directly,</text>
     <text class="note" x="214" y="578">then /gps finish (no plan, no PR)</text>
 
     <rect class="panel" x="610" y="400" width="360" height="200" rx="18"/>
     <text class="text" x="634" y="438">• Load the matching scout seed, if any</text>
-    <text class="text" x="634" y="466">• Grill: grill-with-docs, else brainstorming</text>
+    <text class="text" x="634" y="466">• Grill: grill-with-docs, brainstorming, or built-in</text>
     <text class="text" x="634" y="494">• Choice questions via AskUserQuestion</text>
     <text class="text" x="634" y="522">• Define constraints and success metrics</text>
     <text class="text" x="634" y="550">• Approve the design</text>
@@ -83,6 +83,7 @@
     <text class="mono" x="1054" y="438">.work/.../01-grill/resume.md</text>
     <text class="mono" x="1054" y="466">.work/.../.session-config.json</text>
     <text class="mono" x="1054" y="494">.scratch/tests/&lt;session&gt;/</text>
+    <text class="mono" x="1054" y="522">.work/GLOSSARY.md · .work/adr/</text>
     <text class="text" x="1054" y="556">GitHub + --issue: grill write</text>
     <text class="text" x="1054" y="578">files the GitHub issue</text>
   </g>
@@ -216,7 +217,7 @@
     <text class="phaseSmall" x="110" y="1604" text-anchor="middle">CONTRACT</text>
 
     <rect class="panel" x="190" y="1540" width="1370" height="100" rx="18"/>
-    <text class="mono" x="212" y="1576">node $CLAUDE_PLUGIN_ROOT/skills/gps/scripts/&lt;name&gt;.js [args] [--json] [--help]</text>
+    <text class="mono" x="212" y="1576">node ${CLAUDE_SKILL_DIR}/scripts/&lt;name&gt;.js [args] [--json] [--help]</text>
     <text class="text" x="212" y="1610">stdout: text relayed as is (--json: one object) · ⚠️ warnings never stop · exit 1: ❌ + hint, stop · exit 2: usage error · Next: names the next command</text>
   </g>
 </svg>

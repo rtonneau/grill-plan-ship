@@ -20,10 +20,10 @@ const path = require('path');
 const { main } = require('./lib/cli');
 const { resolveSession } = require('./lib/session-store');
 const { findTicketByNumber } = require('./lib/ticket-lookup');
-const { TICKET_MODELS } = require('./lib/ticket-queue');
+const { TICKET_MODELS, SHIP_MODES } = require('./lib/ticket-queue');
 const { GpsError, UsageError } = require('./lib/guard');
 
-const MODES = ['subagent', 'subagent+inline'];
+const MODES = SHIP_MODES.filter((mode) => mode !== 'inline');
 const script = (name) => `node "${path.join(__dirname, name)}"`;
 
 function buildPrompt(ticket, mode, scratchDir) {

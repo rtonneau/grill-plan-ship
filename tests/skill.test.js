@@ -31,7 +31,10 @@ assert.strictEqual(spawnSync(process.execPath, [path.join(__dirname, 'check-skil
 const listed = [...skill.matchAll(/^\| `\/gps (\w+)/gm)].map((m) => m[1]).sort();
 assert.deepStrictEqual(Object.keys(refs).sort(), listed);
 for (const command of listed) assert.ok(skill.includes(`\`references/${command}.md\``), `SKILL.md must route /gps ${command}`);
-assert.match(skill, /`<name>\.js` means `node \$CLAUDE_PLUGIN_ROOT\/skills\/gps\/scripts\/<name>\.js`/);
+assert.match(skill, /`<name>\.js` means `node \$\{CLAUDE_SKILL_DIR\}\/scripts\/<name>\.js`/);
+// The scripts are pre-approved under the same path the router gives them.
+assert.match(skill, /^allowed-tools: Bash\(node \$\{CLAUDE_SKILL_DIR\}\/scripts\/\*\)$/m);
+assert.match(skill, /^argument-hint: "<[a-z|]+> \[args\]"$/m);
 assert.match(skill, /unless the references file says how to recover/);
 // The description names every command, so the skill triggers on each.
 const description = skill.match(/^description: "(.*)"$/m)[1];
@@ -51,7 +54,7 @@ for (const name of scripts) assert.ok(named.has(name), `no reference uses ${name
 
 // Each command's references file runs its own scripts.
 const expected = {
-  scout: ['scout-merge.js'], start: ['start.js'], status: ['status.js', 'set-current.js'], clean: ['clean.js'],
+  scout: ['scout-merge.js'], start: ['start.js', 'domain-doc.js'], status: ['status.js', 'set-current.js'], clean: ['clean.js'],
   config: ['config.js'], write: ['write-prepare.js', 'write-apply.js'], plan: ['write-prepare.js', 'plan.js'],
   ship: ['write-prepare.js', 'ticket-queue.js', 'ticket-start.js', 'dispatch-prompt.js', 'ticket-check.js', 'ticket-complete.js', 'ticket-block.js'],
   finish: ['finish.js', 'set-current.js'], auto: ['auto-route.js', 'ticket-check.js'], handoff: ['handoff.js'],

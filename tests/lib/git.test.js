@@ -72,10 +72,12 @@ statusResult = readGitStatusSummary(projectRoot, sessionDir);
 assert.strictEqual(statusResult.length, 1);
 assert.ok(statusResult[0].path.endsWith('notes.txt'));
 
-// readGitStatus shows both views separately.
+// readGitStatus shows both views separately; the project view leaves gps's
+// own .work/ out, tracked or not.
 const both = readGitStatus(projectRoot, sessionDir);
 assert.strictEqual(both.session.length, 1);
-assert.strictEqual(both.project.length, 2);
+assert.strictEqual(both.project.length, 1);
+assert.ok(both.project.every((e) => !e.path.startsWith('.work/')));
 assert.ok(both.project.some((e) => e.path.endsWith('unrelated.txt')));
 
 // commitFiles: commits exactly the given files, nothing else that is staged.
