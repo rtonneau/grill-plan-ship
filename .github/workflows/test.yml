@@ -5,6 +5,16 @@ on:
   pull_request:
 
 jobs:
+  skill-size:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Every SKILL.md is at most 200 lines
+        run: node tests/check-skill-size.js --max 200
+
   test:
     runs-on: windows-latest
     strategy:
