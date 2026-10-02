@@ -88,4 +88,4 @@ function rescanProjectConfig(projectRoot, { apply = false, check = false } = {})
   return { status: same ? 'unchanged' : 'updated', stored, storedAt, detected, config };
 }
 
-module.exports = { CONFIG_FILENAME, ensureProjectConfig, githubEnabled, rescanProjectConfig };
+module.exports = { CONFIG_FILENAME, readConfig, ensureProjectConfig, githubEnabled, rescanProjectConfig };

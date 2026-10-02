@@ -15,6 +15,7 @@ const path = require('path');
 const { main } = require('./lib/cli');
 const { sessionsDirOf, resolveCurrentPointer, pointerError, readConfigOrNull } = require('./lib/session-store');
 const { computeSessionState } = require('./lib/phase');
+const { needsSetup } = require('./lib/setup');
 const { UsageError, mdCell } = require('./lib/guard');
 
 const SKILL_DIR = path.join(__dirname, '..');
@@ -61,11 +62,14 @@ function whereYouAre(projectRoot) {
   const sessionsDir = sessionsDirOf(projectRoot);
   const pointer = resolveCurrentPointer(sessionsDir);
   if (pointer.problem === 'no-sessions') {
+    const setup = needsSetup(projectRoot);
     return {
       sessionId: null,
       phase: null,
-      lines: ['No session yet.'],
-      next: { command: '/gps start <feature-name>', why: 'Begin a feature (or /gps scout for ideas first).' },
+      lines: setup ? ['No session yet, and gps is not set up in this repository (optional: /gps init).'] : ['No session yet.'],
+      next: setup
+        ? { command: '/gps init', why: 'Check the project and commit gps\'s setup once; then /gps start <feature-name>.' }
+        : { command: '/gps start <feature-name>', why: 'Begin a feature (or /gps scout for ideas first).' },
     };
   }
   if (pointer.problem) {

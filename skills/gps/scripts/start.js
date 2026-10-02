@@ -11,7 +11,8 @@
  *
  * A scouted idea whose slug matches the session's is consumed: printed as
  * the grill's starting context and removed from .pending-seeds.json.
- * Warns when .work/ is git-ignored (gps then commits none of its files).
+ * Warns when .work/ is git-ignored (gps then commits none of its files),
+ * and suggests /gps init while the project's gps setup is not committed.
  */
 
 const path = require('path');
@@ -20,6 +21,7 @@ const { ensureProjectConfig } = require('./lib/project-config');
 const { initSession } = require('./lib/session-init');
 const { getSeed, removeSeed } = require('./lib/seeds-store');
 const { isWorkTree, isIgnored } = require('./lib/git');
+const { needsSetup } = require('./lib/setup');
 const { UsageError } = require('./lib/guard');
 
 main({
@@ -41,7 +43,7 @@ main({
     }
     if (isWorkTree(projectRoot) && isIgnored(projectRoot, '.work/')) {
       warn('.work/ is git-ignored, so gps commits none of its session files. '
-        + 'Remove the ".work/" line from .gitignore to keep them with the code.');
+        + 'Run /gps init to remove the ".work/" line from .gitignore and keep them with the code.');
     }
 
     const resumePath = path.join(session.grillDir, 'resume.md');
@@ -52,6 +54,10 @@ main({
     if (seed) {
       lines.push('', `Scout seed for "${session.slug}" (from ${seed.sourceReport}): open the grill with it instead of starting from zero.`,
         '', '```json', JSON.stringify(seed, null, 2), '```');
+    }
+    if (needsSetup(projectRoot)) {
+      lines.push('', 'Tip: /gps init (once per project) commits gps\'s setup (.gitignore, .work/gps-config.json) on its own, '
+        + 'so it stays out of this session\'s commits.');
     }
     const issueNote = options.issue && github ? ' and files the GitHub issue' : '';
     lines.push('', `Next: run the grill${options.issue ? ', framed as a report (problem, reproduction, expected result)' : ''}. `

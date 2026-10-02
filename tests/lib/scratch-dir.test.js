@@ -3,7 +3,7 @@ const assert = require('assert');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-const { ensureScratchDir, ensureGitignoreEntry } = require('../../skills/gps/scripts/lib/scratch-dir');
+const { ensureScratchDir, ensureGitignoreEntry, gitignoreCovers, removeGitignoreEntry } = require('../../skills/gps/scripts/lib/scratch-dir');
 
 const root = fs.mkdtempSync(path.join(os.tmpdir(), 'gps-scratch-dir-'));
 
@@ -35,6 +35,14 @@ fs.writeFileSync(path.join(root, '.gitignore'), 'build/\r\n/.scratch\r\n');
 assert.strictEqual(ensureGitignoreEntry(root), false);
 fs.writeFileSync(path.join(root, '.gitignore'), '.scratch\n');
 assert.strictEqual(ensureGitignoreEntry(root), false);
+
+// gitignoreCovers / removeGitignoreEntry: slashes aside, every matching line goes, the rest stays.
+fs.writeFileSync(path.join(root, '.gitignore'), 'node_modules/\n.work/\n/.work\nbuild/\n');
+assert.strictEqual(gitignoreCovers(root, '.work/'), true);
+assert.strictEqual(gitignoreCovers(root, '.work/sessions/.current-session'), false);
+assert.strictEqual(removeGitignoreEntry(root, '.work/'), true);
+assert.strictEqual(fs.readFileSync(path.join(root, '.gitignore'), 'utf-8'), 'node_modules/\nbuild/\n');
+assert.strictEqual(removeGitignoreEntry(root, '.work/'), false, 'nothing left to remove');
 
 fs.rmSync(root, { recursive: true, force: true });
 console.log('scratch-dir tests passed');

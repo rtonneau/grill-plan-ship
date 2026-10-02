@@ -20,6 +20,7 @@ Restart Claude Code. Update later with `/plugin marketplace update rtonneau/gril
 ## Quick start
 
 ```
+/gps init                  # optional, once per project: checks it and commits gps's setup
 /gps start add-dark-mode   # creates the session, then the grill conversation starts
 /gps plan                  # once the design is approved: saves it, then drafts tickets
 /gps ship                  # once the tickets are approved: saves them, implements each, one commit each
@@ -32,6 +33,7 @@ Or, once the direction is clear, `/gps auto` runs from wherever the session is t
 
 | Command | What it does |
 |---|---|
+| `/gps init` | Optional first-run setup: check the project (git, GitHub, helper skills) and commit gps's `.gitignore` entries and config on their own |
 | `/gps scout [--from <review-file>] [direction]` | Turn an architecture review, or an existing review file, into ideas for `/gps start` |
 | `/gps start [--issue] <name>` | New session, then the grill (`--issue`: a bug report, filed as a GitHub issue) |
 | `/gps status` | Every session, scouted ideas, the current phase, a saved handoff, the next command |
@@ -48,6 +50,7 @@ Or, once the direction is clear, `/gps auto` runs from wherever the session is t
 ### One example per command
 
 ```
+/gps init                                  # "GitHub: detected on" + one chore(gps): set up gps commit, after your yes
 /gps scout only review src/parser          # architecture scan of one area -> "/gps start <slug>" lines
 /gps scout --from docs/review.md only Critical and High   # an existing review -> grouped ideas
 /gps start runconfig-resolver              # a scouted idea: the grill opens with it already loaded
@@ -101,6 +104,7 @@ Every script in `skills/gps/scripts/` follows the same rules (see `scripts/lib/c
 | `start.js` | create a session (`--issue` for a report) and consume a matching scout seed |
 | `status.js` | the status report |
 | `clean.js` | list, `--dry-run` or `--delete` sessions and ideas |
+| `init.js` | check the project's setup, or `--apply [--unignore-work]` it and commit it |
 | `config.js` | show or `--rescan [--apply]` the GitHub flag |
 | `set-current.js` | switch the current session (only after the user confirms) |
 | `write-prepare.js` | name the pending phase and print the payload skeleton to fill |
@@ -136,7 +140,7 @@ Every script in `skills/gps/scripts/` follows the same rules (see `scripts/lib/c
 .scratch/tests/<session-id>/      build/run/test artifacts
 ```
 
-`.work/` is committed with the code, each time in its own `chore(gps): …` commit: after the plan write (on the session branch), after each ticket (its completed commit log) and at `/gps finish` (INDEX.md and the finished state, pushed to the pull request before switching back). A bounded session's record is committed at finish only. Ticket commits themselves never include `.work/` files. `/gps start` adds `.scratch/` and the per-machine files (`.work/sessions/.current-session`, `.pending-seeds.json`, a write payload in progress) to `.gitignore`. If `.work/` is git-ignored (older gps versions added it), gps warns and commits none of it: remove the line to opt in. Since a session's files live on its branch, the commands find the session only with that branch checked out; when it isn't, the error names the branch to switch to. Every state change is appended to the session's `history` in `.session-config.json`; `/gps finish` turns it into a `## Timeline` table. The phase is always derived from the files, and `/gps status` flags any drift from the recorded one.
+`.work/` is committed with the code, each time in its own `chore(gps): …` commit: after the plan write (on the session branch), after each ticket (its completed commit log) and at `/gps finish` (INDEX.md and the finished state, pushed to the pull request before switching back). A bounded session's record is committed at finish only. Ticket commits themselves never include `.work/` files. `/gps start` adds `.scratch/` and the per-machine files (`.work/sessions/.current-session`, `.pending-seeds.json`, a write payload in progress) to `.gitignore`. If `.work/` is git-ignored (older gps versions added it), gps warns and commits none of it: `/gps init` offers to remove the line. Since a session's files live on its branch, the commands find the session only with that branch checked out; when it isn't, the error names the branch to switch to. Every state change is appended to the session's `history` in `.session-config.json`; `/gps finish` turns it into a `## Timeline` table. The phase is always derived from the files, and `/gps status` flags any drift from the recorded one.
 
 ## GitHub projects
 

@@ -10,7 +10,7 @@ const h = require('./helpers');
   const res = h.ok(root, 'help.js');
   assert.match(res.out, /## Where you are\n\nNo session yet\./);
   assert.match(res.out, /## The workflow/);
-  for (const name of ['scout', 'start', 'status', 'clean', 'config', 'write', 'plan', 'ship', 'finish', 'auto', 'handoff', 'help']) {
+  for (const name of ['init', 'scout', 'start', 'status', 'clean', 'config', 'write', 'plan', 'ship', 'finish', 'auto', 'handoff', 'help']) {
     assert.match(res.out, new RegExp(`^\\| \`/gps ${name}\\b`, 'm'), `help lists /gps ${name}`);
   }
   // The table cell of /gps auto keeps its pipes escaped.
@@ -35,8 +35,18 @@ const h = require('./helpers');
   }
   assert.strictEqual(h.json(root, 'help.js', ['auto']).command.usage, '/gps auto [--delegate] [plan|ship|finish]');
 
-  h.assertFails(h.run(root, 'help.js', ['bogus']), 2, /Unknown command "bogus"[\s\S]*Commands: scout, start/);
+  h.assertFails(h.run(root, 'help.js', ['bogus']), 2, /Unknown command "bogus"[\s\S]*Commands: init, scout, start/);
   h.assertFails(h.run(root, 'help.js', ['a', 'b']), 2, /Unexpected argument/);
+}
+
+{
+  // A git repo whose gps setup is not committed: help points at /gps init first.
+  const root = h.gitProject();
+  const res = h.ok(root, 'help.js');
+  assert.match(res.out, /No session yet, and gps is not set up in this repository \(optional: \/gps init\)/);
+  assert.match(res.out, /Next: \/gps init — /);
+  h.ok(root, 'init.js', ['--apply']);
+  assert.match(h.ok(root, 'help.js').out, /Next: \/gps start <feature-name>/);
 }
 
 {

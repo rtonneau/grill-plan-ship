@@ -58,7 +58,7 @@ const expected = {
   config: ['config.js'], write: ['write-prepare.js', 'write-apply.js'], plan: ['write-prepare.js', 'plan.js'],
   ship: ['write-prepare.js', 'ticket-queue.js', 'ticket-start.js', 'dispatch-prompt.js', 'ticket-check.js', 'ticket-complete.js', 'ticket-block.js'],
   finish: ['finish.js', 'set-current.js'], auto: ['auto-route.js', 'ticket-check.js'], handoff: ['handoff.js'],
-  help: ['help.js', 'status.js'],
+  help: ['help.js', 'status.js'], init: ['init.js'],
 };
 assert.deepStrictEqual(Object.keys(expected).sort(), listed);
 for (const [command, names] of Object.entries(expected)) {
