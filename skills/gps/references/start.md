@@ -13,6 +13,8 @@
 
 ## Built-in grill
 
+_Adapted from the `grilling` and `domain-modeling` skills of mattpocock-skills (https://github.com/mattpocock/skills.git)._
+
 Interview the user until you both hold the same design, with nothing silently assumed. Treat it as a design tree: each decision opens the decisions that hang off it. First read `.work/GLOSSARY.md` and `.work/adr/` if they exist; they hold the project's settled language and decisions.
 
 - **Facts are yours, decisions are theirs.** Look up whatever the code, docs or tools can answer (an Explore subagent for wide searches) instead of asking. Put every decision to the user.

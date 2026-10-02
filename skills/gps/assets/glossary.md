@@ -2,6 +2,8 @@
 
 <!-- gps:fill One or two sentences: what this project's domain is and why it exists. -->
 
+<!-- Format adapted from mattpocock-skills' domain-modeling (GLOSSARY-FORMAT.md): https://github.com/mattpocock/skills.git -->
+
 <!--
 How to add a term (the moment it is resolved, not in a batch at the end):
 

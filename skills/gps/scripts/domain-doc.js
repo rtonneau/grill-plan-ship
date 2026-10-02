@@ -15,6 +15,9 @@
  *   one instead): an ADR is never overwritten.
  *
  * Neither is session state: no session is needed, and none is changed.
+ *
+ * The glossary and ADR formats are adapted from the domain-modeling skill
+ * of mattpocock-skills: https://github.com/mattpocock/skills.git
  */
 
 const fs = require('fs');
