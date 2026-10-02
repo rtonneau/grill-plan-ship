@@ -54,7 +54,7 @@ for (const name of scripts) assert.ok(named.has(name), `no reference uses ${name
 
 // Each command's references file runs its own scripts.
 const expected = {
-  scout: ['scout-merge.js'], start: ['start.js'], status: ['status.js', 'set-current.js'], clean: ['clean.js'],
+  scout: ['scout-merge.js'], start: ['start.js', 'domain-doc.js'], status: ['status.js', 'set-current.js'], clean: ['clean.js'],
   config: ['config.js'], write: ['write-prepare.js', 'write-apply.js'], plan: ['write-prepare.js', 'plan.js'],
   ship: ['write-prepare.js', 'ticket-queue.js', 'ticket-start.js', 'dispatch-prompt.js', 'ticket-check.js', 'ticket-complete.js', 'ticket-block.js'],
   finish: ['finish.js', 'set-current.js'], auto: ['auto-route.js', 'ticket-check.js'], handoff: ['handoff.js'],

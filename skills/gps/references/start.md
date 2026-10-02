@@ -6,10 +6,23 @@
 2. Start the grill at once; don't wait for the user to call a skill. Use the first one available, and say in one line which one runs:
    - `grill-with-docs` (mattpocock-skills). It is flagged `disable-model-invocation`: if the Skill tool refuses it but `grilling` and `domain-modeling` exist, call those two yourself, `grilling` first.
    - `brainstorming` (superpowers).
-   - Neither: run the built-in grill and say once that `mattpocock-skills` or `superpowers` give a deeper one. Explore the code the work touches, then ask one question at a time, in this order: the problem and who it hurts, current behavior, constraints, what success looks like (measurable), what is out of scope, and the approach (offer 2–3 options with trade-offs). Stop when you could fill every section of the resume `write-prepare.js` prints without guessing, then summarize the design and ask for approval.
+   - Neither: the built-in grill below.
 
    With `--issue`, frame it as a report: Problem Statement is the report, "Current behavior" the reproduction, Success Metrics the expected result.
 3. Once the design is approved: `/gps plan` (saves the grill first) or `/gps auto`.
+
+## Built-in grill
+
+Interview the user until you both hold the same design, with nothing silently assumed. Treat it as a design tree: each decision opens the decisions that hang off it. First read `.work/GLOSSARY.md` and `.work/adr/` if they exist; they hold the project's settled language and decisions.
+
+- **Facts are yours, decisions are theirs.** Look up whatever the code, docs or tools can answer (an Explore subagent for wide searches) instead of asking. Put every decision to the user.
+- **Ask the frontier only:** questions whose prerequisites are settled, so no answer rests on a guess. A question that depends on an open one waits. Each goes through `AskUserQuestion` with your recommended answer first; free text only for open-ended answers. Recompute the frontier after each answer.
+- **Sharpen the language.** When a term is vague, overloaded or conflicts with the glossary, say so and propose one precise word ("you said 'account': the Customer or the User?"). Probe boundaries with concrete edge-case scenarios, and check claims against the code ("the code cancels whole orders, but you said partial cancellation is possible: which is right?").
+- **Write terms down as they settle,** not in a batch at the end: `domain-doc.js glossary`, then add the term with Edit. Domain terms only: no implementation details, no general programming concepts.
+- **Record an ADR sparingly:** only for a decision that is hard to reverse, surprising without context, and the result of a real trade-off. If any of the three is missing, nobody will need the record. `domain-doc.js adr <slug> --title "<title>"`, then fill it in 1–3 sentences.
+- **Done** when the frontier is empty and you could fill every section of the resume `write-prepare.js` prints without guessing. Summarize the design, then ask for approval with `AskUserQuestion`; act on nothing before it.
+
+Say once that `mattpocock-skills` or `superpowers` provide their own grill skills.
 
 **Bounded work** (a short in-chat design for one small change): answering a design question is not approval, because the user may still be thinking aloud. Ask a standalone "Ready for me to implement this?" and wait for yes. Then save the grill (`references/write.md`) before touching code, implement on the checked-out branch (no plan, tickets, branch or PR; for an issue, put `(#N)` in commit messages), and run `/gps finish`.
 
