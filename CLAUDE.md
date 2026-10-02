@@ -19,7 +19,7 @@ skills/gps/
 tests/                     <script>.test.js per script, lib/<lib>.test.js per lib, e2e, github-flow, skill
 ```
 
-Commands: scout, start (`--issue`), status, clean, config, write, plan, ship (`[N]`), finish, auto, handoff.
+Commands: scout, start (`--issue`), status, clean, config, write, plan, ship (`[N]`), finish, auto, handoff, help.
 
 ## Rules for scripts
 

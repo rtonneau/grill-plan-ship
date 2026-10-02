@@ -43,6 +43,7 @@ Or, once the direction is clear, `/gps auto` runs from wherever the session is t
 | `/gps finish` | Close the session: leftovers committed, INDEX.md, PR |
 | `/gps auto [--delegate] [plan\|ship\|finish]` | Run from the current phase to the target without stopping |
 | `/gps handoff` | Save an in-flight checkpoint before you stop for the day |
+| `/gps help [command\|question]` | Where you are and what to run next, what a command does, or an answer to any question about the workflow |
 
 ### One example per command
 
@@ -60,6 +61,7 @@ Or, once the direction is clear, `/gps auto` runs from wherever the session is t
 /gps finish                                # for an issue session it asks "Close issue #N as well?"
 /gps auto --delegate                       # subagent per ticket on its hinted model, reviewed and committed here
 /gps handoff                               # HANDOFF.md: where you stopped, next step, settled decisions
+/gps help what does auto skip?             # explains from the references, names the command to run
 ```
 
 ## How `/gps ship` works
@@ -113,6 +115,7 @@ Every script in `skills/gps/scripts/` follows the same rules (see `scripts/lib/c
 | `finish.js` | close the session |
 | `auto-route.js` | the steps `/gps auto` will run |
 | `handoff.js` | write HANDOFF.md |
+| `help.js` | `/gps help`: where you are, the workflow, every command (or one command's details) |
 | `scout-merge.js` | archive a review and merge its ideas into the seeds |
 | `domain-doc.js` | built-in grill: create `.work/GLOSSARY.md`, or the next numbered ADR in `.work/adr/` |
 
