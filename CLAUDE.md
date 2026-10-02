@@ -1,234 +1,55 @@
 # grill-plan-ship
 
-**Universal workflow plugin for Claude Code:** grill → plan → ship.
+**Universal workflow plugin for Claude Code:** grill → plan → ship → finish. User docs: `README.md`.
 
-## What is this?
+## Principle
 
-A reusable Claude Code plugin that orchestrates structured development workflows across any language/domain:
+The LLM does judgment only: questioning (grill), planning, reviewing and summarizing. Every deterministic step (validation, file generation, templating, session state, git and gh calls, report formatting) is a script. If it can be a script, it must be one; the references then call it in one line.
 
-1. **Grill** — Brainstorm & spec (uses `/brainstorming` skill)
-2. **Plan** — Break work into atomic tickets (uses `/writing-plans` skill)
-3. **Ship** — Implement tickets one by one (manual, no TDD)
-4. **Finish** — Archive session with INDEX.md, commit leftover tracked changes (and, on GitHub projects, open a PR from the session branch and switch back to its base branch)
-
-## Commands
-
-- `/gps start <feature-name>` — Create new session directory + initialize templates
-- `/gps issue <title>` — Like start, for a report: on GitHub projects the grill write files a GitHub issue
-- `/gps write` — Detect the pending phase (grill or plan) and write its output to disk
-- `/gps plan` — Generate plan.md + numbered tickets
-- `/gps ticket <N>` — Start implementing ticket N
-- `/gps ship` — Implement every remaining ticket in order, one commit each
-- `/gps finish` — Archive session + generate summary
-- `/gps auto [--delegate] [plan|ship|finish]` — Run from the current phase to the target without stopping (`--delegate`: subagents on hinted models, inline review + commit)
-- `/gps clean [session-id|idea-slug...]` — List sessions by idle time and scouted ideas, delete the chosen ones (after confirmation)
-- `/gps config [--rescan]` — Show the GitHub flag; `--rescan` re-detects it (after confirmation when it changes)
-
-## Architecture
+## Layout
 
 ```
-grill-plan-ship/
-├── .claude-plugin/
-│   ├── plugin.json          ← Plugin manifest
-│   └── marketplace.json     ← Self-hosted marketplace entry
-├── skills/gps/
-│   ├── SKILL.md             ← Router: command table + shared rules (Claude Code loads this)
-│   └── references/          ← One <command>.md per command, read on demand
-├── scripts/                 ← JavaScript handlers that do the work
-│   ├── start-session.js     ← Creates .work/sessions/YYYYMMDD__feature/
-│   ├── issue-session.js     ← /gps issue: same setup as start, marked kind "issue"
-│   ├── write-target.js      ← Detects pending phase for /gps write
-│   ├── write-apply.js       ← Applies the /gps write payload (resume or plan + tickets)
-│   ├── plan.js               ← Creates 02-plan/ + ticket templates
-│   ├── ticket.js             ← Creates 03-implement/NN-*/ workspace
-│   ├── ticket-queue.js       ← Lists tickets (with each one's `**Model:**` hint) + next pending one
-│   ├── ticket-done.js        ← Records a ticket's completion in the session history
-│   ├── finish.js             ← Generates INDEX.md
-│   ├── clean.js              ← /gps clean: lists sessions and scouted ideas, deletes chosen ones
-│   ├── config.js             ← /gps config: shows / rescans the project's GitHub flag
-│   ├── auto-route.js         ← /gps auto: steps from the current phase to the target
-│   └── lib/                 ← Shared helpers (session-store, session-init, project-config, history, ticket-lookup, templates, write-target, write-payload, ticket-queue, ticket-model, github, auto-route) + tests
-├── templates/                ← Markdown templates (01-grill, 02-plan, 02-ticket, 03-implement)
-├── examples/                 ← Real session examples (geant4, react, python)
-├── README.md                 ← User documentation
-└── package.json              ← Project metadata
+.claude-plugin/            plugin.json, marketplace.json (keep their versions equal to package.json)
+skills/gps/
+├── SKILL.md               router only: command table, script contract, shared rules (< 100 lines; CI fails > 200)
+├── references/<cmd>.md    one short file per command: judgment steps + one-line script calls
+├── scripts/<name>.js      one script per deterministic step
+│   └── lib/               shared helpers; cli.js is the script contract
+└── assets/                markdown templates only
+tests/                     <script>.test.js per script, lib/<lib>.test.js per lib, e2e, github-flow, skill
 ```
 
-## How it Works
+Commands: scout, start (`--issue`), status, clean, config, write, plan, ship (`[N]`), finish, auto, handoff.
 
-1. User types `/gps start my-feature`
-2. Claude Code reads SKILL.md → finds handler path
-3. Claude Code executes `scripts/start-session.js "my-feature"`
-4. Handler creates: `.work/sessions/YYYYMMDD__my-feature/01-grill/` + templates
-5. Session is ready for brainstorming
+## Rules for scripts
 
-Each command follows this same pattern: SKILL.md → handler → file creation.
+- Entry point is `main({ usage, positionals, options, run })` from `lib/cli.js`; `run` returns `{ text, data }`. Never print to stdout yourself, and never call `process.exit`.
+- One purpose per script, explicit args, no hidden state. Validate input and throw `UsageError` (exit 2) or `GpsError(message, hint)` (exit 1); warnings go through `warn()`.
+- `text` is relayed to the user as is; end it with a `Next:` line when there is an obvious next command. `--json` prints `data`.
+- Shared logic goes in `lib/`: check it before adding a helper. Git calls live in `lib/git.js`, gh calls in `lib/github.js`, always via `execFileSync` with an argument array.
+- Use only Node.js built-ins. Write JSON with `writeJsonAtomic`. Record each state change with `recordEvent` (`lib/history.js`) after the files are written.
+- Scripts never overwrite work: they refuse (changing nothing) or resume.
 
-## Development Tasks
+## Rules for SKILL.md and references
 
-### Short-term (MVP)
-- [ ] Test all handlers with real Geant4 session
-- [ ] Verify SKILL.md correctly registers commands
-- [ ] Create examples/geant4-chemistry-refactor/ real session
-- [ ] Write examples/react-form-validation/ dummy session
-- [ ] Polish error messages in handlers
+- SKILL.md has no procedures (no numbered steps); it routes to `references/<command>.md`.
+- In references, `<name>.js` means `node $CLAUDE_PLUGIN_ROOT/skills/gps/scripts/<name>.js`. Keep each file short (≤ 40 lines) and leave procedure that can be scripted to a script.
+- `tests/skill.test.js` checks the router, sizes, script names, one test per script, and that every asset is used.
 
-### Medium-term (v1.0)
-- [ ] Add comprehensive README with quick-start
-- [ ] Create full examples/ (3+ real projects)
-- [ ] Add evals/ (test suite for handlers)
-- [ ] Document SKILL.md format thoroughly
-
-### Long-term (v2.0+)
-- [ ] Add ADR generation automation
-- [ ] Add session archival to docs/archive/
-- [ ] Add batch ticket operations
-- [ ] Consider GitHub Issues integration
-
-## Key Files to Edit
-
-### SKILL.md
-Router. Lists the commands, the shared rules and where each command's instructions live. Claude Code loads it on every `/gps` call, so keep it short.
-
-**Edit when:** Adding/renaming commands or changing a shared rule. Per-command behavior goes in `skills/gps/references/<command>.md`.
-
-### scripts/*.js
-The actual logic. Each handler:
-1. Reads current session state (or creates new one)
-2. Creates directories/files
-3. Prints feedback to console
-
-**Edit when:** Changing behavior (e.g., adding new template variables, changing directory structure).
-
-### templates/
-Markdown templates injected into new sessions.
-
-**Edit when:** Changing session phases or adding new template fields.
-
-### README.md
-User-facing documentation.
-
-**Edit when:** Adding new commands or changing installation instructions.
-
-## Session Structure (What Gets Created)
-
-Every session creates a consistent structure:
-
-```
-.work/sessions/YYYYMMDD__feature-name/
-├── 01-grill/
-│   ├── resume.md         ← Problem + context + success metrics (from brainstorming)
-│   └── notes.md          ← Q&A transcript
-├── 02-plan/
-│   ├── plan.md           ← Strategy + ticket overview
-│   └── tickets/
-│       ├── 01-ticket-name.md
-│       ├── 02-ticket-name.md
-│       ├── 03-ticket-name.md
-│       └── 04-ticket-name.md
-├── 03-implement/
-│   ├── 01-ticket-name/
-│   │   ├── commit-log.md ← Commits + test results
-│   │   └── code-review.md
-│   ├── 02-ticket-name/
-│   ├── 03-ticket-name/
-│   └── 04-ticket-name/
-├── .session-config.json  ← Machine state (session ID, `current_phase`, `history` timeline events, usage, `kind`, and `git` branch/PR / `issue` on GitHub projects)
-└── INDEX.md              ← Final summary (generated by /gps finish)
-```
-
-Project-wide, `.work/gps-config.json` holds the GitHub flag (`github.enabled`, detected by the first command, re-detected only by `/gps config --rescan`, editable by hand); handlers read it via `scripts/lib/project-config.js` and never re-detect.
-
-## Testing Workflow
+## Testing
 
 ```powershell
-# Test a single handler
-node scripts/start-session.js "test-feature"
-
-# Verify directory was created
-Get-ChildItem -Path '.work/sessions' -Recurse
-
-# Check what was created
-Get-Content '.work/sessions/2026-09-16__test-feature/.session-config.json'
-
-# Clean up
-Remove-Item -Path '.work' -Recurse -Force
+npm test                                  # all tests (node --test over tests/**/*.test.js)
+node tests/start.test.js                  # one file
+node tests/check-skill-size.js --max 200  # the CI size check
 ```
 
-## Composable Skills Used
+Tests run real scripts in throwaway directories (`tests/helpers.js`), and drive sessions through the scripts, never by writing session state by hand. The GitHub flow uses a stub `gh` (`GPS_GH_BIN`) and a local bare repo.
 
-This plugin orchestrates:
-- `brainstorming` (superpowers) — Socratic refinement of specs
-- `writing-plans` (superpowers) — Atomic task breakdown
-- `unslop` (plugin) — Crisp, clear language
-- Claude Code — Manual implementation per ticket
+## Session files
 
-## Context for Claude Code
-
-### When working on SKILL.md
-- Keep SKILL.md a router: command table, shared rules, routing line
-- Put each command's details, handler line and example in `references/<command>.md`
-- `scripts/handlers.test.js` checks every listed command has a references file with its handler lines
-
-### When working on handlers (*.js)
-- Use Node.js fs module (cross-platform)
-- Always create `.session-config.json` with structured metadata
-- Print clear feedback messages (✅ for success, ❌ for errors)
-- Handle edge cases (e.g., session not found, invalid ticket number)
-- Use ISO 8601 timestamps (`new Date().toISOString()`)
-- Record each state change with `recordEvent` (scripts/lib/history.js) after the files are written; it never throws
-
-### When working on templates
-- Use `{{ }}` placeholders for variables
-- Keep markdown clean and readable
-- Match the phase (01-grill, 02-plan, 03-implement)
-- Include examples where helpful
-
-### When working on examples/
-- Each example is a complete, real session
-- Include actual brainstorm output, plan, and tickets
-- Add a README explaining what to adapt for your project
-- Show the final INDEX.md to demonstrate workflow completion
-
-## Common Commands (PowerShell 7.6.5)
-
-```powershell
-# Create repo and clone
-gh repo create grill-plan-ship --public --clone
-cd grill-plan-ship
-
-# Create directories
-@('skills', 'templates', 'scripts', 'examples', 'evals') | ForEach-Object {
-    New-Item -ItemType Directory -Path $_ -Force | Out-Null
-}
-
-# Test a handler
-node scripts/start-session.js "test-feature"
-
-# Stage and push changes
-git add .
-git commit -m "feat: description"
-git push origin main
-```
-
-## Notes for Claude Code
-
-- **Language:** Plugin is domain-agnostic (works for any language/project type)
-- **No external dependencies:** Handlers use only Node.js fs module
-- **Cross-platform:** Works on Windows (PowerShell), macOS (bash), Linux (bash)
-- **Extensible:** Can add new commands by adding new handler + registering in SKILL.md
-- **Composable:** Uses existing superpowers skills rather than reinventing
-
-## Status
-
-**Phase:** MVP (handlers written, needs real-world testing with Geant4)
-
-**Next:** Test every command end-to-end with actual Geant4 session → refine → document examples → v1.0 release
-
-See docs/reviews/2026-09-22-mvp-hardening-review.md for the current hardening plan.
+`.work/sessions/YYYY-MM-DD__<slug>/`: `01-grill/resume.md`, `02-plan/plan.md` + `tickets/NN-<slug>.md`, `03-implement/NN-<slug>/commit-log.md`, `HANDOFF.md`, `INDEX.md`, `.session-config.json` (history, current_phase, usage, kind, git, issue). Project-wide: `.work/gps-config.json` (`github.enabled`, read via `lib/project-config.js`, detected once, re-detected only by `/gps config --rescan`).
 
 ---
 
-**Author:** rtonneau (Université de Namur)
-**License:** MIT
-**Repository:** github.com/rtonneau/grill-plan-ship
+**Author:** rtonneau (Université de Namur) · **License:** MIT · **Repository:** github.com/rtonneau/grill-plan-ship
