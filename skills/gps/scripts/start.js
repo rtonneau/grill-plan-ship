@@ -4,7 +4,7 @@
  * start.js <feature-name...> [--issue] [--json]
  *
  * /gps start: creates the session (directory, resume template, scratch dir,
- * .gitignore entries, .current-session) and records GitHub detection in
+ * .gitignore entry for .scratch/, .current-session) and records GitHub detection in
  * .work/gps-config.json the first time. With --issue the session is a
  * report (kind "issue"): on a GitHub project the grill write files it as
  * a GitHub issue; otherwise a warning says it stays local.

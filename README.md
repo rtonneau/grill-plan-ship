@@ -133,7 +133,7 @@ Every script in `skills/gps/scripts/` follows the same rules (see `scripts/lib/c
 .scratch/tests/<session-id>/      build/run/test artifacts
 ```
 
-`.work/` and `.scratch/` are added to `.gitignore` by `/gps start`, so the glossary and ADRs stay local too; un-ignore `.work/GLOSSARY.md` and `.work/adr/` to share them. Every state change is appended to the session's `history` in `.session-config.json`; `/gps finish` turns it into a `## Timeline` table. The phase is always derived from the files, and `/gps status` flags any drift from the recorded one.
+`/gps start` adds `.scratch/` to `.gitignore` but leaves `.work/` alone: commit the sessions, glossary and ADRs to share them, or ignore `.work/` (or parts of it) yourself. Ticket commits never include `.work/` files; `/gps finish` commits changes to tracked files only, so `.work/` is committed there only once you have added it to git yourself. Every state change is appended to the session's `history` in `.session-config.json`; `/gps finish` turns it into a `## Timeline` table. The phase is always derived from the files, and `/gps status` flags any drift from the recorded one.
 
 ## GitHub projects
 

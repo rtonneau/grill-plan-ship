@@ -18,7 +18,7 @@ const h = require('./helpers');
   h.assertFails(commit(['--file', 'a.js']), 2, /--message/);
   h.assertFails(commit(['--commit', 'abc', '--file', 'a.js']), 2, /leave out --message and --file/);
   h.assertFails(commit(['--message', 'm', '--file', '../outside.js']), 2, /outside the project/);
-  h.assertFails(commit(['--message', 'm', '--file', '.work/x']), 2, /gps keeps out of git/);
+  h.assertFails(commit(['--message', 'm', '--file', '.work/x']), 2, /never belongs in a ticket's commit/);
 
   // Never started -> refused.
   h.assertFails(commit(['--message', 'm', '--file', 'a.js']), 1, /never started[\s\S]*ticket-start\.js 1/);

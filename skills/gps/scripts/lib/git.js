@@ -97,12 +97,12 @@ function readGitStatusEntries(projectRoot, pathspec) {
   }
 }
 
-// Both views: the whole project (where code changes live) and the session
-// directory (usually empty, as .work/ is gitignored).
+// Both views: the project's code changes (gps's own .work/ left out, as it
+// may or may not be tracked) and the session directory.
 function readGitStatus(projectRoot, sessionDir) {
   const relPath = path.relative(projectRoot, sessionDir).replace(/\\/g, '/');
   return {
-    project: readGitStatusEntries(projectRoot, null),
+    project: readGitStatusEntries(projectRoot, null).filter((e) => !e.path.startsWith('.work/')),
     session: readGitStatusEntries(projectRoot, relPath),
   };
 }
