@@ -18,6 +18,9 @@
  * it in .session-config.json as `git`, for /gps finish to open the PR.
  * Bounded sessions (no plan) never get a branch.
  *
+ * Plan phase: then commits .work/ (the resume, plan and tickets) on its own,
+ * after the branch is created; a failed commit only warns.
+ *
  * Grill phase of a `kind: "issue"` session (/gps start --issue) in a GitHub project:
  * also files the GitHub issue from the resume sections and records it in
  * .session-config.json as `issue`. If gh fails nothing is written.
@@ -41,7 +44,7 @@ const {
   renderPhaseFile,
   renderTicket,
 } = require('./lib/write-payload');
-const { validateBranchName, createSessionBranch } = require('./lib/git');
+const { validateBranchName, createSessionBranch, commitWorkDir, describeWorkCommit } = require('./lib/git');
 const { createIssue, buildIssueBody } = require('./lib/github');
 const { githubEnabled } = require('./lib/project-config');
 const { GpsError, writeJsonAtomic } = require('./lib/guard');
@@ -173,12 +176,16 @@ function apply({ projectRoot, warn }) {
     detail: { tickets: tickets.length },
   });
   fs.unlinkSync(payloadPath);
+  const record = commitWorkDir(projectRoot, `chore(gps): plan ${sessionId}`);
   const lines = [`✅ Plan written for ${sessionId}: ${tickets.length} ticket(s).`];
   if (gitInfo) lines.push(`🌿 Working on branch ${gitInfo.branch} (from ${gitInfo.base_branch}); /gps finish opens the PR.`);
+  const recorded = describeWorkCommit(record);
+  if (recorded.line) lines.push(recorded.line);
+  if (recorded.warning) warn(recorded.warning);
   lines.push('Next: /gps ship');
   return {
     text: lines.join('\n'),
-    data: { sessionId, phase: 'plan', path: targetPath, tickets: tickets.map((t) => `${t.num}-${t.slug}`), git: gitInfo },
+    data: { sessionId, phase: 'plan', path: targetPath, tickets: tickets.map((t) => `${t.num}-${t.slug}`), git: gitInfo, record },
   };
 }
 

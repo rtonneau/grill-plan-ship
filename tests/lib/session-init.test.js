@@ -3,7 +3,7 @@ const assert = require('assert');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-const { initSession } = require('../../skills/gps/scripts/lib/session-init');
+const { LOCAL_ONLY, initSession } = require('../../skills/gps/scripts/lib/session-init');
 const { localDate } = require('../../skills/gps/scripts/lib/guard');
 
 const projectRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'gps-init-'));
@@ -13,9 +13,11 @@ const session = initSession(projectRoot, 'Add Dark Mode!', { kind: 'issue' });
 assert.strictEqual(session.slug, 'add-dark-mode');
 assert.strictEqual(session.cleaned, true);
 assert.strictEqual(session.sessionId, `${localDate()}__add-dark-mode`);
-assert.deepStrictEqual(session.gitignoreAdded, ['.scratch/']);
+assert.deepStrictEqual(session.gitignoreAdded, LOCAL_ONLY);
+assert.ok(LOCAL_ONLY.includes('.work/sessions/.current-session'));
+assert.ok(!LOCAL_ONLY.includes('.work/'), '.work/ itself is committed');
 assert.strictEqual(session.scratchDir, `.scratch/tests/${session.sessionId}`);
-assert.strictEqual(fs.readFileSync(path.join(projectRoot, '.gitignore'), 'utf-8'), 'node_modules/\n.scratch/\n');
+assert.strictEqual(fs.readFileSync(path.join(projectRoot, '.gitignore'), 'utf-8'), `node_modules/\n${LOCAL_ONLY.join('\n')}\n`);
 
 // Only the config and the resume template: nothing that is never filled.
 assert.deepStrictEqual(fs.readdirSync(session.workDir).sort(), ['.session-config.json', '01-grill']);

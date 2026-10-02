@@ -13,7 +13,7 @@
 
 Start each ticket with `ticket-start.js [N] --mode <inline|subagent|subagent+inline>` (the mode is recorded so the next `/gps ship` offers it). "All tickets are done": suggest `/gps finish` and stop (under `/gps auto`: back to `references/auto.md`). Then follow your mode:
 
-**inline:** implement and debug it yourself, artifacts in the scratch dir, then run its Verification Step. Fill the log's Local Test Result, Review Notes and Blockers / Challenges, then `ticket-complete.js <N> --message "<type>: <summary> (ticket NN)" --file <path>...` with only the files this ticket touched, so each commit holds one ticket.
+**inline:** implement and debug it yourself, artifacts in the scratch dir, then run its Verification Step. Fill the log's Local Test Result, Review Notes and Blockers / Challenges, then `ticket-complete.js <N> --message "<type>: <summary> (ticket NN)" --file <path>...` with only the files this ticket touched, so each commit holds one ticket. It then commits the session record (`.work/`) on its own; relay its `🗂️` line.
 
 **subagent:** `dispatch-prompt.js <N> --mode subagent [--model <m>]`, make that Agent call, wait. `DONE`: `ticket-check.js <N>`; a `❌` means the DONE was false, so stop. `BLOCKED`: stop. The subagent fills its own log and commits.
 

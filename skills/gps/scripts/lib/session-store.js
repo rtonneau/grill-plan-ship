@@ -8,6 +8,7 @@ const fs = require('fs');
 const path = require('path');
 const { GpsError, readJson, readJsonOrNull } = require('./guard');
 const { isFinished } = require('./phase');
+const { branchesHolding } = require('./git');
 
 const CURRENT_SESSION_FILENAME = '.current-session';
 const CONFIG_FILENAME = '.session-config.json';
@@ -78,9 +79,12 @@ function isSafeSessionName(sessionId) {
 // null | 'no-sessions' | 'no-pointer' | 'invalid-pointer' |
 // 'missing-session' | 'finished-session'.
 function resolveCurrentPointer(sessionsDir) {
-  if (listSessionDirs(sessionsDir).length === 0) return { sessionId: null, problem: 'no-sessions' };
   const sessionId = readCurrentPointer(sessionsDir);
-  if (sessionId === null) return { sessionId: null, problem: 'no-pointer' };
+  // A pointer with no session directory may name a session committed on
+  // another branch, so it is checked before "no sessions".
+  if (sessionId === null) {
+    return { sessionId: null, problem: listSessionDirs(sessionsDir).length === 0 ? 'no-sessions' : 'no-pointer' };
+  }
   if (!isSafeSessionName(sessionId)) return { sessionId: null, problem: 'invalid-pointer', pointer: sessionId };
   if (!fs.existsSync(path.join(sessionsDir, sessionId, CONFIG_FILENAME))) {
     return { sessionId: null, problem: 'missing-session', pointer: sessionId };
@@ -103,6 +107,15 @@ const POINTER_MESSAGES = {
 function pointerError(sessionsDir, { problem, pointer }) {
   const message = POINTER_MESSAGES[problem](pointer);
   if (problem === 'no-sessions') return new GpsError(message, 'Run /gps start <feature-name> first.');
+  if (problem === 'missing-session') {
+    // .work/ is committed, so the session may live on a branch not checked out.
+    const projectRoot = path.resolve(sessionsDir, '..', '..');
+    const [branch] = branchesHolding(projectRoot, `.work/sessions/${pointer}/${CONFIG_FILENAME}`);
+    if (branch) {
+      return new GpsError(`The current session ${pointer} is on branch ${branch}, which is not checked out.`,
+        `Run git switch ${branch}, then run the command again.`);
+    }
+  }
 
   const unfinished = listUnfinishedSessions(sessionsDir).map((s) => s.sessionId);
   const hint = unfinished.length === 0

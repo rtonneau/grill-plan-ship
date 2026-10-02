@@ -29,7 +29,7 @@ fs.writeFileSync(log, fs.readFileSync(log, 'utf-8').replace('**Status:** ✅ Don
 h.fillLog(root, '01-a');
 fs.writeFileSync(path.join(root, 'a.js'), 'a\n');
 h.ok(root, 'ticket-complete.js', ['1', '--message', 'feat: a', '--file', 'a.js']);
-const sha = h.git(root, 'rev-parse', '--short', 'HEAD');
+const sha = h.git(root, 'rev-parse', '--short', 'HEAD~1'); // HEAD is the session record commit
 assert.match(h.ok(root, 'ticket-check.js', ['1']).out, new RegExp(`✅ Ticket 01 \\(a\\) is complete: ${sha}`));
 assert.deepStrictEqual(h.json(root, 'ticket-check.js', ['1']), { ticket: '01-a', complete: true, commits: [sha] });
 

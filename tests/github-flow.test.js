@@ -142,8 +142,12 @@ commit('theme.js', 'feat: add dark theme');
 fs.appendFileSync(path.join(root, 'app.js'), '// hook log line\n');
 res = ok('finish.js');
 assert.match(res.out, /📦 Committed 1 remaining file\(s\) \([0-9a-f]+\): app\.js/);
-assert.strictEqual(git('log', '-1', '--format=%s'), `chore: commit remaining changes (gps finish ${sessionId})`);
+assert.match(res.out, /🗂️ {2}Session record committed \([0-9a-f]+\): \d+ file\(s\) in \.work\//);
+assert.strictEqual(git('log', '-2', '--format=%s'),
+  `chore(gps): finish ${sessionId}\nchore: commit remaining changes (gps finish ${sessionId})`);
 assert.strictEqual(git('status', '--porcelain', '--untracked-files=no'), '');
+assert.strictEqual(git('status', '--porcelain', '--', '.work'), '', 'the whole session record is committed');
+assert.strictEqual(git('ls-files', '--', '.work/sessions/.current-session'), '', 'the pointer stays local');
 assert.doesNotMatch(res.out + res.err, /Back on|Still on/, 'no branch: no switch');
 assert.match(fs.readFileSync(path.join(sessionDir, 'INDEX.md'), 'utf-8'), /## Remaining changes[\s\S]*`app\.js`/);
 assert.doesNotMatch(res.out, /Pull request/);
@@ -182,9 +186,13 @@ assert.ok(fs.existsSync(target.payloadPath), 'payload kept for a retry');
 assert.ok(!fs.existsSync(ticketsDir), 'nothing written');
 
 // Valid branch -> created from develop, recorded, tickets written.
+const developHead = git('rev-parse', 'develop');
 fs.writeFileSync(target.payloadPath, planPayload(target, '**Branch:** feat/search-filters\n', 'filters'));
 res = ok('write-apply.js');
 assert.match(res.out, /Working on branch feat\/search-filters \(from develop\)/);
+assert.match(res.out, /🗂️ {2}Session record committed/);
+assert.strictEqual(git('log', '-1', '--format=%s'), `chore(gps): plan ${sessionId}`);
+assert.strictEqual(git('rev-parse', 'develop'), developHead, 'the record is committed on the session branch');
 assert.strictEqual(git('branch', '--show-current'), 'feat/search-filters');
 let config = readConfig(configPath);
 assert.strictEqual(config.git.branch, 'feat/search-filters');
@@ -200,15 +208,27 @@ assert.ok(config.history.findIndex((e) => e.event === 'branch_created') < config
 markTicketDone(sessionDir, 'filters');
 commit('filters.js', 'feat: add filters');
 
-// Finish refuses on the wrong branch, changing nothing.
-git('switch', '-q', 'main');
+// Finish refuses on the wrong branch, changing nothing. The session record
+// is committed on its branch, so main doesn't even hold the session: the
+// error names the branch to switch to.
+assert.strictEqual(git('status', '--porcelain', '--', '.work'), '', 'ticket-complete.js committed the record');
 const configBefore = fs.readFileSync(configPath, 'utf-8');
+git('switch', '-q', 'main');
+assert.ok(!fs.existsSync(configPath), 'the session lives on its branch');
 res = run('finish.js');
 assert.strictEqual(res.code, 1);
-assert.match(res.err, /on branch feat\/search-filters, but main is checked out/);
+assert.match(res.err, /session .*search-filters is on branch feat\/search-filters, which is not checked out/);
+assert.match(res.err, /git switch feat\/search-filters/);
+git('switch', '-q', 'feat/search-filters');
 assert.ok(!fs.existsSync(path.join(sessionDir, 'INDEX.md')));
 assert.strictEqual(fs.readFileSync(configPath, 'utf-8'), configBefore);
+// With the session on hand, a wrong branch is still refused by finish's own check.
+git('switch', '-q', '-c', 'detour');
+res = run('finish.js');
+assert.strictEqual(res.code, 1);
+assert.match(res.err, /on branch feat\/search-filters, but detour is checked out/);
 git('switch', '-q', 'feat/search-filters');
+git('branch', '-q', '-D', 'detour');
 
 // Finish commits the leftovers (tracked only), pushes, opens the PR and
 // returns to develop.
@@ -223,11 +243,12 @@ assert.strictEqual(git('branch', '--show-current'), 'develop');
 assert.strictEqual(git('status', '--porcelain', '--untracked-files=no'), '');
 assert.ok(fs.existsSync(path.join(root, 'scratch.txt')), 'untracked file left alone');
 fs.rmSync(path.join(root, 'scratch.txt'));
-assert.strictEqual(git('log', '-1', '--format=%s', 'feat/search-filters'),
-  `chore: commit remaining changes (gps finish ${sessionId})`);
+assert.strictEqual(git('log', '-2', '--format=%s', 'feat/search-filters'),
+  `chore(gps): finish ${sessionId}\nchore: commit remaining changes (gps finish ${sessionId})`);
+assert.ok(git('show', '--name-only', '--format=', 'feat/search-filters').includes('INDEX.md'), 'INDEX.md is in the pull request');
 assert.strictEqual(
   execFileSync('git', ['--git-dir', bare, 'rev-parse', 'refs/heads/feat/search-filters'], { encoding: 'utf-8' }).trim(),
-  git('rev-parse', 'feat/search-filters'), 'the leftover commit was pushed');
+  git('rev-parse', 'feat/search-filters'), 'the final session record was pushed');
 assert.match(res.out, /Pull request: https:\/\/github\.com\/acme\/app\/pull\/12/);
 assert.strictEqual(prCreates().length, 1);
 const call = prCreates()[0];
@@ -241,6 +262,9 @@ assert.match(call.body, /Generated with \[Claude Code\]/);
 assert.doesNotMatch(call.body, /Closes #/);
 assert.ok(execFileSync('git', ['--git-dir', bare, 'rev-parse', 'refs/heads/feat/search-filters'], { encoding: 'utf-8' }).trim());
 
+// Back on develop, the finished session lives on its branch until the PR is merged.
+assert.ok(!fs.existsSync(sessionDir), 'the session record is on feat/search-filters');
+git('switch', '-q', 'feat/search-filters');
 const index = fs.readFileSync(path.join(sessionDir, 'INDEX.md'), 'utf-8');
 assert.match(index, /## Branch & PR/);
 assert.match(index, /\*\*Branch:\*\* `feat\/search-filters`/);
@@ -260,9 +284,9 @@ assert.match(res.err, /No current session/);
 assert.strictEqual(prCreates().length, 1);
 // ...and a finish interrupted after the PR was opened (simulated: the
 // config keeps pr_url but not finished_at) reuses that PR on its re-run.
-// Here a pre-commit hook rejects the leftover commit: finish still succeeds,
-// but stays on the session branch so the changes are not carried away.
-git('switch', '-q', 'feat/search-filters');
+// Here a pre-commit hook rejects the leftover and record commits: finish
+// still succeeds, but stays on the session branch so the changes are not
+// carried away.
 delete config.finished_at;
 fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
 fs.writeFileSync(path.join(root, '.work', 'sessions', '.current-session'), sessionId);
@@ -270,7 +294,8 @@ const preCommit = path.join(root, '.git', 'hooks', 'pre-commit');
 fs.writeFileSync(preCommit, '#!/bin/sh\necho "lint failed" >&2\nexit 1\n', { mode: 0o755 });
 fs.appendFileSync(path.join(root, 'app.js'), '// another hook log line\n');
 res = ok('finish.js');
-assert.match(res.err, /⚠️ {2}Remaining changes not committed \(lint failed\)\. Run by hand:\n {3}git add -u\n {3}git commit -m "chore: commit remaining changes/);
+assert.match(res.err, /⚠️ {2}Remaining changes not committed \(lint failed\)\. Run by hand:\n {3}git add -u -- \. ":\(exclude\)\.work"\n {3}git commit -m "chore: commit remaining changes/);
+assert.match(res.err, /⚠️ {2}Session record not committed \(lint failed\)\. Run by hand: git add -- \.work && git commit/);
 assert.match(res.err, /⚠️ {2}Still on feat\/search-filters: commit the remaining changes, then git switch develop\./);
 assert.doesNotMatch(res.out, /Back on/);
 assert.strictEqual(git('branch', '--show-current'), 'feat/search-filters');
@@ -396,6 +421,7 @@ assert.strictEqual(searchPr.args[searchPr.args.indexOf('--title') + 1], 'fix: Sl
 assert.match(searchPr.body, new RegExp(`Closes #${searchIssue}`));
 assert.strictEqual(issueCalls('comment').length, commentsBefore, 'the PR closes the issue: no comment');
 assert.strictEqual(issueCalls('close').length, closesBefore, 'the PR closes the issue: no close');
+git('switch', '-q', 'fix/slow-search'); // the record lives on the session branch
 issueIndex = fs.readFileSync(path.join(sessionDir, 'INDEX.md'), 'utf-8');
 assert.match(issueIndex, /## Issue/);
 assert.match(issueIndex, /Closed by:\*\* the pull request/);

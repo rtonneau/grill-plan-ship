@@ -6,6 +6,7 @@
 // repo, git missing, ...); write helpers return { ok, reason, commands }
 // so a caller can print the commands to run by hand, except where noted.
 
+const fs = require('fs');
 const path = require('path');
 const { execFileSync } = require('child_process');
 
@@ -29,6 +30,13 @@ function tryGit(projectRoot, args) {
   } catch (_err) {
     return null;
   }
+}
+
+// Local branches whose tip holds `relPath` (e.g. a session committed on a
+// branch that is not checked out).
+function branchesHolding(projectRoot, relPath) {
+  return lines(tryGit(projectRoot, ['for-each-ref', '--format=%(refname:short)', 'refs/heads']))
+    .filter((branch) => tryGit(projectRoot, ['cat-file', '-e', `${branch}:${relPath}`]) !== null);
 }
 
 // Short, readable reason from a failed execFileSync.
@@ -150,9 +158,15 @@ function switchBranch(projectRoot, name) {
   }
 }
 
-// Commits every change to tracked files (`git add -u`), so /gps finish leaves
-// nothing behind (e.g. a log a hook appends to). Untracked files are listed,
-// never committed; gps's own .work/ is left out of that list. Never throws:
+// True when git ignores `relPath` (e.g. an older .gitignore with ".work/").
+function isIgnored(projectRoot, relPath) {
+  return tryGit(projectRoot, ['check-ignore', '-q', '--no-index', '--', relPath]) !== null;
+}
+
+// Commits every change to tracked files outside .work/ (`git add -u`), so
+// /gps finish leaves nothing behind (e.g. a log a hook appends to); .work/
+// gets its own commit (commitWorkDir). Untracked files are listed, never
+// committed; .work/ is left out of that list. Never throws:
 // { ok: true, sha, files, untracked } (sha null: nothing to commit, or not a
 // git repo) or { ok: false, reason, commands, untracked }.
 function commitRemainingChanges(projectRoot, message) {
@@ -160,13 +174,35 @@ function commitRemainingChanges(projectRoot, message) {
   const untracked = nulList(tryGit(projectRoot, ['ls-files', '--others', '--exclude-standard', '-z']))
     .filter((f) => !f.startsWith('.work/'));
   try {
-    git(projectRoot, ['add', '-u']);
+    git(projectRoot, ['add', '-u', '--', '.', ':(exclude).work']);
     const files = nulList(git(projectRoot, ['diff', '--cached', '--name-only', '-z']));
     if (files.length === 0) return { ok: true, sha: null, files, untracked };
     git(projectRoot, ['commit', '-q', '-m', message]);
     return { ok: true, sha: git(projectRoot, ['rev-parse', '--short', 'HEAD']), files, untracked };
   } catch (err) {
-    return { ok: false, reason: failureReason(err), untracked, commands: ['git add -u', `git commit -m ${quote(message)}`] };
+    return { ok: false, reason: failureReason(err), untracked, commands: ['git add -u -- . ":(exclude).work"', `git commit -m ${quote(message)}`] };
+  }
+}
+
+// Commits gps's record (.work/: sessions, glossary, ADRs, project config) as
+// its own commit; anything else that is staged stays staged. Files git
+// ignores (.current-session, .pending-seeds.json, a write payload) stay out.
+// Never throws: { ok: true, sha, files, skipped } (sha null: nothing to
+// commit; skipped: why nothing was tried) or { ok: false, reason, commands }.
+function commitWorkDir(projectRoot, message) {
+  const none = (skipped) => ({ ok: true, sha: null, files: [], skipped });
+  if (!isWorkTree(projectRoot)) return none('not a git repository');
+  if (!fs.existsSync(path.join(projectRoot, '.work'))) return none(null);
+  if (isIgnored(projectRoot, '.work/')) return none('.work/ is git-ignored');
+  const commands = ['git add -- .work', `git commit -m ${quote(message)} -- .work`];
+  try {
+    git(projectRoot, ['add', '-A', '--', '.work']);
+    const files = nulList(git(projectRoot, ['diff', '--cached', '--name-only', '-z', '--', '.work']));
+    if (files.length === 0) return none(null);
+    git(projectRoot, ['commit', '-q', '-m', message, '--', '.work']);
+    return { ok: true, sha: git(projectRoot, ['rev-parse', '--short', 'HEAD']), files, skipped: null };
+  } catch (err) {
+    return { ok: false, reason: failureReason(err), commands };
   }
 }
 
@@ -187,6 +223,18 @@ function commitFiles(projectRoot, files, message) {
   }
 }
 
+// What a commitWorkDir result means for the user: { line, warning }, either
+// null (nothing to say outside a git repository or with nothing to commit).
+function describeWorkCommit(record) {
+  if (record.ok && record.sha) {
+    return { line: `🗂️  Session record committed (${record.sha}): ${record.files.length} file(s) in .work/`, warning: null };
+  }
+  if (record.ok) {
+    return { line: null, warning: record.skipped === '.work/ is git-ignored' ? 'Session record not committed: .work/ is git-ignored.' : null };
+  }
+  return { line: null, warning: `Session record not committed (${record.reason}). Run by hand: ${record.commands.join(' && ')}` };
+}
+
 // Never throws: { ok: true } or { ok: false, reason }.
 function pushBranch(projectRoot, branch) {
   try {
@@ -205,6 +253,7 @@ module.exports = {
   isWorkTree,
   originUrl,
   currentBranch,
+  branchesHolding,
   commitExists,
   describeCommit,
   readRecentCommits,
@@ -214,7 +263,10 @@ module.exports = {
   branchType,
   createSessionBranch,
   switchBranch,
+  isIgnored,
   commitRemainingChanges,
+  commitWorkDir,
+  describeWorkCommit,
   commitFiles,
   pushBranch,
 };

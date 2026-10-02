@@ -16,6 +16,7 @@ const h = require('./helpers');
   const gitignore = fs.readFileSync(path.join(root, '.gitignore'), 'utf-8');
   assert.doesNotMatch(gitignore, /^\.work\/$/m);
   assert.match(gitignore, /^\.scratch\/$/m);
+  assert.match(gitignore, /^\.work\/sessions\/\.current-session$/m, 'the pointer stays per machine');
   assert.deepStrictEqual(fs.readdirSync(h.sessionDir(root)).sort(), ['.session-config.json', '01-grill']);
   assert.deepStrictEqual(h.history(root).map((e) => [e.event, e.phase]), [['session_started', 'grill']]);
   assert.strictEqual(h.readConfig(root).current_phase, 'grill');
@@ -86,6 +87,16 @@ const h = require('./helpers');
   assert.strictEqual(data.seed, null);
   assert.strictEqual(data.kind, 'feature');
   assert.match(data.sessionId, /__brand-new$/);
+}
+
+{
+  // A .work/ that an older gps git-ignored: start warns that nothing will be committed.
+  const root = h.gitProject();
+  fs.writeFileSync(path.join(root, '.gitignore'), '.work/\n');
+  const res = h.ok(root, 'start.js', ['feat']);
+  assert.match(res.err, /\.work\/ is git-ignored, so gps commits none of its session files/);
+  const clean = h.gitProject();
+  assert.doesNotMatch(h.ok(clean, 'start.js', ['feat']).err, /git-ignored/);
 }
 
 h.done('start.test.js');
