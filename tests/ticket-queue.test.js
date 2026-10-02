@@ -23,6 +23,10 @@ assert.match(res.out, /- 01 toggle — pending — model haiku/);
 assert.match(res.out, /Next pending: 01 toggle/);
 assert.match(res.out, /Model hints of the remaining tickets:\n1: haiku\n2: opus\n3: inherit/);
 
+// No ship mode recorded yet: no "Last ship mode" line.
+assert.doesNotMatch(res.out, /Last ship mode/);
+assert.strictEqual(h.json(root, 'ticket-queue.js').shipMode, null);
+
 // JSON: the full queue.
 let data = h.json(root, 'ticket-queue.js');
 assert.deepStrictEqual(data.tickets.map((t) => [t.num, t.slug, t.model, t.done]),
@@ -38,6 +42,11 @@ res = h.ok(root, 'ticket-queue.js');
 assert.match(res.err, /⚠️ {2}Ticket 02-persist: unknown model "sonett", using inherit/);
 assert.match(res.err, /⚠️ {2}Skipped notes\.md/);
 assert.match(res.out, /2: inherit/);
+
+// The mode ticket-start.js recorded is offered back.
+h.ok(root, 'ticket-start.js', ['--mode', 'subagent']);
+assert.match(h.ok(root, 'ticket-queue.js').out, /3 done\.\nLast ship mode: subagent\n/);
+assert.strictEqual(h.json(root, 'ticket-queue.js').shipMode, 'subagent');
 
 // Done tickets drop out of the hints; all done points at /gps finish.
 h.completeTicket(root, 1, 'toggle');

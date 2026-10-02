@@ -38,7 +38,7 @@ const h = require('./helpers');
   assert.match(res.err, /--keep-issue ignored: this session has no GitHub issue/);
   assert.match(res.out, /✅ Session complete: .*fin/);
   assert.match(res.out, /📦 Committed 1 remaining file\(s\) \([0-9a-f]+\): app\.js/);
-  assert.match(res.out, new RegExp(`Unfinished sessions: ${olderId}\\. Next: ask the user whether to switch to one \\(node .*set-current\\.js <session-id>\\)`));
+  assert.match(res.out, new RegExp(`Unfinished sessions: ${olderId}\\. Next: ask the user whether to switch to one \\(set-current\\.js <session-id>\\)`));
   assert.strictEqual(h.git(root, 'log', '-1', '--format=%s'), `chore: commit remaining changes (gps finish ${id})`);
   const index = fs.readFileSync(indexPath, 'utf-8');
   assert.match(index, /✅ 01 a — \[spec\]\(02-plan\/tickets\/01-a\.md\) · \[log\]\(03-implement\/01-a\/commit-log\.md\)/);

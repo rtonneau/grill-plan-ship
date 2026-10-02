@@ -53,6 +53,16 @@ const h = require('./helpers');
   assert.strictEqual(fs.readFileSync(log, 'utf-8'), doneLog);
   assert.strictEqual(h.json(root, 'ticket-start.js').ticket.slug, 'b');
 
+  // --mode is validated, then recorded as the session's last ship mode.
+  h.assertFails(h.run(root, 'ticket-start.js', ['--mode', 'turbo']), 2, /--mode must be one of: inline, subagent, subagent\+inline/);
+  assert.strictEqual(h.readConfig(root).ship_mode, undefined);
+  h.ok(root, 'ticket-start.js', ['--mode', 'subagent+inline']);
+  assert.strictEqual(h.readConfig(root).ship_mode, 'subagent+inline');
+  h.ok(root, 'ticket-start.js', ['2', '--mode', 'inline']);
+  assert.strictEqual(h.readConfig(root).ship_mode, 'inline');
+  h.ok(root, 'ticket-start.js', ['2']);
+  assert.strictEqual(h.readConfig(root).ship_mode, 'inline', 'no --mode keeps the recorded one');
+
   // All done -> says so.
   h.completeTicket(root, 2, 'b');
   assert.match(h.ok(root, 'ticket-start.js').out, /All tickets are done\. Next: \/gps finish/);

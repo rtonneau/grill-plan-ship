@@ -9,6 +9,10 @@ const { TICKET_MODELS, normalizeTicketModel } = require('./ticket-model');
 
 const STATUS_DONE_RE = /^\*\*Status:\*\*\s*✅\s*Done\s*$/m;
 
+// The ways /gps ship can run a ticket. ticket-start.js records the one used
+// (config.ship_mode) so the next /gps ship can offer it first.
+const SHIP_MODES = ['inline', 'subagent', 'subagent+inline'];
+
 // "NN-<slug>.md" with a valid slug -> { num, slug }; anything else
 // (including the "[slug]" stubs /gps plan creates) -> null.
 function parseTicketFilename(fileName) {
@@ -77,4 +81,4 @@ function listTickets(sessionDir) {
   return { tickets, nextPending, skipped };
 }
 
-module.exports = { TICKET_MODELS, STATUS_DONE_RE, parseTicketFilename, isTicketDone, listTickets };
+module.exports = { TICKET_MODELS, SHIP_MODES, STATUS_DONE_RE, parseTicketFilename, isTicketDone, listTickets };
