@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 1680" role="img" aria-labelledby="svg-title svg-desc" focusable="false">
-  <title id="svg-title">GPS v2.3.1 workflow diagram</title>
+  <title id="svg-title">GPS v2.3.2 workflow diagram</title>
   <desc id="svg-desc">Optional SCOUT, then GRILL, PLAN, SHIP, and FINISH phases mapped across command, activity, and output columns. A side lane shows /gps auto running from the current phase to finish; a band lists commands usable at any time (status, help, handoff, clean, init, config), and a footer gives the script contract every step follows.</desc>
 
   <defs>
@@ -27,7 +27,7 @@
 
   <rect class="bg" x="0" y="0" width="1600" height="1680" rx="28" />
 
-  <text class="h1" x="60" y="76">grill-plan-ship (GPS) workflow · v2.3.1</text>
+  <text class="h1" x="60" y="76">grill-plan-ship (GPS) workflow · v2.3.2</text>
   <text class="sub" x="60" y="108">Core flow: /gps start (or /gps start --issue) → /gps plan → /gps ship → /gps finish. Claude does the judgment; every deterministic step is a script.</text>
 
   <rect class="header" x="190" y="150" width="360" height="52" rx="14"/>
@@ -138,7 +138,7 @@
     <text class="mono" x="1054" y="918">.work/.../03-implement/</text>
     <text class="mono" x="1070" y="946">NN-&lt;slug&gt;/commit-log.md</text>
     <text class="text" x="1054" y="980">Claude: test result, review notes</text>
-    <text class="text" x="1054" y="1002">Script: ✅ Done, commits, time, tokens</text>
+    <text class="text" x="1054" y="1002">Script: ✅ Done, commits, time spent</text>
     <text class="text" x="1054" y="1036">ticket_started / done events in</text>
     <text class="text" x="1054" y="1058">.session-config.json history</text>
   </g>
