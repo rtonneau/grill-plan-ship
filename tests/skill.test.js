@@ -122,6 +122,9 @@ assert.ok(fs.existsSync(path.join(repo, manifest.icon)), `plugin.json icon ${man
 for (const field of ['documentationUrl', 'supportUrl', 'privacyPolicyUrl']) assert.match(manifest[field], /^https:\/\//, `plugin.json ${field} is an https URL`);
 for (const file of ['README.md', 'LICENSE', 'PRIVACY.md', 'CHANGELOG.md']) assert.ok(fs.existsSync(path.join(repo, file)), `${file} exists`);
 const readmeWords = fs.readFileSync(path.join(repo, 'README.md'), 'utf-8').replace(/```[\s\S]*?```/g, '').split(/\s+/).filter(Boolean).length;
+// No SVG in the plugin: the directory holds every SVG for review (an SVG can carry
+// script); the sources live on the design-sources branch.
+assert.deepStrictEqual(spawnSync('git', ['ls-files', '*.svg'], { cwd: repo, encoding: 'utf-8' }).stdout.trim(), '', 'no SVG files in the plugin');
 assert.ok(readmeWords >= 40, 'README has at least 40 words outside code blocks');
 assert.match(fs.readFileSync(path.join(repo, 'CHANGELOG.md'), 'utf-8'), new RegExp(`^## ${version.replace(/\./g, '\\.')}$`, 'm'), 'CHANGELOG has an entry for the current version');
 

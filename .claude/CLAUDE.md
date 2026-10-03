@@ -17,6 +17,8 @@ skills/gps/
 │   └── lib/               shared helpers; cli.js is the script contract
 └── assets/                markdown templates only
 tests/                     <script>.test.js per script, lib/<lib>.test.js per lib, e2e, github-flow, skill
+docs/                      icon.png (listing icon) and gps-workflow.png (README diagram), rendered from the
+                           SVG sources on the design-sources branch; no SVG on main (the plugin directory holds them)
 ```
 
 Commands: init, scout, start (`--issue`), status, clean, config, write, plan, ship (`[N]`), finish, auto, handoff, help.

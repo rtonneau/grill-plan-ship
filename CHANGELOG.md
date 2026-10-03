@@ -2,6 +2,11 @@
 
 All notable changes to grill-plan-ship. Versions follow [semantic versioning](https://semver.org/).
 
+## 2.3.2
+
+- The skill pre-approves each script by name in `allowed-tools` instead of a wildcard over `scripts/`, so it runs exactly gps's own scripts without a permission prompt and nothing else.
+- The icon and the workflow diagram ship as PNGs only; their SVG sources moved to the `design-sources` branch.
+
 ## 2.3.1
 
 - Ready for the Claude plugin directory: listing metadata in `plugin.json` (display name, a small-planet GPS icon, documentation, support and privacy links), `PRIVACY.md`, and a README section on everything gps runs, writes and sends.

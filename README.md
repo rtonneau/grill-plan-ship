@@ -6,7 +6,7 @@ A Claude Code plugin that runs any code change through four phases:
 
 Claude does the judgment work: asking questions, planning, reviewing and summarizing. Everything deterministic (session files, templates, validation, git and gh calls, report formatting) is done by small Node.js scripts with no dependencies.
 
-![Diagram of the GPS workflow: optional SCOUT, then GRILL, PLAN, SHIP and FINISH with command, activity and output columns, a /gps auto lane, the commands usable at any time, and the script contract.](docs/gps-workflow.svg)
+![Diagram of the GPS workflow: optional SCOUT, then GRILL, PLAN, SHIP and FINISH with command, activity and output columns, a /gps auto lane, the commands usable at any time, and the script contract.](docs/gps-workflow.png)
 
 ## Installation
 
@@ -176,7 +176,7 @@ npm test                                  # every tests/**/*.test.js
 node tests/check-skill-size.js --max 200  # the CI check: every SKILL.md at most 200 lines
 ```
 
-Developer notes for working on the plugin itself are in [`.claude/CLAUDE.md`](.claude/CLAUDE.md). Changes are listed in [CHANGELOG.md](CHANGELOG.md).
+Developer notes for working on the plugin itself are in [`.claude/CLAUDE.md`](.claude/CLAUDE.md). The icon and the workflow diagram are PNGs rendered from editable sources kept on the [`design-sources`](https://github.com/rtonneau/grill-plan-ship/tree/design-sources) branch. Changes are listed in [CHANGELOG.md](CHANGELOG.md).
 
 ## Support
 
