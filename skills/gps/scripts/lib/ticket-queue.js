@@ -1,11 +1,11 @@
 // skills/gps/scripts/lib/ticket-queue.js
 //
 // The session's tickets (02-plan/tickets/NN-<slug>.md) in execution order,
-// each with its commit-log path, Done state and model hint.
+// each with its commit-log path, Done state, and model and effort hints.
 const fs = require('fs');
 const path = require('path');
 const { isSlug } = require('./guard');
-const { TICKET_MODELS, normalizeTicketModel } = require('./ticket-model');
+const { TICKET_MODELS, TICKET_EFFORTS, normalizeTicketModel, normalizeTicketEffort } = require('./ticket-model');
 
 const STATUS_DONE_RE = /^\*\*Status:\*\*\s*✅\s*Done\s*$/m;
 
@@ -21,15 +21,22 @@ function parseTicketFilename(fileName) {
   return { num: match[1], slug: match[2] };
 }
 
-// The ticket spec's model and, when its **Model:** line holds something
-// unknown, that raw value. An unreadable spec counts as "inherit": callers
-// that only want the queue must not fail on it.
+// The ticket spec's model and effort and, when a **Model:** or **Effort:**
+// line holds something unknown, that raw value. An unreadable spec counts as
+// "inherit": callers that only want the queue must not fail on it.
 function readTicketSpec(ticketPath) {
   try {
-    const { model, raw } = normalizeTicketModel(fs.readFileSync(ticketPath, 'utf-8'));
-    return { model, modelInvalid: raw !== null && raw.toLowerCase() !== model ? raw : null };
+    const text = fs.readFileSync(ticketPath, 'utf-8');
+    const m = normalizeTicketModel(text);
+    const e = normalizeTicketEffort(text);
+    return {
+      model: m.model,
+      modelInvalid: m.raw !== null && m.raw.toLowerCase() !== m.model ? m.raw : null,
+      effort: e.effort,
+      effortInvalid: e.raw !== null && e.raw.toLowerCase() !== e.effort ? e.raw : null,
+    };
   } catch {
-    return { model: 'inherit', modelInvalid: null };
+    return { model: 'inherit', modelInvalid: null, effort: 'inherit', effortInvalid: null };
   }
 }
 
@@ -42,9 +49,10 @@ function isTicketDone(commitLogPath) {
 // duplicate numbers are all kept, in alphabetical order). Files that
 // don't match NN-<slug>.md are returned in `skipped` instead.
 // Each ticket is { num, slug, ticketPath, implDir, commitLogPath, done, model,
-// modelInvalid }: `model` is haiku|sonnet|opus|inherit; `modelInvalid` is the
-// unknown value (not null) when its **Model:** line was hand-edited to one, so
-// the caller can warn. /gps write rejects such values, so only hand edits reach it.
+// modelInvalid, effort, effortInvalid }: `model` is haiku|sonnet|opus|inherit
+// and `effort` low|medium|high|xhigh|inherit; `modelInvalid` / `effortInvalid`
+// is the unknown value (not null) when the line was hand-edited to one, so the
+// caller can warn. /gps write rejects such values, so only hand edits reach it.
 function listTickets(sessionDir) {
   const ticketsDir = path.join(sessionDir, '02-plan', 'tickets');
   if (!fs.existsSync(ticketsDir)) {
@@ -81,4 +89,4 @@ function listTickets(sessionDir) {
   return { tickets, nextPending, skipped };
 }
 
-module.exports = { TICKET_MODELS, SHIP_MODES, STATUS_DONE_RE, parseTicketFilename, isTicketDone, listTickets };
+module.exports = { TICKET_MODELS, TICKET_EFFORTS, SHIP_MODES, STATUS_DONE_RE, parseTicketFilename, isTicketDone, listTickets };

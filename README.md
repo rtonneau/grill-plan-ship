@@ -42,7 +42,7 @@ Or, once the direction is clear, `/gps auto` runs from wherever the session is t
 | `/gps clean [id...]` | Delete old sessions or drop ideas, after showing exactly what goes |
 | `/gps config [--rescan]` | Show, or detect again, whether the project uses GitHub |
 | `/gps write` | Save the approved grill or plan to disk (`plan`, `ship` and `auto` do it for you) |
-| `/gps plan` | Save the grill if pending, then draft tickets with model hints |
+| `/gps plan` | Save the grill if pending, then draft tickets with model and effort hints |
 | `/gps ship [N]` | Save the plan if pending, then implement every remaining ticket (or only ticket N) |
 | `/gps finish` | Close the session: leftovers committed, INDEX.md, PR |
 | `/gps auto [--delegate] [plan\|ship\|finish]` | Run from the current phase to the target without stopping |
@@ -64,7 +64,7 @@ Or, once the direction is clear, `/gps auto` runs from wherever the session is t
 /gps plan                                  # writing-plans drafts the tickets, unslop tightens them
 /gps ship 3                                # implement only ticket 3, inline
 /gps finish                                # for an issue session it asks "Close issue #N as well?"
-/gps auto --delegate                       # subagent per ticket on its hinted model, reviewed and committed here
+/gps auto --delegate                       # subagent per ticket on its hinted model and effort, reviewed and committed here
 /gps handoff                               # HANDOFF.md: where you stopped, next step, settled decisions
 /gps help what does auto skip?             # explains from the references, names the command to run
 ```
@@ -74,8 +74,10 @@ Or, once the direction is clear, `/gps auto` runs from wherever the session is t
 `/gps ship` asks once how to implement the tickets:
 
 - **inline:** Claude implements each ticket in this session.
-- **subagent:** each ticket goes to a fresh subagent on the ticket's `**Model:**` hint (`haiku`, `sonnet`, `opus` or `inherit`). The subagent commits through `ticket-complete.js`, and `ticket-check.js` verifies its DONE report before the next ticket starts.
+- **subagent:** each ticket goes to a fresh subagent on the ticket's `**Model:**` hint (`haiku`, `sonnet`, `opus` or `inherit`) and `**Effort:**` hint (`low`, `medium`, `high`, `xhigh` or `inherit`). The subagent commits through `ticket-complete.js`, and `ticket-check.js` verifies its DONE report before the next ticket starts.
 - **subagent + inline follow-up:** the subagent implements and verifies; this session reviews the diff, re-runs the Verification Step, fixes what's needed and commits.
+
+**Effort hints.** An Agent call can pass a model but not an effort, so the plugin ships one subagent per level, `agents/gps-ticket-<level>.md` (`low` to `xhigh`), each setting its `effort:`. `dispatch-prompt.js` picks the one matching the ticket and passes the model on the call; `inherit` uses the general-purpose subagent at the session's own effort. A level the model doesn't support falls back to the highest one it does, and inline mode ignores effort hints, since a running session can't change its own effort. Hints stop at `xhigh` on purpose: `max` is slow and costly for one small ticket, so `/gps write` refuses it and asks you to split the ticket instead, or to run it inline under `/effort max`. The reasoning is recorded in [docs/decisions/0001-effort-hints-stop-at-xhigh.md](docs/decisions/0001-effort-hints-stop-at-xhigh.md).
 
 Only one implementer is ever live. A ticket that can't be finished is recorded with `ticket-block.js` and stops the run; it is never retried automatically. Each ticket's `commit-log.md` gets its test result and review notes from Claude, and its commit and time spent from the script.
 
@@ -89,6 +91,8 @@ skills/gps/
 ├── scripts/               one script per deterministic step
 │   └── lib/               shared helpers (cli contract, session store, git, gh, phases, ...)
 └── assets/                markdown templates
+agents/gps-ticket-<level>.md   one ticket subagent per effort level, low to xhigh
+docs/decisions/            why gps works the way it does (e.g. effort hints stop at xhigh)
 tests/                     one test per script (tests/lib/: one per lib), e2e and GitHub-flow tests
 ```
 
@@ -112,7 +116,7 @@ Every script in `skills/gps/scripts/` follows the same rules (see `scripts/lib/c
 | `write-prepare.js` | name the pending phase and print the payload skeleton to fill |
 | `write-apply.js` | validate the payload and write resume.md or plan.md + tickets (creates the branch / files the issue on GitHub) |
 | `plan.js` | start the plan phase |
-| `ticket-queue.js` | the tickets, their state and model hints |
+| `ticket-queue.js` | the tickets, their state, and model and effort hints |
 | `ticket-start.js` | prepare a ticket's workspace (next pending one by default); `--mode` records the ship mode the next `/gps ship` offers first |
 | `dispatch-prompt.js` | the Agent tool call for a ticket's subagent |
 | `ticket-complete.js` | commit the given files, mark the ticket Done, fill its log |
@@ -123,7 +127,7 @@ Every script in `skills/gps/scripts/` follows the same rules (see `scripts/lib/c
 | `handoff.js` | write HANDOFF.md |
 | `help.js` | `/gps help`: where you are, the workflow, every command (or one command's details) |
 | `scout-merge.js` | archive a review and merge its ideas into the seeds |
-| `domain-doc.js` | built-in grill: create `.work/GLOSSARY.md`, or the next numbered ADR in `.work/adr/` |
+| `domain-doc.js` | built-in grill: where the glossary and ADRs live (`where`), the glossary to add a term to, or the next numbered ADR |
 
 ## Session files
 
@@ -131,16 +135,18 @@ Every script in `skills/gps/scripts/` follows the same rules (see `scripts/lib/c
 .work/sessions/YYYY-MM-DD__<slug>/
 ├── 01-grill/resume.md            the approved design
 ├── 02-plan/plan.md               strategy + ticket overview
-├── 02-plan/tickets/NN-<slug>.md  one spec per ticket (with an optional **Model:** line)
+├── 02-plan/tickets/NN-<slug>.md  one spec per ticket (with optional **Model:** and **Effort:** lines)
 ├── 03-implement/NN-<slug>/commit-log.md
 ├── HANDOFF.md                    /gps handoff
 ├── INDEX.md                      /gps finish: summary, links, timeline
 └── .session-config.json          machine state: history, phase, git branch/PR, issue
 .work/gps-config.json             project flag: github.enabled
-.work/GLOSSARY.md                 built-in grill: the project's domain terms
-.work/adr/NNNN-<slug>.md          built-in grill: hard-to-reverse decisions and why
+.work/GLOSSARY.md                 built-in grill: the project's domain terms (unless the project has its own)
+.work/adr/NNNN-<slug>.md          built-in grill: hard-to-reverse decisions and why (unless docs/adr/ exists)
 .scratch/tests/<session-id>/      build/run/test artifacts
 ```
+
+The built-in grill uses a project's own domain docs when it has them, the way mattpocock-skills keeps them: a root `GLOSSARY.md` (or `CONTEXT.md`, its older name, when it reads like a glossary), a `GLOSSARY-MAP.md` / `CONTEXT-MAP.md` for several contexts, and ADRs in `docs/adr/`. Only a project without them gets `.work/GLOSSARY.md` and `.work/adr/`. `domain-doc.js where` shows which are in use, and flags a `.work/` copy that duplicates the project's own.
 
 `.work/` is committed with the code, each time in its own `chore(gps): …` commit: after the plan write (on the session branch), after each ticket (its completed commit log) and at `/gps finish` (INDEX.md and the finished state, pushed to the pull request before switching back). A bounded session's record is committed at finish only. Ticket commits themselves never include `.work/` files. `/gps start` adds `.scratch/` and the per-machine files (`.work/sessions/.current-session`, `.pending-seeds.json`, a write payload in progress) to `.gitignore`. If `.work/` is git-ignored (older gps versions added it), gps warns and commits none of it: `/gps init` offers to remove the line. Since a session's files live on its branch, the commands find the session only with that branch checked out; when it isn't, the error names the branch to switch to. Every state change is appended to the session's `history` in `.session-config.json`; `/gps finish` turns it into a `## Timeline` table. The phase is always derived from the files, and `/gps status` flags any drift from the recorded one.
 

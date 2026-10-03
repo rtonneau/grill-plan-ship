@@ -43,13 +43,14 @@ expectStatus('plan', '/gps write');
 prep = h.json(root, 'write-prepare.js');
 const head = prep.skeleton.slice(0, prep.skeleton.indexOf('--- ticket:'));
 const block = prep.skeleton.slice(prep.skeleton.indexOf('--- ticket:'));
-const ticket = (slug, model) => h.fillSkeleton(block.replace('01-<slug>', slug), 'Done.')
-  .replace('**Model:** Done.', model ? `**Model:** ${model}` : '');
-fs.writeFileSync(prep.payloadPath, `${h.fillSkeleton(head, '1 day')}${ticket('01-toggle', 'haiku')}\n${ticket('02-persist')}`);
+const ticket = (slug, model, effort) => h.fillSkeleton(block.replace('01-<slug>', slug), 'Done.')
+  .replace('**Model:** Done.', model ? `**Model:** ${model}` : '')
+  .replace('**Effort:** Done.', effort ? `**Effort:** ${effort}` : '');
+fs.writeFileSync(prep.payloadPath, `${h.fillSkeleton(head, '1 day')}${ticket('01-toggle', 'haiku', 'high')}\n${ticket('02-persist')}`);
 h.ok(root, 'write-apply.js');
 let report = expectStatus('ship', '/gps ship');
 assert.strictEqual(report.current.nextPending.slug, 'toggle');
-assert.match(h.ok(root, 'ticket-queue.js').out, /1: haiku\n2: inherit/);
+assert.match(h.ok(root, 'ticket-queue.js').out, /1: haiku\/high\n2: inherit\/inherit/);
 
 // ship: ticket 1 the subagent way, ticket 2 inline
 for (const [num, slug, mode] of [[1, 'toggle', 'subagent'], [2, 'persist', 'inline']]) {
@@ -58,6 +59,7 @@ for (const [num, slug, mode] of [[1, 'toggle', 'subagent'], [2, 'persist', 'inli
   if (mode === 'subagent') {
     const call = h.json(root, 'dispatch-prompt.js', [String(num), '--mode', 'subagent']).call;
     assert.strictEqual(call.model, 'haiku');
+    assert.strictEqual(call.subagent_type, 'grill-plan-ship:gps-ticket-high');
     assert.ok(call.prompt.includes(started.ticket.commitLogPath));
   }
   h.fillLog(root, `0${num}-${slug}`);

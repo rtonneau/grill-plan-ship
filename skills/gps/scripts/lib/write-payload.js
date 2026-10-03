@@ -12,7 +12,9 @@ const fs = require('fs');
 const path = require('path');
 const { loadTemplate, renderTemplate } = require('./templates');
 const { parseTicketFilename } = require('./ticket-queue');
-const { TICKET_MODELS, fenceTracker, normalizeTicketModel } = require('./ticket-model');
+const {
+  TICKET_MODELS, TICKET_EFFORTS, MAX_EFFORT_REASON, fenceTracker, normalizeTicketModel, normalizeTicketEffort,
+} = require('./ticket-model');
 const { toLines } = require('./guard');
 
 const PAYLOAD_FILENAME = '.write-payload.md';
@@ -175,6 +177,14 @@ function validatePayload(payload, { expectedHeadings: expected, expectedFields: 
       errors.push(`Ticket "${name}" has an empty **Model:** line. Give one of: ${TICKET_MODELS.join(', ')}, or remove the line.`);
     } else if (raw !== null && raw.toLowerCase() !== model) {
       errors.push(`Ticket "${name}" has unknown model "${raw}". Use one of: ${TICKET_MODELS.join(', ')}.`);
+    }
+    const effortLine = normalizeTicketEffort(body);
+    if (effortLine.raw === '') {
+      errors.push(`Ticket "${name}" has an empty **Effort:** line. Give one of: ${TICKET_EFFORTS.join(', ')}, or remove the line.`);
+    } else if (effortLine.raw !== null && effortLine.raw.toLowerCase() === 'max') {
+      errors.push(`Ticket "${name}" asks for effort "max": ${MAX_EFFORT_REASON}. Use one of: ${TICKET_EFFORTS.join(', ')}.`);
+    } else if (effortLine.raw !== null && effortLine.raw.toLowerCase() !== effortLine.effort) {
+      errors.push(`Ticket "${name}" has unknown effort "${effortLine.raw}". Use one of: ${TICKET_EFFORTS.join(', ')}.`);
     }
   }
   return errors;
