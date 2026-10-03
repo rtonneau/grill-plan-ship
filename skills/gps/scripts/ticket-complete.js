@@ -10,7 +10,7 @@
  *   1. commits exactly the given files with the given message (nothing
  *      else that is staged goes in), or records an existing --commit;
  *   2. sets the log's Status to "✅ Done" and fills Commits, Time Spent
- *      (since ticket-start.js) and Token Usage;
+ *      (since ticket-start.js);
  *   3. records a `ticket_done` event in the session history;
  *   4. commits .work/ (the completed log and history) as its own
  *      `chore(gps)` commit, since the log names the ticket's commit; a
@@ -27,7 +27,6 @@ const { findTicketsByNumber } = require('./lib/ticket-lookup');
 const { listTickets } = require('./lib/ticket-queue');
 const { unfilledSections, completeLog } = require('./lib/commit-log');
 const { commitFiles, describeCommit, commitWorkDir, describeWorkCommit } = require('./lib/git');
-const { computeUsage } = require('./lib/token-usage');
 const { getHistory, hasEvent, recordEvent, sessionPath } = require('./lib/history');
 const { GpsError, UsageError } = require('./lib/guard');
 
@@ -107,7 +106,6 @@ main({
       commits: [describeCommit(projectRoot, sha) || sha],
       startedAt: started ? started.at : null,
       finishedAt,
-      usage: computeUsage(config, `03-${key}`),
     }));
     recordEvent(configPath, config, sessionDir, {
       event: 'ticket_done',

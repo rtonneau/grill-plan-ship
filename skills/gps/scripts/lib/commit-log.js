@@ -3,16 +3,17 @@
 // A ticket's 03-implement/NN-<slug>/commit-log.md. Claude fills the
 // narrative sections (test result, review notes, blockers); the scripts
 // own the rest: ticket-complete.js sets the Status line to Done and fills
-// Commits, Time Spent and Token Usage; ticket-block.js records a blocker.
+// Commits and Time Spent; ticket-block.js records a blocker.
 
-const { splitSections, renderTokenUsage } = require('./write-payload');
+const { splitSections } = require('./write-payload');
 const { toLines } = require('./guard');
 
 const STATUS_RE = /^\*\*Status:\*\*.*$/m;
 const STATUS_DONE = '**Status:** ✅ Done';
 const BLOCKERS_HEADING = 'Blockers / Challenges';
 // Filled by ticket-complete.js, whatever they hold (older logs have
-// gps:fill markers there).
+// gps:fill markers there). Token Usage is only in logs from older versions,
+// and ticket-complete.js removes it.
 const SCRIPT_SECTIONS = ['Commits', 'Time Spent', 'Token Usage'];
 const FILL_RE = /<!--\s*gps:fill\b/;
 
@@ -35,6 +36,16 @@ function setSection(text, heading, body) {
   return [...lines.slice(0, start + 1), '', body, ...(tail.length > 0 ? ['', ...tail] : [''])].join('\n');
 }
 
+// The text without the "## <heading>" section, if it has one.
+function removeSection(text, heading) {
+  const lines = toLines(text);
+  const start = lines.findIndex((line) => line.trim() === `## ${heading}`);
+  if (start === -1) return text;
+  let end = lines.findIndex((line, i) => i > start && /^## /.test(line));
+  if (end === -1) end = lines.length;
+  return [...lines.slice(0, start), ...lines.slice(end)].join('\n');
+}
+
 function setStatus(text, statusLine) {
   return STATUS_RE.test(text) ? text.replace(STATUS_RE, statusLine) : `${statusLine}\n\n${text}`;
 }
@@ -49,12 +60,12 @@ function formatDuration(fromIso, toIso) {
 }
 
 // The log as ticket-complete.js leaves it.
-function completeLog(text, { commits, startedAt, finishedAt, usage }) {
+function completeLog(text, { commits, startedAt, finishedAt }) {
   const spent = startedAt ? formatDuration(startedAt, finishedAt) : null;
   let out = setStatus(text, STATUS_DONE);
   out = setSection(out, 'Commits', commits.map((c) => `- ${c}`).join('\n'));
   out = setSection(out, 'Time Spent', spent ? `${spent} (ticket-start.js to ticket-complete.js)` : 'unknown (no ticket_started event)');
-  out = setSection(out, 'Token Usage', renderTokenUsage(usage).split('\n').slice(2).join('\n'));
+  out = removeSection(out, 'Token Usage');
   return `${out.trimEnd()}\n`;
 }
 

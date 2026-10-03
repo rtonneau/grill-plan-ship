@@ -58,8 +58,8 @@ const GRILL_SECTIONS = [
   assert.strictEqual(h.json(root, 'write-prepare.js').existingPayload, true);
   assert.match(h.ok(root, 'write-prepare.js').out, /fix it in place/);
 
-  // Records the phase's token-usage start.
-  assert.ok(h.readConfig(root).usage.plan.startedAt);
+  // Read-only: no token-usage tracking in the config.
+  assert.strictEqual(h.readConfig(root).usage, undefined);
 }
 
 {

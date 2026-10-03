@@ -23,11 +23,3 @@
 ## Assumptions
 
 - <!-- gps:fill Assumptions about dependencies, environment, or constraints -->
-
-## Token Usage
-
-- **Input:** <!-- gps:fill input tokens -->
-- **Output:** <!-- gps:fill output tokens -->
-- **Cache read:** <!-- gps:fill cache read tokens -->
-- **Cache creation:** <!-- gps:fill cache creation tokens -->
-- **Total:** <!-- gps:fill total tokens -->

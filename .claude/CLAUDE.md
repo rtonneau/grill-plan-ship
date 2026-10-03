@@ -17,6 +17,8 @@ skills/gps/
 │   └── lib/               shared helpers; cli.js is the script contract
 └── assets/                markdown templates only
 tests/                     <script>.test.js per script, lib/<lib>.test.js per lib, e2e, github-flow, skill
+docs/                      icon.png (listing icon) and gps-workflow.png (README diagram), rendered from the
+                           SVG sources on the design-sources branch; no SVG on main (the plugin directory holds them)
 ```
 
 Commands: init, scout, start (`--issue`), status, clean, config, write, plan, ship (`[N]`), finish, auto, handoff, help.
@@ -33,7 +35,7 @@ Commands: init, scout, start (`--issue`), status, clean, config, write, plan, sh
 ## Rules for SKILL.md and references
 
 - SKILL.md has no procedures (no numbered steps); it routes to `references/<command>.md`.
-- In references, `<name>.js` means `node ${CLAUDE_SKILL_DIR}/scripts/<name>.js` (Claude Code substitutes the braced variable in SKILL.md and in `allowed-tools`, which pre-approves that prefix). Keep each file short (≤ 40 lines, checked by `tests/skill.test.js`) and leave procedure that can be scripted to a script.
+- In references, `<name>.js` means `node ${CLAUDE_SKILL_DIR}/scripts/<name>.js` (Claude Code substitutes the braced variable in SKILL.md and in `allowed-tools`, which pre-approves each script by name: a new script needs its own `allowed-tools` line, checked by `tests/skill.test.js`). Keep each file short (≤ 40 lines, checked by `tests/skill.test.js`) and leave procedure that can be scripted to a script.
 - `tests/skill.test.js` checks the router, sizes, script names, one test per script, and that every asset is used.
 
 ## Testing
@@ -48,7 +50,7 @@ Tests run real scripts in throwaway directories (`tests/helpers.js`), and drive 
 
 ## Session files
 
-`.work/sessions/YYYY-MM-DD__<slug>/`: `01-grill/resume.md`, `02-plan/plan.md` + `tickets/NN-<slug>.md`, `03-implement/NN-<slug>/commit-log.md`, `HANDOFF.md`, `INDEX.md`, `.session-config.json` (history, current_phase, usage, kind, git, issue). Project-wide: `.work/gps-config.json` (`github.enabled`, read via `lib/project-config.js`, detected once, re-detected only by `/gps config --rescan`), and the built-in grill's `.work/GLOSSARY.md` and `.work/adr/NNNN-<slug>.md` (created by `domain-doc.js`, filled by Claude). `.work/` is committed (`commitWorkDir` in `lib/git.js`: plan write, each ticket, finish), each time in its own `chore(gps)` commit; only the per-machine files in `LOCAL_ONLY` (`lib/setup.js`, written by `/gps start` and `/gps init`) are git-ignored.
+`.work/sessions/YYYY-MM-DD__<slug>/`: `01-grill/resume.md`, `02-plan/plan.md` + `tickets/NN-<slug>.md`, `03-implement/NN-<slug>/commit-log.md`, `HANDOFF.md`, `INDEX.md`, `.session-config.json` (history, current_phase, kind, git, issue; sessions from before 2.3.2 may also hold `usage`, read only to backfill their history). Project-wide: `.work/gps-config.json` (`github.enabled`, read via `lib/project-config.js`, detected once, re-detected only by `/gps config --rescan`), and the built-in grill's `.work/GLOSSARY.md` and `.work/adr/NNNN-<slug>.md` (created by `domain-doc.js`, filled by Claude). `.work/` is committed (`commitWorkDir` in `lib/git.js`: plan write, each ticket, finish), each time in its own `chore(gps)` commit; only the per-machine files in `LOCAL_ONLY` (`lib/setup.js`, written by `/gps start` and `/gps init`) are git-ignored.
 
 ---
 

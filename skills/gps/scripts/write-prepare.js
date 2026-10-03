@@ -17,11 +17,9 @@ const path = require('path');
 const { main } = require('./lib/cli');
 const { resolveWriteTarget } = require('./lib/write-target');
 const { resolveSession } = require('./lib/session-store');
-const { touchPhase } = require('./lib/token-usage');
 const { PAYLOAD_FILENAME, loadPhaseFile, expectedHeadings, expectedFields, buildSkeleton } = require('./lib/write-payload');
 const { BRANCH_TYPES, BRANCH_PATTERN } = require('./lib/git');
 const { githubEnabled } = require('./lib/project-config');
-const { writeJsonAtomic } = require('./lib/guard');
 
 const NOTHING_PENDING = {
   'plan-not-started': 'Nothing to write: the grill is saved and no plan is started. Next: /gps plan (bounded work: implement it, then /gps finish).',
@@ -31,14 +29,11 @@ const NOTHING_PENDING = {
 main({
   usage: 'write-prepare.js [--json]',
   run({ projectRoot }) {
-    const { sessionId, sessionDir, configPath, config } = resolveSession(projectRoot);
+    const { sessionId, sessionDir, config } = resolveSession(projectRoot);
     const result = resolveWriteTarget(sessionDir);
     if (result.target === 'none') {
       return { text: NOTHING_PENDING[result.reason], data: { sessionId, sessionDir, ...result } };
     }
-
-    touchPhase(config, result.target);
-    writeJsonAtomic(configPath, config);
 
     const phaseFile = loadPhaseFile(sessionDir, result.target, config);
     const payloadPath = path.join(sessionDir, PAYLOAD_FILENAME);
@@ -59,7 +54,7 @@ main({
         ? `A payload from an earlier run is at ${payloadPath}: fix it in place (Read, then Edit) instead of starting over.`
         : `Write the payload to ${payloadPath} in one Write call.`,
       'Transcribe what was agreed in this conversation into the skeleton below: replace every <!-- gps:fill … --> marker, '
-        + 'keep the headings and their order, and leave out Token Usage (the script fills it).',
+        + 'and keep the headings and their order.',
     ];
     if (result.target === 'plan') {
       lines.push('Repeat the ticket block once per approved ticket, renaming 01-<slug> (NN-<slug>, lowercase a-z 0-9 with -, _ or . between). '

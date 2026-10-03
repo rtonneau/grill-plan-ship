@@ -33,7 +33,11 @@ assert.deepStrictEqual(Object.keys(refs).sort(), listed);
 for (const command of listed) assert.ok(skill.includes(`\`references/${command}.md\``), `SKILL.md must route /gps ${command}`);
 assert.match(skill, /`<name>\.js` means `node \$\{CLAUDE_SKILL_DIR\}\/scripts\/<name>\.js`/);
 // The scripts are pre-approved under the same path the router gives them.
-assert.match(skill, /^allowed-tools: Bash\(node \$\{CLAUDE_SKILL_DIR\}\/scripts\/\*\)$/m);
+// Pre-approved: exactly one rule per script (the directory's review asks for the
+// exact commands, not a wildcard over scripts/), each matching it with or without arguments.
+const approved = [...skill.split(/^---$/m)[1].matchAll(/^  - Bash\(node \$\{CLAUDE_SKILL_DIR\}\/scripts\/([a-z-]+\.js) \*\)$/gm)].map((m) => m[1]);
+assert.deepStrictEqual(approved, [...scripts].sort(), 'allowed-tools lists every script once, in order, and nothing else');
+assert.doesNotMatch(skill, /scripts\/\*\)/, 'no wildcard over scripts/');
 assert.match(skill, /^argument-hint: "<[a-z|]+> \[args\]"$/m);
 assert.match(skill, /unless the references file says how to recover/);
 // The description names every command, so the skill triggers on each.
@@ -118,6 +122,9 @@ assert.ok(fs.existsSync(path.join(repo, manifest.icon)), `plugin.json icon ${man
 for (const field of ['documentationUrl', 'supportUrl', 'privacyPolicyUrl']) assert.match(manifest[field], /^https:\/\//, `plugin.json ${field} is an https URL`);
 for (const file of ['README.md', 'LICENSE', 'PRIVACY.md', 'CHANGELOG.md']) assert.ok(fs.existsSync(path.join(repo, file)), `${file} exists`);
 const readmeWords = fs.readFileSync(path.join(repo, 'README.md'), 'utf-8').replace(/```[\s\S]*?```/g, '').split(/\s+/).filter(Boolean).length;
+// No SVG in the plugin: the directory holds every SVG for review (an SVG can carry
+// script); the sources live on the design-sources branch.
+assert.deepStrictEqual(spawnSync('git', ['ls-files', '*.svg'], { cwd: repo, encoding: 'utf-8' }).stdout.trim(), '', 'no SVG files in the plugin');
 assert.ok(readmeWords >= 40, 'README has at least 40 words outside code blocks');
 assert.match(fs.readFileSync(path.join(repo, 'CHANGELOG.md'), 'utf-8'), new RegExp(`^## ${version.replace(/\./g, '\\.')}$`, 'm'), 'CHANGELOG has an entry for the current version');
 

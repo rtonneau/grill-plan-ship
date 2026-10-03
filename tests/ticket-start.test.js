@@ -27,7 +27,6 @@ const h = require('./helpers');
   let res = h.ok(root, 'ticket-start.js');
   assert.match(res.out, /TICKET 01: a \(model hint: sonnet\)/);
   assert.match(res.out, /Do a\./);
-  assert.match(res.out, /Token usage phase key: 03-01-a/);
   assert.match(res.out, /Next: implement it[\s\S]*ticket-complete\.js 1 --message/);
   const log = path.join(h.sessionDir(root), '03-implement', '01-a', 'commit-log.md');
   assert.match(fs.readFileSync(log, 'utf-8'), /^# Ticket 01: a\n\n\*\*Status:\*\* In Progress/);
@@ -38,7 +37,7 @@ const h = require('./helpers');
   assert.strictEqual(started.length, 1);
   assert.deepStrictEqual(started[0].detail, { ticket: '01-a' });
   assert.deepStrictEqual(started[0].files, ['02-plan/tickets/01-a.md', '03-implement/01-a/commit-log.md']);
-  assert.ok(h.readConfig(root).usage['03-01-a'].startedAt);
+  assert.strictEqual(h.readConfig(root).usage, undefined, 'no token-usage tracking');
 
   // An unfinished ticket keeps its log.
   fs.appendFileSync(log, '\nWORK IN PROGRESS NOTES\n');

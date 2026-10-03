@@ -2,7 +2,28 @@
 name: gps
 description: "grill-plan-ship: workflow plugin (grill → plan → ship → finish). Use for /gps init, /gps scout, /gps start, /gps status, /gps clean, /gps config, /gps write, /gps plan, /gps ship, /gps finish, /gps auto, /gps handoff, /gps help."
 argument-hint: "<init|scout|start|status|clean|config|write|plan|ship|finish|auto|handoff|help> [args]"
-allowed-tools: Bash(node ${CLAUDE_SKILL_DIR}/scripts/*)
+allowed-tools:
+  - Bash(node ${CLAUDE_SKILL_DIR}/scripts/auto-route.js *)
+  - Bash(node ${CLAUDE_SKILL_DIR}/scripts/clean.js *)
+  - Bash(node ${CLAUDE_SKILL_DIR}/scripts/config.js *)
+  - Bash(node ${CLAUDE_SKILL_DIR}/scripts/dispatch-prompt.js *)
+  - Bash(node ${CLAUDE_SKILL_DIR}/scripts/domain-doc.js *)
+  - Bash(node ${CLAUDE_SKILL_DIR}/scripts/finish.js *)
+  - Bash(node ${CLAUDE_SKILL_DIR}/scripts/handoff.js *)
+  - Bash(node ${CLAUDE_SKILL_DIR}/scripts/help.js *)
+  - Bash(node ${CLAUDE_SKILL_DIR}/scripts/init.js *)
+  - Bash(node ${CLAUDE_SKILL_DIR}/scripts/plan.js *)
+  - Bash(node ${CLAUDE_SKILL_DIR}/scripts/scout-merge.js *)
+  - Bash(node ${CLAUDE_SKILL_DIR}/scripts/set-current.js *)
+  - Bash(node ${CLAUDE_SKILL_DIR}/scripts/start.js *)
+  - Bash(node ${CLAUDE_SKILL_DIR}/scripts/status.js *)
+  - Bash(node ${CLAUDE_SKILL_DIR}/scripts/ticket-block.js *)
+  - Bash(node ${CLAUDE_SKILL_DIR}/scripts/ticket-check.js *)
+  - Bash(node ${CLAUDE_SKILL_DIR}/scripts/ticket-complete.js *)
+  - Bash(node ${CLAUDE_SKILL_DIR}/scripts/ticket-queue.js *)
+  - Bash(node ${CLAUDE_SKILL_DIR}/scripts/ticket-start.js *)
+  - Bash(node ${CLAUDE_SKILL_DIR}/scripts/write-apply.js *)
+  - Bash(node ${CLAUDE_SKILL_DIR}/scripts/write-prepare.js *)
 ---
 
 # grill-plan-ship

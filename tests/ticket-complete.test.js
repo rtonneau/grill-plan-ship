@@ -53,7 +53,7 @@ const h = require('./helpers');
   assert.match(text, /\*\*Status:\*\* ✅ Done/);
   assert.match(text, /## Commits\n\n- [0-9a-f]{7,} feat: a \(ticket 01\)/);
   assert.match(text, /## Time Spent\n\n\d+m \(ticket-start\.js to ticket-complete\.js\)/);
-  assert.match(text, /## Token Usage\n\n- \*\*Input:\*\* unavailable/);
+  assert.doesNotMatch(text, /Token Usage/);
   assert.match(text, /## Review Notes\n\nChecked\./, 'the narrative is kept');
   const event = h.history(root).filter((e) => e.event === 'ticket_done');
   assert.strictEqual(event.length, 1);

@@ -9,7 +9,7 @@ const payloadPath = (root) => path.join(h.sessionDir(root), '.write-payload.md')
 const sections = (headings) => headings.map((x) => `## ${x}\n\n${x} content.\n`).join('\n');
 
 {
-  // Grill phase: fills resume.md (CRLF payloads too), generates Token Usage, deletes the payload.
+  // Grill phase: fills resume.md (CRLF payloads too), deletes the payload.
   const root = h.tempProject();
   h.ok(root, 'start.js', ['applied']);
   h.assertFails(h.run(root, 'write-apply.js'), 1, /No payload at/);
@@ -21,7 +21,7 @@ const sections = (headings) => headings.map((x) => `## ${x}\n\n${x} content.\n`)
   const text = fs.readFileSync(path.join(h.sessionDir(root), '01-grill', 'resume.md'), 'utf-8');
   assert.match(text, /^# Session: applied/);
   assert.match(text, /## Problem Statement\n\nProblem Statement content\./);
-  assert.match(text, /- \*\*Total:\*\* unavailable/);
+  assert.doesNotMatch(text, /Token Usage/);
   assert.doesNotMatch(text, /gps:fill/);
   assert.ok(!fs.existsSync(prep.payloadPath));
   assert.deepStrictEqual(h.history(root).map((e) => [e.event, e.phase]).pop(), ['grill_written', 'plan-not-started']);

@@ -22,23 +22,28 @@ assert.strictEqual(setSection(text, 'A', 'new'), '# T\n\n## A\n\nnew\n\n## B\n\n
 assert.strictEqual(setSection(text, 'B', 'last'), '# T\n\n## A\n\nold\n\n## B\n\nlast\n');
 assert.strictEqual(setSection(text, 'C', 'added'), `${text.trimEnd()}\n\n## C\n\nadded\n`);
 
-// completeLog: Done, commits, time spent, token usage; the narrative kept.
+// completeLog: Done, commits, time spent; the narrative kept; no Token Usage.
 const done = completeLog(filled, {
   commits: ['abc1234 feat: wire cli'],
   startedAt: '2026-10-02T10:00:00.000Z',
   finishedAt: '2026-10-02T11:05:20.000Z',
-  usage: { available: true, input: 1, output: 2, cacheRead: 3, cacheCreation: 4, total: 10 },
 });
 assert.ok(done.includes(STATUS_DONE));
 assert.ok(isTicketDone.length === 1);
 assert.match(done, /## Commits\n\n- abc1234 feat: wire cli\n/);
 assert.match(done, /## Time Spent\n\n1h 05m \(ticket-start\.js to ticket-complete\.js\)/);
-assert.match(done, /## Token Usage\n\n- \*\*Input:\*\* 1\n[\s\S]*- \*\*Total:\*\* 10\n$/);
+assert.doesNotMatch(done, /Token Usage/);
 assert.match(done, /## Review Notes\n\nChecked\./);
 assert.doesNotMatch(done, /Filled by ticket-complete\.js/);
 assert.deepStrictEqual(recordedCommits(done), ['abc1234']);
 assert.deepStrictEqual(recordedCommits(fresh), []);
-assert.match(completeLog(filled, { commits: ['x'], startedAt: null, finishedAt: 'now', usage: null }), /## Time Spent\n\nunknown/);
+assert.match(completeLog(filled, { commits: ['x'], startedAt: null, finishedAt: 'now' }), /## Time Spent\n\nunknown/);
+
+// A log from an older version keeps its Token Usage section until completed: then it goes.
+const legacyLog = `${filled.trimEnd()}\n\n## Token Usage\n\nFilled by ticket-complete.js.\n`;
+const legacyDone = completeLog(legacyLog, { commits: ['x'], startedAt: null, finishedAt: 'now' });
+assert.doesNotMatch(legacyDone, /Token Usage/);
+assert.match(legacyDone, /## Review Notes\n\nChecked\./);
 
 // formatDuration
 assert.strictEqual(formatDuration('2026-10-02T10:00:00Z', '2026-10-02T10:00:40Z'), '1m');
