@@ -161,7 +161,7 @@ Each phase file (resume, plan, each commit log) ends with that phase's real toke
 
 gps has no server and no telemetry. Everything it does runs on your machine, through the scripts in `skills/gps/scripts/` (plain, readable Node.js with no dependencies):
 
-- **Commands it runs:** `node` for its own scripts, which the skill pre-approves (`allowed-tools: Bash(node ${CLAUDE_SKILL_DIR}/scripts/*)`) so they run without a permission prompt; nothing else is pre-approved. The scripts call `git` and, on GitHub projects, `gh`, always with an argument list, never through a shell.
+- **Commands it runs:** `node` for its own scripts, which the skill pre-approves one by one in `allowed-tools` (`Bash(node ${CLAUDE_SKILL_DIR}/scripts/<name>.js *)` for each script in `skills/gps/scripts/`) so they run without a permission prompt; nothing else is pre-approved. The scripts call `git` and, on GitHub projects, `gh`, always with an argument list, never through a shell.
 - **Files it writes:** session files under `.work/` and run artifacts under `.scratch/` in your project, a few lines in the project's `.gitignore`, and a temporary file for each pull request or issue body (deleted right after).
 - **Files it reads outside your project:** the token totals in Claude Code's transcripts under `~/.claude/projects/` for the current project, to report each phase's token usage. Nothing else from them is kept.
 - **Commits it makes:** one commit per ticket with only the files you name, the `chore(gps)` session-record commits described above, a commit of leftover tracked changes at `/gps finish`, and the `chore(gps): set up gps` commit of `/gps init --apply`.
