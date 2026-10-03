@@ -77,7 +77,7 @@ Or, once the direction is clear, `/gps auto` runs from wherever the session is t
 - **subagent:** each ticket goes to a fresh subagent on the ticket's `**Model:**` hint (`haiku`, `sonnet`, `opus` or `inherit`). The subagent commits through `ticket-complete.js`, and `ticket-check.js` verifies its DONE report before the next ticket starts.
 - **subagent + inline follow-up:** the subagent implements and verifies; this session reviews the diff, re-runs the Verification Step, fixes what's needed and commits.
 
-Only one implementer is ever live. A ticket that can't be finished is recorded with `ticket-block.js` and stops the run; it is never retried automatically. Each ticket's `commit-log.md` gets its test result and review notes from Claude, and its commit, time spent and token usage from the script.
+Only one implementer is ever live. A ticket that can't be finished is recorded with `ticket-block.js` and stops the run; it is never retried automatically. Each ticket's `commit-log.md` gets its test result and review notes from Claude, and its commit and time spent from the script.
 
 ## Layout
 
@@ -135,7 +135,7 @@ Every script in `skills/gps/scripts/` follows the same rules (see `scripts/lib/c
 ├── 03-implement/NN-<slug>/commit-log.md
 ├── HANDOFF.md                    /gps handoff
 ├── INDEX.md                      /gps finish: summary, links, timeline
-└── .session-config.json          machine state: history, phase, usage, git branch/PR, issue
+└── .session-config.json          machine state: history, phase, git branch/PR, issue
 .work/gps-config.json             project flag: github.enabled
 .work/GLOSSARY.md                 built-in grill: the project's domain terms
 .work/adr/NNNN-<slug>.md          built-in grill: hard-to-reverse decisions and why
@@ -153,17 +153,13 @@ Every script in `skills/gps/scripts/` follows the same rules (see `scripts/lib/c
 - **Issues:** `/gps start --issue` files the issue when the grill is saved. Bounded work gets a summary comment at finish (and, if you say so, the issue is closed). Planned work's PR says `Closes #N`.
 - A failed push, `gh` call or switch never fails the finish: the commands to run by hand are printed and written to INDEX.md.
 
-## Token usage
-
-Each phase file (resume, plan, each commit log) ends with that phase's real token totals, read from Claude Code's session transcripts (sub-agents included). This relies on Claude Code's undocumented transcript layout, so it reads `unavailable` when the transcripts can't be found.
-
 ## What gps runs, writes and sends
 
 gps has no server and no telemetry. Everything it does runs on your machine, through the scripts in `skills/gps/scripts/` (plain, readable Node.js with no dependencies):
 
 - **Commands it runs:** `node` for its own scripts, which the skill pre-approves one by one in `allowed-tools` (`Bash(node ${CLAUDE_SKILL_DIR}/scripts/<name>.js *)` for each script in `skills/gps/scripts/`) so they run without a permission prompt; nothing else is pre-approved. The scripts call `git` and, on GitHub projects, `gh`, always with an argument list, never through a shell.
 - **Files it writes:** session files under `.work/` and run artifacts under `.scratch/` in your project, a few lines in the project's `.gitignore`, and a temporary file for each pull request or issue body (deleted right after).
-- **Files it reads outside your project:** the token totals in Claude Code's transcripts under `~/.claude/projects/` for the current project, to report each phase's token usage. Nothing else from them is kept.
+- **Files it reads:** the project it runs in (its files and git history), gps's own scripts and templates, and a file a command is explicitly given, such as the review for `/gps scout --from`. Nothing else: not Claude Code's transcripts, your home directory or your credentials.
 - **Commits it makes:** one commit per ticket with only the files you name, the `chore(gps)` session-record commits described above, a commit of leftover tracked changes at `/gps finish`, and the `chore(gps): set up gps` commit of `/gps init --apply`.
 - **What leaves your machine** (GitHub projects only, with your own git and gh credentials): `git push` of the session branch and `gh pr create` at `/gps finish`; `gh issue create`, `gh issue comment` and `gh issue close` for `/gps start --issue` sessions; and `gh auth status` and `gh pr list`, which only read.
 

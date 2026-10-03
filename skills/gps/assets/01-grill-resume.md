@@ -35,11 +35,3 @@
 ## Notes
 
 <!-- gps:fill Additional notes or observations from the grill phase -->
-
-## Token Usage
-
-- **Input:** <!-- gps:fill input tokens -->
-- **Output:** <!-- gps:fill output tokens -->
-- **Cache read:** <!-- gps:fill cache read tokens -->
-- **Cache creation:** <!-- gps:fill cache creation tokens -->
-- **Total:** <!-- gps:fill total tokens -->

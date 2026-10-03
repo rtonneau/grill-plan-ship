@@ -9,7 +9,7 @@ Nothing. The plugin sends no data to its author or to any third party, and it co
 ## What it reads and writes on your machine
 
 - **Your project:** gps writes its session files under `.work/` and run artifacts under `.scratch/` in the project you use it in, and adds a few lines to the project's `.gitignore`. It reads the project's files and git history when a command needs them.
-- **Claude Code transcripts:** to report each phase's token usage, gps reads the `usage` totals in Claude Code's own transcript files under `~/.claude/projects/` for the current project. Only the token counts are kept, in the session files; transcript content is never copied or sent anywhere.
+- **Nothing else:** outside your project, gps reads only a file a command is explicitly given (such as the review for `/gps scout --from`, which it archives under `.work/`). It doesn't read Claude Code's transcripts, your home directory or your credentials.
 - **Temporary files:** a pull request or issue body is written to a temporary file in your system's temp directory for `gh` to read, and deleted right after.
 
 ## What leaves your machine

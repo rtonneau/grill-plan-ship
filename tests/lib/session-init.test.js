@@ -29,7 +29,7 @@ const config = JSON.parse(fs.readFileSync(path.join(session.workDir, '.session-c
 assert.strictEqual(config.feature_name, 'Add Dark Mode!');
 assert.strictEqual(config.kind, 'issue');
 assert.strictEqual(config.template_version, 2);
-assert.ok(config.usage.grill.startedAt);
+assert.strictEqual(config.usage, undefined, 'no token-usage tracking');
 assert.deepStrictEqual(config.history.map((e) => [e.event, e.detail]), [['session_started', { kind: 'issue' }]]);
 assert.strictEqual(fs.readFileSync(path.join(session.sessionsDir, '.current-session'), 'utf-8'), session.sessionId);
 

@@ -50,7 +50,7 @@ Tests run real scripts in throwaway directories (`tests/helpers.js`), and drive 
 
 ## Session files
 
-`.work/sessions/YYYY-MM-DD__<slug>/`: `01-grill/resume.md`, `02-plan/plan.md` + `tickets/NN-<slug>.md`, `03-implement/NN-<slug>/commit-log.md`, `HANDOFF.md`, `INDEX.md`, `.session-config.json` (history, current_phase, usage, kind, git, issue). Project-wide: `.work/gps-config.json` (`github.enabled`, read via `lib/project-config.js`, detected once, re-detected only by `/gps config --rescan`), and the built-in grill's `.work/GLOSSARY.md` and `.work/adr/NNNN-<slug>.md` (created by `domain-doc.js`, filled by Claude). `.work/` is committed (`commitWorkDir` in `lib/git.js`: plan write, each ticket, finish), each time in its own `chore(gps)` commit; only the per-machine files in `LOCAL_ONLY` (`lib/setup.js`, written by `/gps start` and `/gps init`) are git-ignored.
+`.work/sessions/YYYY-MM-DD__<slug>/`: `01-grill/resume.md`, `02-plan/plan.md` + `tickets/NN-<slug>.md`, `03-implement/NN-<slug>/commit-log.md`, `HANDOFF.md`, `INDEX.md`, `.session-config.json` (history, current_phase, kind, git, issue; sessions from before 2.3.2 may also hold `usage`, read only to backfill their history). Project-wide: `.work/gps-config.json` (`github.enabled`, read via `lib/project-config.js`, detected once, re-detected only by `/gps config --rescan`), and the built-in grill's `.work/GLOSSARY.md` and `.work/adr/NNNN-<slug>.md` (created by `domain-doc.js`, filled by Claude). `.work/` is committed (`commitWorkDir` in `lib/git.js`: plan write, each ticket, finish), each time in its own `chore(gps)` commit; only the per-machine files in `LOCAL_ONLY` (`lib/setup.js`, written by `/gps start` and `/gps init`) are git-ignored.
 
 ---
 

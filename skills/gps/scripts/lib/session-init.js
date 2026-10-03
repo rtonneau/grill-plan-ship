@@ -14,7 +14,6 @@ const path = require('path');
 const { loadTemplate, renderTemplate } = require('./templates');
 const { sessionsDirOf, setCurrentSession } = require('./session-store');
 const { TEMPLATE_VERSION } = require('./write-target');
-const { touchPhase } = require('./token-usage');
 const { recordEvent } = require('./history');
 const { ensureScratchDir } = require('./scratch-dir');
 const { ensureLocalIgnores } = require('./setup');
@@ -54,7 +53,6 @@ function initSession(projectRoot, featureName, extraConfig = {}) {
     history: [],
     ...extraConfig,
   };
-  touchPhase(config, 'grill');
 
   const configPath = path.join(workDir, '.session-config.json');
   writeJsonAtomic(configPath, config);

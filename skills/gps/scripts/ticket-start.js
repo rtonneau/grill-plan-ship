@@ -5,9 +5,8 @@
  *
  * /gps ship: prepares one ticket for implementation (the next pending one
  * when no number is given): creates 03-implement/NN-<slug>/ and its
- * commit-log.md, records the ticket's token-usage phase and a
- * `ticket_started` event (once), and prints the spec, the log and the
- * scratch dir. When every ticket is done it says so and points at
+ * commit-log.md, records a `ticket_started` event (once), and prints the
+ * spec, the log and the scratch dir. When every ticket is done it says so and points at
  * /gps finish. --mode records the ship mode as config.ship_mode, so the
  * next /gps ship can offer it first (ticket-queue.js prints it).
  *
@@ -24,7 +23,6 @@ const { loadTemplate, renderTemplate } = require('./lib/templates');
 const { resolveSession } = require('./lib/session-store');
 const { SHIP_MODES, isTicketDone } = require('./lib/ticket-queue');
 const { findTicketByNumber, readyTickets } = require('./lib/ticket-lookup');
-const { touchPhase } = require('./lib/token-usage');
 const { hasEvent, recordEvent, sessionPath } = require('./lib/history');
 const { ensureScratchDir } = require('./lib/scratch-dir');
 const { UsageError, writeJsonAtomic } = require('./lib/guard');
@@ -64,9 +62,7 @@ main({
     }
 
     fs.mkdirSync(ticket.implDir, { recursive: true });
-    const phaseKey = `03-${key}`;
     const alreadyStarted = hasEvent(config, 'ticket_started', { ticket: key });
-    touchPhase(config, phaseKey);
     if (!config.scratch_dir) warn(`${sessionId} predates scratch dirs; adding scratch_dir to its config.`);
     const scratchDir = ensureScratchDir(projectRoot, sessionId);
     config.scratch_dir = scratchDir;
@@ -91,7 +87,6 @@ main({
       `Spec: ${ticket.ticketPath}`,
       `Log file: ${ticket.commitLogPath}${logExisted ? '  (existing log kept — resume from it)' : ''}`,
       `Scratch dir: ${scratchDir}  (all build/run/test output goes here; prefix files with ${ticket.num}-)`,
-      `Token usage phase key: ${phaseKey}`,
       RULE,
       `Next: implement it, run its Verification Step, fill the log's Local Test Result, Review Notes and Blockers sections, `
         + `then ticket-complete.js ${Number(ticket.num)} --message "<commit message>" --file <path>... (or ticket-block.js ${Number(ticket.num)} --reason "<why>").`,
@@ -99,7 +94,7 @@ main({
 
     return {
       text,
-      data: { sessionId, ticket, phaseKey, scratchDir, logExisted, spec },
+      data: { sessionId, ticket, scratchDir, logExisted, spec },
     };
   },
 });

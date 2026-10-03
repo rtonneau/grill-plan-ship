@@ -16,9 +16,8 @@ const { main } = require('./lib/cli');
 const { loadTemplate, renderTemplate } = require('./lib/templates');
 const { resolveSession } = require('./lib/session-store');
 const { resolveWriteTarget, placeholderTester } = require('./lib/write-target');
-const { touchPhase } = require('./lib/token-usage');
 const { recordEvent } = require('./lib/history');
-const { GpsError, writeJsonAtomic } = require('./lib/guard');
+const { GpsError } = require('./lib/guard');
 
 main({
   usage: 'plan.js [--json]',
@@ -51,8 +50,6 @@ main({
       'feature-name': config.feature_name,
       timestamp: new Date().toISOString(),
     }));
-    touchPhase(config, 'plan');
-    writeJsonAtomic(configPath, config);
     recordEvent(configPath, config, sessionDir, { event: 'plan_started', files: ['02-plan/plan.md'] });
 
     return {

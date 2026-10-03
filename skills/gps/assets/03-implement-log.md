@@ -21,7 +21,3 @@ Filled by ticket-complete.js.
 ## Time Spent
 
 Filled by ticket-complete.js.
-
-## Token Usage
-
-Filled by ticket-complete.js.

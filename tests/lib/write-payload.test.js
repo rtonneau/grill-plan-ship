@@ -12,7 +12,6 @@ const {
   validatePayload,
   phaseFilePath,
   loadPhaseFile,
-  renderTokenUsage,
   renderPhaseFile,
   renderTicket,
 } = require('../../skills/gps/scripts/lib/write-payload');
@@ -136,25 +135,16 @@ const GRILL_HEADINGS = ['Problem Statement', 'Notes'];
   assert.ok(legacy.some((e) => /"## Strategy" still has a placeholder/.test(e)), legacy);
 }
 
-// renderTokenUsage
-assert.strictEqual(
-  renderTokenUsage({ available: true, input: 1, output: 2, cacheRead: 3, cacheCreation: 4, total: 10 }),
-  '## Token Usage\n\n- **Input:** 1\n- **Output:** 2\n- **Cache read:** 3\n- **Cache creation:** 4\n- **Total:** 10'
-);
-assert.match(renderTokenUsage({ available: false }), /- \*\*Input:\*\* unavailable\n[\s\S]*- \*\*Total:\*\* unavailable$/);
-
-// renderPhaseFile keeps the preamble and on-disk order, regenerates Token Usage
+// renderPhaseFile keeps the preamble and on-disk order, drops an older version's Token Usage
 {
   const current = '# Plan\n\n**Date:** d\n\n## Strategy\n\n<!-- gps:fill -->\n\n## Assumptions\n\n<!-- gps:fill -->\n\n## Token Usage\n\n- **Input:** <!-- gps:fill -->\n';
   const out = renderPhaseFile(
     current,
-    [{ heading: 'Assumptions', body: 'None.' }, { heading: 'Strategy', body: 'Order.' }],
-    { available: false }
+    [{ heading: 'Assumptions', body: 'None.' }, { heading: 'Strategy', body: 'Order.' }]
   );
   assert.strictEqual(
     out,
-    '# Plan\n\n**Date:** d\n\n## Strategy\n\nOrder.\n\n## Assumptions\n\nNone.\n\n' +
-      '## Token Usage\n\n- **Input:** unavailable\n- **Output:** unavailable\n- **Cache read:** unavailable\n- **Cache creation:** unavailable\n- **Total:** unavailable\n'
+    '# Plan\n\n**Date:** d\n\n## Strategy\n\nOrder.\n\n## Assumptions\n\nNone.\n'
   );
   assert.ok(!isUnfilled(out));
 }
@@ -173,7 +163,7 @@ assert.match(renderTokenUsage({ available: false }), /- \*\*Input:\*\* unavailab
   const missing = validatePayload(parsePayload('## Strategy\nOrder.\n--- ticket: 01-a ---\nt\n'), opts);
   assert.ok(missing.some((e) => /Missing field "\*\*Estimated effort:\*\*"/.test(e)), missing);
 
-  const out = renderPhaseFile(current, payload.sections, { available: false }, payload.fields);
+  const out = renderPhaseFile(current, payload.sections, payload.fields);
   assert.match(out, /^# Plan\n\n\*\*Session:\*\* demo\n\*\*Estimated effort:\*\* 2 days\n\n## Strategy\n\nOrder\./);
   assert.ok(!isUnfilled(out));
 }
@@ -181,7 +171,7 @@ assert.match(renderTokenUsage({ available: false }), /- \*\*Input:\*\* unavailab
 // Only unfilled header fields are replaced; filled ones (Session, Date) keep their value
 {
   const current = '# Plan\n\n**Session:** demo\n**Estimated effort:** <!-- gps:fill -->\n\n## Strategy\n\nx\n';
-  const out = renderPhaseFile(current, [{ heading: 'Strategy', body: 'y' }], { available: false }, { Session: 'hijacked', 'Estimated effort': '2 days' });
+  const out = renderPhaseFile(current, [{ heading: 'Strategy', body: 'y' }], { Session: 'hijacked', 'Estimated effort': '2 days' });
   assert.match(out, /\*\*Session:\*\* demo\n\*\*Estimated effort:\*\* 2 days/);
 }
 

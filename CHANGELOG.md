@@ -6,6 +6,7 @@ All notable changes to grill-plan-ship. Versions follow [semantic versioning](ht
 
 - The skill pre-approves each script by name in `allowed-tools` instead of a wildcard over `scripts/`, so it runs exactly gps's own scripts without a permission prompt and nothing else.
 - The icon and the workflow diagram ship as PNGs only; their SVG sources moved to the `design-sources` branch.
+- Token usage is no longer reported: gps stops reading Claude Code's transcripts under `~/.claude/projects/`, so it reads nothing outside your project. Phase files and commit logs no longer get a Token Usage section, and an existing one is dropped the next time a script rewrites the file.
 
 ## 2.3.1
 

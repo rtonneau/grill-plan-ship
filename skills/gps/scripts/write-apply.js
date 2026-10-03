@@ -6,7 +6,7 @@
  * /gps write, step 2 (after write-prepare.js and Claude's payload).
  * Applies the payload Claude wrote to <sessionDir>/.write-payload.md:
  * checks it against the pending phase's headings, fills resume.md or
- * plan.md (with a generated Token Usage section), writes the plan's
+ * plan.md, writes the plan's
  * NN-<slug>.md tickets (removing the [slug] stubs older sessions have),
  * then deletes the payload. Writes nothing unless every check passes. The
  * tickets are written before plan.md, so a write that fails halfway leaves
@@ -31,7 +31,6 @@ const path = require('path');
 const { main } = require('./lib/cli');
 const { resolveSession } = require('./lib/session-store');
 const { resolveWriteTarget, placeholderTester, checkPlanWritten } = require('./lib/write-target');
-const { computeUsage } = require('./lib/token-usage');
 const { recordEvent, sessionPath } = require('./lib/history');
 const {
   PAYLOAD_FILENAME,
@@ -80,7 +79,7 @@ function apply({ projectRoot, warn }) {
   });
 
   const targetPath = phaseFilePath(sessionDir, target);
-  const rendered = renderPhaseFile(current, payload.sections, computeUsage(config, target), payload.fields);
+  const rendered = renderPhaseFile(current, payload.sections, payload.fields);
   if (errors.length === 0 && isUnfilled(rendered)) {
     errors.push(`${path.basename(targetPath)} would still have a placeholder outside the payload's reach (e.g. a hand-edited header line). Remove it from ${targetPath} by hand.`);
   }
