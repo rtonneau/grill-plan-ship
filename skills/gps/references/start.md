@@ -15,7 +15,7 @@
 
 _Adapted from the `grilling` and `domain-modeling` skills of mattpocock-skills (https://github.com/mattpocock/skills.git)._
 
-Interview the user until you both hold the same design, with nothing silently assumed. Treat it as a design tree: each decision opens the decisions that hang off it. First read `.work/GLOSSARY.md` and `.work/adr/` if they exist; they hold the project's settled language and decisions.
+Interview the user until you both hold the same design, with nothing silently assumed. Treat it as a design tree: each decision opens the decisions that hang off it. First run `domain-doc.js where` and read the glossary and ADRs it lists: they hold the project's settled language and decisions (the project's own `GLOSSARY.md` / `CONTEXT.md` and `docs/adr/` when it has them, else gps's in `.work/`).
 
 - **Facts are yours, decisions are theirs.** Look up whatever the code, docs or tools can answer (an Explore subagent for wide searches) instead of asking. Put every decision to the user.
 - **Ask the frontier only:** questions whose prerequisites are settled, so no answer rests on a guess. A question that depends on an open one waits. Each goes through `AskUserQuestion` with your recommended answer first; free text only for open-ended answers. Recompute the frontier after each answer.

@@ -127,7 +127,7 @@ Every script in `skills/gps/scripts/` follows the same rules (see `scripts/lib/c
 | `handoff.js` | write HANDOFF.md |
 | `help.js` | `/gps help`: where you are, the workflow, every command (or one command's details) |
 | `scout-merge.js` | archive a review and merge its ideas into the seeds |
-| `domain-doc.js` | built-in grill: create `.work/GLOSSARY.md`, or the next numbered ADR in `.work/adr/` |
+| `domain-doc.js` | built-in grill: where the glossary and ADRs live (`where`), the glossary to add a term to, or the next numbered ADR |
 
 ## Session files
 
@@ -141,10 +141,12 @@ Every script in `skills/gps/scripts/` follows the same rules (see `scripts/lib/c
 ├── INDEX.md                      /gps finish: summary, links, timeline
 └── .session-config.json          machine state: history, phase, git branch/PR, issue
 .work/gps-config.json             project flag: github.enabled
-.work/GLOSSARY.md                 built-in grill: the project's domain terms
-.work/adr/NNNN-<slug>.md          built-in grill: hard-to-reverse decisions and why
+.work/GLOSSARY.md                 built-in grill: the project's domain terms (unless the project has its own)
+.work/adr/NNNN-<slug>.md          built-in grill: hard-to-reverse decisions and why (unless docs/adr/ exists)
 .scratch/tests/<session-id>/      build/run/test artifacts
 ```
+
+The built-in grill uses a project's own domain docs when it has them, the way mattpocock-skills keeps them: a root `GLOSSARY.md` (or `CONTEXT.md`, its older name, when it reads like a glossary), a `GLOSSARY-MAP.md` / `CONTEXT-MAP.md` for several contexts, and ADRs in `docs/adr/`. Only a project without them gets `.work/GLOSSARY.md` and `.work/adr/`. `domain-doc.js where` shows which are in use, and flags a `.work/` copy that duplicates the project's own.
 
 `.work/` is committed with the code, each time in its own `chore(gps): …` commit: after the plan write (on the session branch), after each ticket (its completed commit log) and at `/gps finish` (INDEX.md and the finished state, pushed to the pull request before switching back). A bounded session's record is committed at finish only. Ticket commits themselves never include `.work/` files. `/gps start` adds `.scratch/` and the per-machine files (`.work/sessions/.current-session`, `.pending-seeds.json`, a write payload in progress) to `.gitignore`. If `.work/` is git-ignored (older gps versions added it), gps warns and commits none of it: `/gps init` offers to remove the line. Since a session's files live on its branch, the commands find the session only with that branch checked out; when it isn't, the error names the branch to switch to. Every state change is appended to the session's `history` in `.session-config.json`; `/gps finish` turns it into a `## Timeline` table. The phase is always derived from the files, and `/gps status` flags any drift from the recorded one.
 
