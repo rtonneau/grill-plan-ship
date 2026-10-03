@@ -107,4 +107,18 @@ const version = readJson('package.json').version;
 assert.strictEqual(readJson('.claude-plugin/plugin.json').version, version);
 assert.ok(readJson('.claude-plugin/marketplace.json').plugins.every((p) => p.version === version));
 
+// Ready for the Claude plugin directory (claude.com/docs/plugins/pre-submission-checklist):
+// `claude plugin validate --strict` warns on a CLAUDE.md at the plugin root, the
+// listing needs a README of 40+ words and a license, and the listing fields point
+// at a bundled icon and https pages.
+assert.ok(!fs.existsSync(path.join(repo, 'CLAUDE.md')), 'developer notes live in .claude/CLAUDE.md, not at the plugin root');
+const manifest = readJson('.claude-plugin/plugin.json');
+for (const field of ['displayName', 'description', 'author', 'homepage', 'repository', 'license']) assert.ok(manifest[field], `plugin.json sets ${field}`);
+assert.ok(fs.existsSync(path.join(repo, manifest.icon)), `plugin.json icon ${manifest.icon} exists`);
+for (const field of ['documentationUrl', 'supportUrl', 'privacyPolicyUrl']) assert.match(manifest[field], /^https:\/\//, `plugin.json ${field} is an https URL`);
+for (const file of ['README.md', 'LICENSE', 'PRIVACY.md', 'CHANGELOG.md']) assert.ok(fs.existsSync(path.join(repo, file)), `${file} exists`);
+const readmeWords = fs.readFileSync(path.join(repo, 'README.md'), 'utf-8').replace(/```[\s\S]*?```/g, '').split(/\s+/).filter(Boolean).length;
+assert.ok(readmeWords >= 40, 'README has at least 40 words outside code blocks');
+assert.match(fs.readFileSync(path.join(repo, 'CHANGELOG.md'), 'utf-8'), new RegExp(`^## ${version.replace(/\./g, '\\.')}$`, 'm'), 'CHANGELOG has an entry for the current version');
+
 console.log('skill.test.js: all assertions passed');

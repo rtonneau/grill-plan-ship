@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="grill-plan-ship icon: three connected steps, grill, plan and ship, the last one checked">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#1b2542"/>
+      <stop offset="1" stop-color="#0b1020"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="112" fill="url(#bg)"/>
+  <path d="M120 300 C 170 300, 190 212, 256 212 S 342 300, 392 300" fill="none" stroke="#3b4b7a" stroke-width="22" stroke-linecap="round"/>
+  <circle cx="120" cy="300" r="58" fill="#ff7a59"/>
+  <path d="M120 266 c 18 22 26 36 20 52 a 22 22 0 0 1 -40 0 c -5 -12 2 -22 10 -30 c 0 10 4 16 10 18 c 2 -14 -2 -26 0 -40 z" fill="#0b1020"/>
+  <circle cx="256" cy="212" r="58" fill="#6ea8ff"/>
+  <g stroke="#0b1020" stroke-width="12" stroke-linecap="round">
+    <line x1="230" y1="190" x2="284" y2="190"/>
+    <line x1="230" y1="212" x2="284" y2="212"/>
+    <line x1="230" y1="234" x2="268" y2="234"/>
+  </g>
+  <circle cx="392" cy="300" r="58" fill="#56c596"/>
+  <path d="M364 302 l 20 20 l 36 -42" fill="none" stroke="#0b1020" stroke-width="15" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

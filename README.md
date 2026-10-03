@@ -6,7 +6,7 @@ A Claude Code plugin that runs any code change through four phases:
 
 Claude does the judgment work: asking questions, planning, reviewing and summarizing. Everything deterministic (session files, templates, validation, git and gh calls, report formatting) is done by small Node.js scripts with no dependencies.
 
-<img src="docs/gps-workflow.svg" alt="Diagram of the GPS workflow: optional SCOUT, then GRILL, PLAN, SHIP and FINISH with command, activity and output columns, a /gps auto lane, the commands usable at any time, and the script contract." />
+![Diagram of the GPS workflow: optional SCOUT, then GRILL, PLAN, SHIP and FINISH with command, activity and output columns, a /gps auto lane, the commands usable at any time, and the script contract.](docs/gps-workflow.svg)
 
 ## Installation
 
@@ -15,7 +15,9 @@ Claude does the judgment work: asking questions, planning, reviewing and summari
 /plugin install grill-plan-ship
 ```
 
-Restart Claude Code. Update later with `/plugin marketplace update rtonneau/grill-plan-ship`. Requires Node.js 20+. The grill and plan conversations work best with other plugins: `mattpocock-skills` (`grill-with-docs`) or `superpowers` (`brainstorming`), plus `superpowers` (`writing-plans`) and, optionally, `unslop`. Without them, `/gps` falls back to a built-in grill (an interview that also keeps a project glossary and ADRs in `.work/`, adapted from the `grilling` and `domain-modeling` skills of [mattpocock-skills](https://github.com/mattpocock/skills.git)) and drafts the tickets itself.
+Restart Claude Code. Update later with `/plugin marketplace update rtonneau/grill-plan-ship`.
+
+**Requirements:** Claude Code, Node.js 20+ and git. The GitHub features (session branches, pull requests, issues) also need the [GitHub CLI](https://cli.github.com/) logged in; without it gps works locally. The grill and plan conversations work best with other plugins: `mattpocock-skills` (`grill-with-docs`) or `superpowers` (`brainstorming`), plus `superpowers` (`writing-plans`) and, optionally, `unslop`. Without them, `/gps` falls back to a built-in grill (an interview that also keeps a project glossary and ADRs in `.work/`, adapted from the `grilling` and `domain-modeling` skills of [mattpocock-skills](https://github.com/mattpocock/skills.git)) and drafts the tickets itself.
 
 ## Quick start
 
@@ -155,6 +157,18 @@ Every script in `skills/gps/scripts/` follows the same rules (see `scripts/lib/c
 
 Each phase file (resume, plan, each commit log) ends with that phase's real token totals, read from Claude Code's session transcripts (sub-agents included). This relies on Claude Code's undocumented transcript layout, so it reads `unavailable` when the transcripts can't be found.
 
+## What gps runs, writes and sends
+
+gps has no server and no telemetry. Everything it does runs on your machine, through the scripts in `skills/gps/scripts/` (plain, readable Node.js with no dependencies):
+
+- **Commands it runs:** `node` for its own scripts, which the skill pre-approves (`allowed-tools: Bash(node ${CLAUDE_SKILL_DIR}/scripts/*)`) so they run without a permission prompt; nothing else is pre-approved. The scripts call `git` and, on GitHub projects, `gh`, always with an argument list, never through a shell.
+- **Files it writes:** session files under `.work/` and run artifacts under `.scratch/` in your project, a few lines in the project's `.gitignore`, and a temporary file for each pull request or issue body (deleted right after).
+- **Files it reads outside your project:** the token totals in Claude Code's transcripts under `~/.claude/projects/` for the current project, to report each phase's token usage. Nothing else from them is kept.
+- **Commits it makes:** one commit per ticket with only the files you name, the `chore(gps)` session-record commits described above, a commit of leftover tracked changes at `/gps finish`, and the `chore(gps): set up gps` commit of `/gps init --apply`.
+- **What leaves your machine** (GitHub projects only, with your own git and gh credentials): `git push` of the session branch and `gh pr create` at `/gps finish`; `gh issue create`, `gh issue comment` and `gh issue close` for `/gps start --issue` sessions; and `gh auth status` and `gh pr list`, which only read.
+
+See [PRIVACY.md](PRIVACY.md).
+
 ## Development
 
 ```
@@ -162,6 +176,12 @@ npm test                                  # every tests/**/*.test.js
 node tests/check-skill-size.js --max 200  # the CI check: every SKILL.md at most 200 lines
 ```
 
+Developer notes for working on the plugin itself are in [`.claude/CLAUDE.md`](.claude/CLAUDE.md). Changes are listed in [CHANGELOG.md](CHANGELOG.md).
+
+## Support
+
+Bug reports and questions: [GitHub issues](https://github.com/rtonneau/grill-plan-ship/issues).
+
 ## License
 
-MIT
+[MIT](LICENSE)
