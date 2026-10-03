@@ -19,9 +19,9 @@ h.ok(root, 'write-apply.js');
 // Text: one line per ticket, next pending, and the model-hint lines ship asks about.
 let res = h.ok(root, 'ticket-queue.js');
 assert.match(res.out, /0\/3 done/);
-assert.match(res.out, /- 01 toggle — pending — model haiku/);
+assert.match(res.out, /- 01 toggle — pending — model haiku, effort inherit/);
 assert.match(res.out, /Next pending: 01 toggle/);
-assert.match(res.out, /Model hints of the remaining tickets:\n1: haiku\n2: opus\n3: inherit/);
+assert.match(res.out, /Model and effort hints of the remaining tickets:\n1: haiku\/inherit\n2: opus\/inherit\n3: inherit\/inherit/);
 
 // No ship mode recorded yet: no "Last ship mode" line.
 assert.doesNotMatch(res.out, /Last ship mode/);
@@ -60,5 +60,20 @@ assert.strictEqual(h.json(root, 'ticket-queue.js').nextPending, null);
 
 // Read-only, takes no arguments.
 h.assertFails(h.run(root, 'ticket-queue.js', ['1']), 2);
+
+{
+  // Effort hints: shown with the model; a hand-edited max warns with the reason and runs as inherit.
+  const r = h.gitProject();
+  h.shipReady(r, 'effort', [{ slug: 'a', model: 'sonnet', effort: 'high' }, { slug: 'b', effort: 'low' }]);
+  let out = h.ok(r, 'ticket-queue.js');
+  assert.match(out.out, /- 01 a — pending — model sonnet, effort high/);
+  assert.match(out.out, /1: sonnet\/high\n2: inherit\/low/);
+  assert.deepStrictEqual(h.json(r, 'ticket-queue.js').tickets.map((t) => [t.effort, t.effortInvalid]), [['high', null], ['low', null]]);
+  const b = path.join(h.sessionDir(r), '02-plan', 'tickets', '02-b.md');
+  fs.writeFileSync(b, fs.readFileSync(b, 'utf-8').replace('**Effort:** low', '**Effort:** max'));
+  out = h.ok(r, 'ticket-queue.js');
+  assert.match(out.err, /Ticket 02-b: unknown effort "max", using inherit \(gps effort hints stop at xhigh/);
+  assert.match(out.out, /2: inherit\/inherit/);
+}
 
 h.done('ticket-queue.test.js');

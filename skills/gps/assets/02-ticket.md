@@ -1,4 +1,5 @@
 **Model:** <!-- gps:fill haiku | sonnet | opus | inherit -->
+**Effort:** <!-- gps:fill low | medium | high | xhigh | inherit -->
 
 **Acceptance Criteria:**
 - [ ] <!-- gps:fill testable criterion (one line each) -->

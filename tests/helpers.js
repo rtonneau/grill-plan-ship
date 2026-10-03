@@ -92,6 +92,7 @@ function planPayload(prep, tickets, { branch } = {}) {
   const blocks = tickets.map((t, i) => [
     `--- ticket: ${String(i + 1).padStart(2, '0')}-${t.slug} ---`,
     t.model ? `**Model:** ${t.model}\n` : '',
+    t.effort ? `**Effort:** ${t.effort}\n` : '',
     t.body || `Do ${t.slug}.`,
   ].join('\n')).join('\n\n');
   return `${fields.join('\n')}\n\n${sections}\n${blocks}\n`;

@@ -74,6 +74,13 @@ const sections = (headings) => headings.map((x) => `## ${x}\n\n${x} content.\n`)
   h.assertFails(h.run(root, 'write-apply.js'), 1, /unknown model "gpt-9"/);
   fs.writeFileSync(prep.payloadPath, h.planPayload(prep, [{ slug: 'a', body: '**Model:**\n\nDo a.' }]));
   h.assertFails(h.run(root, 'write-apply.js'), 1, /empty \*\*Model:\*\* line/);
+  // Ticket efforts: unknown or empty values are refused, and max with its reason (decision 0001).
+  fs.writeFileSync(prep.payloadPath, h.planPayload(prep, [{ slug: 'a', effort: 'turbo' }]));
+  h.assertFails(h.run(root, 'write-apply.js'), 1, /unknown effort "turbo"\. Use one of: low, medium, high, xhigh, inherit/);
+  fs.writeFileSync(prep.payloadPath, h.planPayload(prep, [{ slug: 'a', body: '**Effort:**\n\nDo a.' }]));
+  h.assertFails(h.run(root, 'write-apply.js'), 1, /empty \*\*Effort:\*\* line/);
+  fs.writeFileSync(prep.payloadPath, h.planPayload(prep, [{ slug: 'a', effort: 'max' }]));
+  h.assertFails(h.run(root, 'write-apply.js'), 1, /asks for effort "max": gps effort hints stop at xhigh[\s\S]*split the ticket[\s\S]*\/effort max/);
   fs.writeFileSync(prep.payloadPath, h.planPayload(prep, [{ slug: '<slug>' }]));
   h.assertFails(h.run(root, 'write-apply.js'), 1, /Invalid ticket name/);
 

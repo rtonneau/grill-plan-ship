@@ -83,7 +83,7 @@ main({
 
     const spec = fs.readFileSync(ticket.ticketPath, 'utf-8');
     const text = [
-      RULE, `TICKET ${ticket.num}: ${ticket.slug} (model hint: ${ticket.model})`, RULE, '', spec.trimEnd(), '', RULE,
+      RULE, `TICKET ${ticket.num}: ${ticket.slug} (hints: model ${ticket.model}, effort ${ticket.effort})`, RULE, '', spec.trimEnd(), '', RULE,
       `Spec: ${ticket.ticketPath}`,
       `Log file: ${ticket.commitLogPath}${logExisted ? '  (existing log kept — resume from it)' : ''}`,
       `Scratch dir: ${scratchDir}  (all build/run/test output goes here; prefix files with ${ticket.num}-)`,

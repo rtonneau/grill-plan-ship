@@ -2,6 +2,11 @@
 
 All notable changes to grill-plan-ship. Versions follow [semantic versioning](https://semver.org/).
 
+## 2.4.0
+
+- **Effort hints.** `/gps plan` gives each ticket an `**Effort:**` line (`low`, `medium`, `high`, `xhigh` or `inherit`) beside its `**Model:**` line. In the subagent ship modes, `dispatch-prompt.js` sends the ticket to the subagent for that level (new `agents/gps-ticket-low|medium|high|xhigh.md`, each setting `effort:`), with the model on the call. `--effort` overrides a hint, `/gps ship` shows and confirms `<model>/<effort>` per ticket, and `/gps auto --delegate` takes them as drafted. Inline mode ignores them.
+- **Decision: no `max`.** Effort hints stop at `xhigh`. `max` is slow and costly for one small ticket, so `/gps write` refuses it (split the ticket, or run it inline under `/effort max`), `--effort max` is a usage error, and a hand-edited `max` runs as `inherit` with a warning. See [docs/decisions/0001-effort-hints-stop-at-xhigh.md](docs/decisions/0001-effort-hints-stop-at-xhigh.md).
+
 ## 2.3.2
 
 - The skill pre-approves each script by name in `allowed-tools` instead of a wildcard over `scripts/`, so it runs exactly gps's own scripts without a permission prompt and nothing else.

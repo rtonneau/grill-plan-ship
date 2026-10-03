@@ -16,6 +16,9 @@ skills/gps/
 ├── scripts/<name>.js      one script per deterministic step
 │   └── lib/               shared helpers; cli.js is the script contract
 └── assets/                markdown templates only
+agents/gps-ticket-<level>.md  one ticket subagent per TICKET_EFFORTS level but inherit (lib/ticket-model.js):
+                           identical bodies, only name/description/effort differ (checked by tests/skill.test.js)
+docs/decisions/NNNN-*.md   design decisions with their reasons; 0001: effort hints stop at xhigh, no max
 tests/                     <script>.test.js per script, lib/<lib>.test.js per lib, e2e, github-flow, skill
 docs/                      icon.png (listing icon) and gps-workflow.png (README diagram), rendered from the
                            SVG sources on the design-sources branch; no SVG on main (the plugin directory holds them)

@@ -1,12 +1,17 @@
 #!/usr/bin/env node
 
 /**
- * dispatch-prompt.js <number> --mode <subagent|subagent+inline> [--model <m>] [--json]
+ * dispatch-prompt.js <number> --mode <subagent|subagent+inline> [--model <m>] [--effort <e>] [--json]
  *
  * /gps ship, subagent modes: prints the Agent tool call for one ticket —
  * subagent_type, model (left out for inherit), description and the full
  * prompt, with every path and command already filled in. --model overrides
  * the ticket's **Model:** hint and must be haiku, sonnet, opus or inherit.
+ * --effort overrides its **Effort:** hint and must be low, medium, high,
+ * xhigh or inherit (no max: see TICKET_EFFORTS in lib/ticket-model.js). An
+ * Agent call can pass a model but not an effort, so the effort picks the
+ * subagent: grill-plan-ship:gps-ticket-<effort> (agents/gps-ticket-*.md), or
+ * general-purpose at the session's effort for inherit.
  * Run ticket-start.js <number> first: the prompt points at its log.
  *
  *   subagent          the subagent implements, verifies and completes the
@@ -20,11 +25,14 @@ const path = require('path');
 const { main } = require('./lib/cli');
 const { resolveSession } = require('./lib/session-store');
 const { findTicketByNumber } = require('./lib/ticket-lookup');
-const { TICKET_MODELS, SHIP_MODES } = require('./lib/ticket-queue');
+const { TICKET_MODELS, TICKET_EFFORTS, SHIP_MODES } = require('./lib/ticket-queue');
+const { MAX_EFFORT_REASON } = require('./lib/ticket-model');
 const { GpsError, UsageError } = require('./lib/guard');
 
 const MODES = SHIP_MODES.filter((mode) => mode !== 'inline');
 const script = (name) => `node "${path.join(__dirname, name)}"`;
+// Plugin subagents are namespaced under the plugin's name.
+const subagentFor = (effort) => (effort === 'inherit' ? 'general-purpose' : `grill-plan-ship:gps-ticket-${effort}`);
 
 function buildPrompt(ticket, mode, scratchDir) {
   const n = Number(ticket.num);
@@ -61,14 +69,18 @@ function buildPrompt(ticket, mode, scratchDir) {
 }
 
 main({
-  usage: 'dispatch-prompt.js <number> --mode <subagent|subagent+inline> [--model <haiku|sonnet|opus|inherit>] [--json]',
+  usage: 'dispatch-prompt.js <number> --mode <subagent|subagent+inline> [--model <haiku|sonnet|opus|inherit>] [--effort <low|medium|high|xhigh|inherit>] [--json]',
   positionals: { min: 1, max: 1 },
-  options: { mode: 'string', model: 'string' },
+  options: { mode: 'string', model: 'string', effort: 'string' },
   run({ positionals: [arg], options, projectRoot }) {
     if (!/^\d+$/.test(arg)) throw new UsageError(`Invalid ticket number: ${arg}`);
     if (!MODES.includes(options.mode)) throw new UsageError(`--mode must be one of: ${MODES.join(', ')}.`);
     if (options.model !== null && !TICKET_MODELS.includes(options.model)) {
       throw new UsageError(`--model must be one of: ${TICKET_MODELS.join(', ')}.`);
+    }
+    if (options.effort !== null && !TICKET_EFFORTS.includes(options.effort)) {
+      const why = options.effort === 'max' ? ` (${MAX_EFFORT_REASON})` : '';
+      throw new UsageError(`--effort must be one of: ${TICKET_EFFORTS.join(', ')}${why}.`);
     }
 
     const { sessionId, sessionDir, config } = resolveSession(projectRoot);
@@ -79,15 +91,16 @@ main({
     }
 
     const model = options.model || ticket.model;
+    const effort = options.effort || ticket.effort;
     const call = {
-      subagent_type: 'general-purpose',
+      subagent_type: subagentFor(effort),
       ...(model !== 'inherit' && { model }),
       description: `gps ticket ${ticket.num} ${ticket.slug}`.slice(0, 60),
       prompt: buildPrompt(ticket, options.mode, config.scratch_dir || `.scratch/tests/${sessionId}`),
     };
     const text = [
-      `Agent tool call for ticket ${ticket.num} (${ticket.slug}), mode ${options.mode}, model ${model}:`,
-      `- subagent_type: ${call.subagent_type}`,
+      `Agent tool call for ticket ${ticket.num} (${ticket.slug}), mode ${options.mode}, model ${model}, effort ${effort}:`,
+      `- subagent_type: ${call.subagent_type}${effort === 'inherit' ? ' (effort: inherit, the session\'s own)' : ` (sets effort ${effort})`}`,
       `- model: ${model === 'inherit' ? '(leave out: inherit)' : model}`,
       `- description: ${call.description}`,
       '- prompt:',
@@ -100,6 +113,6 @@ main({
         ? `On DONE run ticket-check.js ${Number(ticket.num)}; on BLOCKED stop the run.`
         : 'On READY review and complete it in this session; on BLOCKED stop the run and leave its changes in place.'}`,
     ].join('\n');
-    return { text, data: { ticket: `${ticket.num}-${ticket.slug}`, mode: options.mode, model, call } };
+    return { text, data: { ticket: `${ticket.num}-${ticket.slug}`, mode: options.mode, model, effort, call } };
   },
 });

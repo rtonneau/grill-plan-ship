@@ -125,6 +125,24 @@ const readmeWords = fs.readFileSync(path.join(repo, 'README.md'), 'utf-8').repla
 // No SVG in the plugin: the directory holds every SVG for review (an SVG can carry
 // script); the sources live on the design-sources branch.
 assert.deepStrictEqual(spawnSync('git', ['ls-files', '*.svg'], { cwd: repo, encoding: 'utf-8' }).stdout.trim(), '', 'no SVG files in the plugin');
+// Effort subagents (decision 0001): one per TICKET_EFFORTS level but inherit, no max,
+// identical bodies so a level never changes what the subagent is told.
+const { TICKET_EFFORTS } = require('../skills/gps/scripts/lib/ticket-model');
+const agentsDir = path.join(repo, 'agents');
+const agentFiles = fs.readdirSync(agentsDir).sort();
+assert.deepStrictEqual(agentFiles, TICKET_EFFORTS.filter((e) => e !== 'inherit').map((e) => `gps-ticket-${e}.md`).sort());
+const agentBodies = new Set();
+for (const file of agentFiles) {
+  const level = file.match(/^gps-ticket-(.+)\.md$/)[1];
+  const text = fs.readFileSync(path.join(agentsDir, file), 'utf-8');
+  const [, front, body] = text.match(/^---\n([\s\S]*?)\n---\n([\s\S]*)$/);
+  assert.match(front, new RegExp(`^name: gps-ticket-${level}$`, 'm'), `${file} name`);
+  assert.match(front, new RegExp(`^effort: ${level}$`, 'm'), `${file} effort`);
+  assert.match(front, new RegExp(`^description: ".* at ${level} effort\\. Only for /gps ship`, 'm'), `${file} description`);
+  assert.doesNotMatch(front, /^(model|tools|hooks|mcpServers|permissionMode):/m, `${file} sets only name, description and effort`);
+  agentBodies.add(body);
+}
+assert.strictEqual(agentBodies.size, 1, 'every gps-ticket agent has the same body');
 assert.ok(readmeWords >= 40, 'README has at least 40 words outside code blocks');
 assert.match(fs.readFileSync(path.join(repo, 'CHANGELOG.md'), 'utf-8'), new RegExp(`^## ${version.replace(/\./g, '\\.')}$`, 'm'), 'CHANGELOG has an entry for the current version');
 

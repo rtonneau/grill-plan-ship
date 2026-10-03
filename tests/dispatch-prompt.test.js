@@ -48,12 +48,31 @@ assert.doesNotMatch(prompt, /ticket-complete\.js" 1/);
 
 // Text mode shows the call and what to do with its answer.
 const text = h.ok(root, 'dispatch-prompt.js', args(1, 'subagent')).out;
-assert.match(text, /^Agent tool call for ticket 01 \(toggle\), mode subagent, model haiku:/);
+assert.match(text, /^Agent tool call for ticket 01 \(toggle\), mode subagent, model haiku, effort inherit:/);
 assert.match(text, /On DONE run ticket-check\.js 1/);
 assert.match(h.ok(root, 'dispatch-prompt.js', args(1, 'subagent+inline')).out, /On READY review and complete it in this session/);
 
 // A Done ticket is refused.
 h.completeTicket(root, 1, 'toggle');
 h.assertFails(h.run(root, 'dispatch-prompt.js', args(1, 'subagent')), 1, /already Done/);
+
+// Effort: the ticket's hint picks the plugin subagent; inherit keeps general-purpose;
+// --effort overrides; max is refused with the reason (decision 0001).
+{
+  const r = h.gitProject();
+  h.shipReady(r, 'effort', [{ slug: 'a', model: 'sonnet', effort: 'xhigh' }]);
+  h.ok(r, 'ticket-start.js', ['1']);
+  let d = h.json(r, 'dispatch-prompt.js', ['1', '--mode', 'subagent']);
+  assert.strictEqual(d.effort, 'xhigh');
+  assert.strictEqual(d.call.subagent_type, 'grill-plan-ship:gps-ticket-xhigh');
+  assert.strictEqual(d.call.model, 'sonnet', 'the model still travels on the call');
+  assert.match(h.ok(r, 'dispatch-prompt.js', ['1', '--mode', 'subagent']).out, /subagent_type: grill-plan-ship:gps-ticket-xhigh \(sets effort xhigh\)/);
+  d = h.json(r, 'dispatch-prompt.js', ['1', '--mode', 'subagent+inline', '--effort', 'low']);
+  assert.strictEqual(d.call.subagent_type, 'grill-plan-ship:gps-ticket-low');
+  d = h.json(r, 'dispatch-prompt.js', ['1', '--mode', 'subagent', '--effort', 'inherit']);
+  assert.strictEqual(d.call.subagent_type, 'general-purpose');
+  h.assertFails(h.run(r, 'dispatch-prompt.js', ['1', '--mode', 'subagent', '--effort', 'turbo']), 2, /--effort must be one of: low, medium, high, xhigh, inherit\./);
+  h.assertFails(h.run(r, 'dispatch-prompt.js', ['1', '--mode', 'subagent', '--effort', 'max']), 2, /--effort must be one of: .* \(gps effort hints stop at xhigh/);
+}
 
 h.done('dispatch-prompt.test.js');
