@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="grill-plan-ship icon: a map where a road loops from a red start pin through three checkpoint pins, grill, plan and ship, to a red end pin, while a dashed shortcut for /gps auto cuts from grill straight to the end">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0.4" y2="1">
+      <stop offset="0" stop-color="#1b2542"/>
+      <stop offset="1" stop-color="#0b1020"/>
+    </linearGradient>
+    <clipPath id="tile"><rect width="512" height="512" rx="112"/></clipPath>
+    <marker id="head" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="3" markerHeight="3" orient="auto">
+      <path d="M0 0 L10 5 L0 10 z" fill="#9dd8ff"/>
+    </marker>
+  </defs>
+  <rect width="512" height="512" rx="112" fill="url(#bg)"/>
+  <g clip-path="url(#tile)">
+    <rect x="-24" y="-24" width="98" height="166" rx="12" fill="#151f3a"/>
+    <rect x="150" y="-24" width="90" height="166" rx="12" fill="#151f3a"/>
+    <rect x="266" y="-24" width="96" height="166" rx="12" fill="#151f3a"/>
+    <rect x="388" y="-24" width="150" height="166" rx="12" fill="#151f3a"/>
+    <rect x="-24" y="222" width="98" height="100" rx="12" fill="#151f3a"/>
+    <rect x="150" y="222" width="90" height="100" rx="12" fill="#151f3a"/>
+    <rect x="266" y="222" width="96" height="100" rx="12" fill="#151f3a"/>
+    <rect x="388" y="222" width="150" height="100" rx="12" fill="#151f3a"/>
+    <rect x="-24" y="348" width="98" height="190" rx="12" fill="#151f3a"/>
+    <rect x="150" y="348" width="90" height="190" rx="12" fill="#151f3a"/>
+    <rect x="266" y="348" width="96" height="190" rx="12" fill="#151f3a"/>
+    <rect x="388" y="348" width="150" height="190" rx="12" fill="#151f3a"/>
+  </g>
+  <path d="M100 432 V232 Q100 168 164 168 H348 Q412 168 412 232 V432" fill="none" stroke="#26324f" stroke-width="34" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M100 432 V232 Q100 168 164 168 H348 Q412 168 412 232 V432" fill="none" stroke="#9fb0d9" stroke-width="5" stroke-linecap="round" stroke-dasharray="3 15"/>
+  <path d="M126 288 C 220 318, 282 366, 368 416" fill="none" stroke="#9dd8ff" stroke-width="12" stroke-linecap="round" stroke-dasharray="22 14" marker-end="url(#head)"/>
+  <ellipse cx="100" cy="446" rx="16" ry="5.3" fill="#000" opacity="0.35"/>
+  <path d="M100 446 L121.4 414.7 A26 26 0 1 0 78.6 414.7 Z" fill="#ff4d5e" stroke="#0b1020" stroke-width="5" stroke-linejoin="round"/>
+  <circle cx="100" cy="400" r="10" fill="#f8fbff"/>
+  <ellipse cx="412" cy="446" rx="16" ry="5.3" fill="#000" opacity="0.35"/>
+  <path d="M412 446 L433.4 414.7 A26 26 0 1 0 390.6 414.7 Z" fill="#ff4d5e" stroke="#0b1020" stroke-width="5" stroke-linejoin="round"/>
+  <circle cx="412" cy="400" r="10" fill="#f8fbff"/>
+  <ellipse cx="100" cy="278" rx="20" ry="6.7" fill="#000" opacity="0.35"/>
+  <path d="M100 278 L133.6 233.2 A42 42 0 1 0 66.4 233.2 Z" fill="#ff7a59" stroke="#0b1020" stroke-width="6" stroke-linejoin="round"/>
+  <g transform="translate(100 208) scale(0.7)"><path d="M0 -34 c18 22 26 36 20 52 a22 22 0 0 1 -40 0 c-5 -12 2 -22 10 -30 c0 10 4 16 10 18 c2 -14 -2 -26 0 -40 z" fill="#0b1020"/></g>
+  <ellipse cx="256" cy="168" rx="20" ry="6.7" fill="#000" opacity="0.35"/>
+  <path d="M256 168 L289.6 123.2 A42 42 0 1 0 222.4 123.2 Z" fill="#6ea8ff" stroke="#0b1020" stroke-width="6" stroke-linejoin="round"/>
+  <g transform="translate(256 98) scale(0.7)"><g stroke="#0b1020" stroke-width="12" stroke-linecap="round"><line x1="-26" y1="-22" x2="28" y2="-22"/><line x1="-26" y1="0" x2="28" y2="0"/><line x1="-26" y1="22" x2="12" y2="22"/></g></g>
+  <ellipse cx="412" cy="278" rx="20" ry="6.7" fill="#000" opacity="0.35"/>
+  <path d="M412 278 L445.6 233.2 A42 42 0 1 0 378.4 233.2 Z" fill="#56c596" stroke="#0b1020" stroke-width="6" stroke-linejoin="round"/>
+  <g transform="translate(412 208) scale(0.7)"><path d="M-28 2 l20 20 l36 -42" fill="none" stroke="#0b1020" stroke-width="15" stroke-linecap="round" stroke-linejoin="round"/></g>
+</svg>

@@ -1,15 +1,26 @@
 {
   "name": "grill-plan-ship",
-  "version": "2.3.0",
-  "description": "Universal workflow plugin: grill → plan → ship",
+  "version": "2.3.1",
+  "description": "Grill → plan → ship → finish: a Claude Code plugin whose deterministic steps are Node.js scripts",
   "keywords": [
+    "claude-code",
+    "claude-code-plugin",
     "workflow",
-    "brainstorm",
     "planning",
-    "implementation"
+    "git",
+    "github"
   ],
+  "homepage": "https://github.com/rtonneau/grill-plan-ship#readme",
+  "bugs": {
+    "url": "https://github.com/rtonneau/grill-plan-ship/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/rtonneau/grill-plan-ship.git"
+  },
   "author": "rtonneau",
   "license": "MIT",
+  "private": true,
   "engines": {
     "node": ">=20"
   },

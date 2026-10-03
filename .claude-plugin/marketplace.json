@@ -1,18 +1,23 @@
 {
   "name": "grill-plan-ship",
-  "description": "Universal workflow plugin: grill → plan → ship",
+  "description": "The grill-plan-ship workflow plugin for Claude Code: grill → plan → ship → finish.",
   "owner": {
-    "name": "rtonneau"
+    "name": "rtonneau",
+    "url": "https://github.com/rtonneau"
   },
   "plugins": [
     {
       "name": "grill-plan-ship",
-      "description": "Universal workflow plugin: grill → plan → ship",
-      "version": "2.3.0",
+      "displayName": "Grill Plan Ship",
+      "description": "Grill → plan → ship → finish: Claude questions you until the design is clear, splits it into small tickets, ships one commit per ticket and opens the pull request, while scripts handle session state, git and gh.",
+      "version": "2.3.1",
       "source": "./",
       "author": {
-        "name": "rtonneau"
-      }
+        "name": "rtonneau",
+        "url": "https://github.com/rtonneau"
+      },
+      "category": "development",
+      "tags": ["workflow", "planning", "git", "github"]
     }
   ]
 }

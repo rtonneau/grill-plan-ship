@@ -1,17 +1,27 @@
 {
   "name": "grill-plan-ship",
-  "description": "Universal workflow plugin: grill → plan → ship",
-  "version": "2.3.0",
+  "displayName": "Grill Plan Ship",
+  "version": "2.3.1",
+  "description": "Grill → plan → ship → finish: Claude questions you until the design is clear, splits it into small tickets, ships one commit per ticket and opens the pull request, while scripts handle session state, git and gh.",
   "author": {
-    "name": "rtonneau"
+    "name": "rtonneau",
+    "url": "https://github.com/rtonneau"
   },
   "homepage": "https://github.com/rtonneau/grill-plan-ship",
   "repository": "https://github.com/rtonneau/grill-plan-ship",
   "license": "MIT",
   "keywords": [
     "workflow",
-    "brainstorm",
     "planning",
-    "implementation"
-  ]
+    "specification",
+    "tickets",
+    "git",
+    "github",
+    "pull-requests",
+    "adr"
+  ],
+  "icon": "./docs/icon.png",
+  "documentationUrl": "https://github.com/rtonneau/grill-plan-ship#readme",
+  "supportUrl": "https://github.com/rtonneau/grill-plan-ship/issues",
+  "privacyPolicyUrl": "https://github.com/rtonneau/grill-plan-ship/blob/main/PRIVACY.md"
 }
