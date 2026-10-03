@@ -27,27 +27,27 @@
   </g>
 
   <!-- the route through the three checkpoints -->
-  <path d="M88 428 C 104 400, 150 380, 190 360 C 246 332, 168 226, 230 170 C 292 116, 340 252, 390 330 C 432 300, 428 230, 420 168"
+  <path d="M88 428 C 110 396, 150 372, 198 352 C 258 326, 160 214, 222 152 C 290 86, 336 254, 392 334 C 440 300, 428 230, 420 168"
         fill="none" stroke="#2b3657" stroke-width="30" stroke-linecap="round" stroke-linejoin="round"/>
-  <path d="M88 428 C 104 400, 150 380, 190 360 C 246 332, 168 226, 230 170 C 292 116, 340 252, 390 330 C 432 300, 428 230, 420 168"
+  <path d="M88 428 C 110 396, 150 372, 198 352 C 258 326, 160 214, 222 152 C 290 86, 336 254, 392 334 C 440 300, 428 230, 420 168"
         fill="none" stroke="#9fb0d9" stroke-width="6" stroke-linecap="round" stroke-dasharray="2 16"/>
 
   <!-- /gps auto: the shortest route, from grill straight to the end -->
-  <path d="M234 340 C 300 316, 362 258, 404 186" fill="none" stroke="#9dd8ff" stroke-width="11" stroke-linecap="round" stroke-dasharray="20 14" marker-end="url(#head)"/>
+  <path d="M260 322 C 300 280, 352 222, 406 186" fill="none" stroke="#9dd8ff" stroke-width="11" stroke-linecap="round" stroke-dasharray="20 14" marker-end="url(#head)"/>
 
   <!-- checkpoints: grill, plan, ship -->
-  <g stroke="#0b1020" stroke-width="7">
-    <circle cx="190" cy="360" r="46" fill="#ff7a59"/>
-    <circle cx="230" cy="170" r="46" fill="#6ea8ff"/>
-    <circle cx="390" cy="330" r="46" fill="#56c596"/>
+  <g stroke="#0b1020" stroke-width="8">
+    <circle cx="198" cy="352" r="64" fill="#ff7a59"/>
+    <circle cx="222" cy="152" r="64" fill="#6ea8ff"/>
+    <circle cx="392" cy="334" r="64" fill="#56c596"/>
   </g>
-  <path transform="translate(190 360) scale(0.8)" d="M0 -34 c18 22 26 36 20 52 a22 22 0 0 1 -40 0 c-5 -12 2 -22 10 -30 c0 10 4 16 10 18 c2 -14 -2 -26 0 -40 z" fill="#0b1020"/>
-  <g transform="translate(230 170) scale(0.8)" stroke="#0b1020" stroke-width="12" stroke-linecap="round">
+  <path transform="translate(198 352) scale(1.1)" d="M0 -34 c18 22 26 36 20 52 a22 22 0 0 1 -40 0 c-5 -12 2 -22 10 -30 c0 10 4 16 10 18 c2 -14 -2 -26 0 -40 z" fill="#0b1020"/>
+  <g transform="translate(222 152) scale(1.1)" stroke="#0b1020" stroke-width="12" stroke-linecap="round">
     <line x1="-26" y1="-22" x2="28" y2="-22"/>
     <line x1="-26" y1="0" x2="28" y2="0"/>
     <line x1="-26" y1="22" x2="12" y2="22"/>
   </g>
-  <path transform="translate(390 330) scale(0.8)" d="M-28 2 l20 20 l36 -42" fill="none" stroke="#0b1020" stroke-width="15" stroke-linecap="round" stroke-linejoin="round"/>
+  <path transform="translate(392 334) scale(1.1)" d="M-28 2 l20 20 l36 -42" fill="none" stroke="#0b1020" stroke-width="15" stroke-linecap="round" stroke-linejoin="round"/>
 
   <!-- start and end pins -->
   <g stroke="#0b1020" stroke-width="6" stroke-linejoin="round">
