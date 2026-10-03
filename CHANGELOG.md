@@ -4,7 +4,7 @@ All notable changes to grill-plan-ship. Versions follow [semantic versioning](ht
 
 ## 2.3.1
 
-- Ready for the Claude plugin directory: listing metadata in `plugin.json` (display name, a GPS-map icon, documentation, support and privacy links), `PRIVACY.md`, and a README section on everything gps runs, writes and sends.
+- Ready for the Claude plugin directory: listing metadata in `plugin.json` (display name, a small-planet GPS icon, documentation, support and privacy links), `PRIVACY.md`, and a README section on everything gps runs, writes and sends.
 - The developer notes moved from `CLAUDE.md` to `.claude/CLAUDE.md`, so `claude plugin validate --strict` passes.
 
 ## 2.3.0
