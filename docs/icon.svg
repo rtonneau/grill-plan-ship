@@ -1,20 +1,59 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="grill-plan-ship icon: three connected steps, grill, plan and ship, the last one checked">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="grill-plan-ship icon: a GPS map with a start pin and an end pin, a route through three checkpoints (grill, plan, ship) and a shorter dashed route from grill straight to the end, for /gps auto">
   <defs>
     <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
       <stop offset="0" stop-color="#1b2542"/>
       <stop offset="1" stop-color="#0b1020"/>
     </linearGradient>
+    <clipPath id="tile"><rect width="512" height="512" rx="112"/></clipPath>
+    <marker id="head" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="3.2" markerHeight="3.2" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 z" fill="#9dd8ff"/>
+    </marker>
   </defs>
+
   <rect width="512" height="512" rx="112" fill="url(#bg)"/>
-  <path d="M120 300 C 170 300, 190 212, 256 212 S 342 300, 392 300" fill="none" stroke="#3b4b7a" stroke-width="22" stroke-linecap="round"/>
-  <circle cx="120" cy="300" r="58" fill="#ff7a59"/>
-  <path d="M120 266 c 18 22 26 36 20 52 a 22 22 0 0 1 -40 0 c -5 -12 2 -22 10 -30 c 0 10 4 16 10 18 c 2 -14 -2 -26 0 -40 z" fill="#0b1020"/>
-  <circle cx="256" cy="212" r="58" fill="#6ea8ff"/>
-  <g stroke="#0b1020" stroke-width="12" stroke-linecap="round">
-    <line x1="230" y1="190" x2="284" y2="190"/>
-    <line x1="230" y1="212" x2="284" y2="212"/>
-    <line x1="230" y1="234" x2="268" y2="234"/>
+
+  <!-- map: blocks and side streets -->
+  <g clip-path="url(#tile)" fill="#16203a">
+    <rect x="-20" y="40" width="150" height="110" rx="14"/>
+    <rect x="300" y="-20" width="90" height="70" rx="14"/>
+    <rect x="200" y="390" width="160" height="150" rx="14"/>
+    <rect x="410" y="350" width="130" height="190" rx="14"/>
+    <rect x="-20" y="200" width="70" height="120" rx="14"/>
   </g>
-  <circle cx="392" cy="300" r="58" fill="#56c596"/>
-  <path d="M364 302 l 20 20 l 36 -42" fill="none" stroke="#0b1020" stroke-width="15" stroke-linecap="round" stroke-linejoin="round"/>
+  <g clip-path="url(#tile)" stroke="#1f2a4a" stroke-width="10" fill="none">
+    <path d="M0 175 H512"/>
+    <path d="M180 0 V512"/>
+    <path d="M0 370 C 150 360, 330 380, 512 330"/>
+  </g>
+
+  <!-- the route through the three checkpoints -->
+  <path d="M88 428 C 104 400, 150 380, 190 360 C 246 332, 168 226, 230 170 C 292 116, 340 252, 390 330 C 432 300, 428 230, 420 168"
+        fill="none" stroke="#2b3657" stroke-width="30" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M88 428 C 104 400, 150 380, 190 360 C 246 332, 168 226, 230 170 C 292 116, 340 252, 390 330 C 432 300, 428 230, 420 168"
+        fill="none" stroke="#9fb0d9" stroke-width="6" stroke-linecap="round" stroke-dasharray="2 16"/>
+
+  <!-- /gps auto: the shortest route, from grill straight to the end -->
+  <path d="M234 340 C 300 316, 362 258, 404 186" fill="none" stroke="#9dd8ff" stroke-width="11" stroke-linecap="round" stroke-dasharray="20 14" marker-end="url(#head)"/>
+
+  <!-- checkpoints: grill, plan, ship -->
+  <g stroke="#0b1020" stroke-width="7">
+    <circle cx="190" cy="360" r="46" fill="#ff7a59"/>
+    <circle cx="230" cy="170" r="46" fill="#6ea8ff"/>
+    <circle cx="390" cy="330" r="46" fill="#56c596"/>
+  </g>
+  <path transform="translate(190 360) scale(0.8)" d="M0 -34 c18 22 26 36 20 52 a22 22 0 0 1 -40 0 c-5 -12 2 -22 10 -30 c0 10 4 16 10 18 c2 -14 -2 -26 0 -40 z" fill="#0b1020"/>
+  <g transform="translate(230 170) scale(0.8)" stroke="#0b1020" stroke-width="12" stroke-linecap="round">
+    <line x1="-26" y1="-22" x2="28" y2="-22"/>
+    <line x1="-26" y1="0" x2="28" y2="0"/>
+    <line x1="-26" y1="22" x2="12" y2="22"/>
+  </g>
+  <path transform="translate(390 330) scale(0.8)" d="M-28 2 l20 20 l36 -42" fill="none" stroke="#0b1020" stroke-width="15" stroke-linecap="round" stroke-linejoin="round"/>
+
+  <!-- start and end pins -->
+  <g stroke="#0b1020" stroke-width="6" stroke-linejoin="round">
+    <path d="M88 452 C 82 436, 56 416, 56 392 A 32 32 0 1 1 120 392 C 120 416, 94 436, 88 452 Z" fill="#ff4d5e"/>
+    <path d="M420 160 C 414 144, 388 124, 388 100 A 32 32 0 1 1 452 100 C 452 124, 426 144, 420 160 Z" fill="#ff4d5e"/>
+  </g>
+  <circle cx="88" cy="392" r="12" fill="#f8fbff"/>
+  <circle cx="420" cy="100" r="12" fill="#f8fbff"/>
 </svg>
