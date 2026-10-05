@@ -1,0 +1,213 @@
+// skills/gps/scripts/lib/changelog.js
+//
+// Pure text handling for CHANGELOG.md (no fs, no git): detect the file's
+// format, parse the entry Claude writes, and keep one "Unreleased" entry per
+// session. Every line gps writes carries a marker so a re-run replaces its own
+// lines and leaves hand-written ones alone:
+//   bullet:    "- text <!-- gps:<session-id> -->"
+//   bump line: "<!-- gps:bump=<level> session=<session-id> -->"
+
+const { LEVELS } = require('./semver');
+const { UsageError } = require('./guard');
+
+const SECTIONS = ['Added', 'Changed', 'Deprecated', 'Removed', 'Fixed', 'Security'];
+const NEW_FILE_HEADER = '# Changelog\n\nAll notable changes to this project. Versions follow [semantic versioning](https://semver.org/).\n';
+const VERSION_HEADING_RE = /^## +\[?v?(\d+\.\d+\.\d+)\]?(?=\s|$)/;
+
+const UNRELEASED_RE = /^## +Unreleased\s*$/i;
+const H2_RE = /^## /;
+const H3_RE = /^### +(.+?)\s*$/;
+const BULLET_RE = /^[-*] /;
+const BUMP_RE = /^<!-- gps:bump=\S+ session=(\S+) -->\s*$/;
+
+function toLf(text) {
+  return text.replace(/\r\n/g, '\n');
+}
+
+function detectFormat(text) {
+  if (text === null || text.trim() === '') return 'new';
+  const lines = toLf(text).split('\n');
+  if (!lines.some((line) => /^# /.test(line))) return 'unknown';
+  let inH2 = false;
+  for (const line of lines) {
+    if (H2_RE.test(line)) inH2 = true;
+    const h3 = inH2 && line.match(H3_RE);
+    if (h3 && SECTIONS.includes(h3[1])) return 'sections';
+  }
+  return 'plain';
+}
+
+// Index range [start, end) of the Unreleased block: heading line included, up
+// to the next "## " heading or the end.
+function findUnreleased(lines) {
+  const start = lines.findIndex((line) => UNRELEASED_RE.test(line));
+  if (start === -1) return null;
+  let end = lines.findIndex((line, i) => i > start && H2_RE.test(line));
+  if (end === -1) end = lines.length;
+  return { start, end };
+}
+
+function readUnreleased(text) {
+  const lines = toLf(text || '').split('\n');
+  const block = findUnreleased(lines);
+  if (!block) return { exists: false, body: '', sessions: [] };
+  const body = lines.slice(block.start + 1, block.end);
+  const sessions = body.map((line) => line.match(BUMP_RE)).filter(Boolean).map((m) => m[1]);
+  return { exists: true, body: body.join('\n').trim(), sessions };
+}
+
+function parsePayload(payload, format) {
+  const withSections = format === 'sections';
+  const bullets = [];
+  const sections = {};
+  let current = null;
+
+  for (const raw of toLf(payload).split('\n')) {
+    const line = raw.trimEnd();
+    if (line.trim() === '') continue;
+    const heading = line.match(H3_RE);
+    if (heading) {
+      if (!withSections) {
+        throw new UsageError(`Unexpected "### ${heading[1]}": this CHANGELOG has no ### sections, so write plain "- " bullets only.`);
+      }
+      if (!SECTIONS.includes(heading[1])) {
+        throw new UsageError(`Unknown section "### ${heading[1]}". Use one of: ${SECTIONS.join(', ')}.`);
+      }
+      current = sections[heading[1]] || (sections[heading[1]] = []);
+    } else if (BULLET_RE.test(line)) {
+      if (!withSections) bullets.push(line);
+      else if (current) current.push(line);
+      else throw new UsageError('Bullet outside a "### <Section>" heading: this CHANGELOG uses sections, so put every bullet under one.');
+    } else {
+      throw new UsageError(`Unrecognised line "${line}": the entry is "- " bullets${withSections ? ' under ### headings' : ''}.`);
+    }
+  }
+
+  if (withSections) {
+    if (Object.values(sections).every((b) => b.length === 0)) throw new UsageError('The entry has no bullet.');
+    return { sections };
+  }
+  if (bullets.length === 0) throw new UsageError('The entry has no bullet.');
+  return { bullets };
+}
+
+function trimBlanks(lines) {
+  let start = 0;
+  let end = lines.length;
+  while (start < end && lines[start].trim() === '') start++;
+  while (end > start && lines[end - 1].trim() === '') end--;
+  return lines.slice(start, end);
+}
+
+function trimTrailingBlanks(lines) {
+  let end = lines.length;
+  while (end > 0 && lines[end - 1].trim() === '') end--;
+  return lines.slice(0, end);
+}
+
+// Body of the Unreleased block as { preamble, subsections: [{ name, lines }] },
+// every part without leading or trailing blank lines (the "### " heading line
+// is the first of a subsection's lines).
+function splitBody(body) {
+  const parts = { preamble: [], subsections: [] };
+  let target = parts.preamble;
+  for (const line of body) {
+    const h3 = line.match(H3_RE);
+    if (h3) {
+      const sub = { name: h3[1], lines: [line] };
+      parts.subsections.push(sub);
+      target = sub.lines;
+    } else {
+      target.push(line);
+    }
+  }
+  parts.preamble = trimBlanks(parts.preamble);
+  for (const sub of parts.subsections) sub.lines = trimBlanks(sub.lines);
+  return parts;
+}
+
+function addSections(parts, sections, suffix) {
+  for (const name of SECTIONS) {
+    if (!sections[name]) continue;
+    const added = sections[name].map((b) => `${b}${suffix}`);
+    const existing = parts.subsections.find((s) => s.name === name);
+    if (existing) {
+      existing.lines.push(...added);
+      continue;
+    }
+    const sub = { name, lines: [`### ${name}`, '', ...added] };
+    const next = parts.subsections.findIndex((s) => SECTIONS.indexOf(s.name) > SECTIONS.indexOf(name));
+    parts.subsections.splice(next === -1 ? parts.subsections.length : next, 0, sub);
+  }
+}
+
+function renderBody(parts) {
+  const groups = [];
+  if (parts.preamble.length) groups.push(parts.preamble);
+  for (const sub of parts.subsections) groups.push(sub.lines);
+  const out = [];
+  groups.forEach((group, i) => {
+    if (i > 0) out.push('');
+    out.push(...group);
+  });
+  return out;
+}
+
+// Adds (or replaces) the session's entry in the Unreleased block, creating the
+// file, the block and the subsections as needed. Everything else is untouched.
+function upsertSessionEntry(text, { sessionId, bump, entry }) {
+  if (!LEVELS.includes(bump)) throw new UsageError(`Unknown bump level "${bump}". Use one of: ${LEVELS.join(', ')}.`);
+  const crlf = text !== null && text.includes('\r\n');
+  const source = text === null ? NEW_FILE_HEADER : toLf(text);
+  const trailingNewline = source.endsWith('\n');
+  const own = [`<!-- gps:${sessionId} -->`, `session=${sessionId} -->`];
+
+  let lines = source.split('\n');
+  if (trailingNewline) lines.pop();
+  lines = lines.filter((line) => !own.some((marker) => line.includes(marker)));
+
+  let block = findUnreleased(lines);
+  if (!block) {
+    const firstVersion = lines.findIndex((line) => VERSION_HEADING_RE.test(line));
+    let at = lines.length;
+    if (firstVersion !== -1) at = firstVersion;
+    else if (!lines.some((line) => /^# /.test(line))) at = Math.min(1, lines.length);
+    const before = trimTrailingBlanks(lines.slice(0, at));
+    const rest = trimBlanks(lines.slice(at));
+    const start = before.length + (before.length ? 1 : 0);
+    lines = [...before, ...(before.length ? [''] : []), '## Unreleased', ...rest];
+    // The new block is just its heading, whatever follows (an unknown structure).
+    block = { start, end: start + 1 };
+  }
+
+  const inner = lines.slice(block.start + 1, block.end);
+  const bumps = inner.filter((line) => BUMP_RE.test(line));
+  const parts = splitBody(inner.filter((line) => !BUMP_RE.test(line)));
+  const suffix = ` <!-- gps:${sessionId} -->`;
+
+  if (entry.sections) addSections(parts, entry.sections, suffix);
+  else parts.preamble.push(...entry.bullets.map((b) => `${b}${suffix}`));
+  bumps.push(`<!-- gps:bump=${bump} session=${sessionId} -->`);
+
+  const rest = lines.slice(block.end);
+  const out = [
+    ...lines.slice(0, block.start + 1),
+    '',
+    ...renderBody(parts),
+    ...bumps,
+    ...(rest.length ? [''] : []),
+    ...rest,
+  ];
+  const joined = out.join('\n') + (trailingNewline ? '\n' : '');
+  return crlf ? joined.replace(/\n/g, '\r\n') : joined;
+}
+
+module.exports = {
+  SECTIONS,
+  NEW_FILE_HEADER,
+  VERSION_HEADING_RE,
+  detectFormat,
+  readUnreleased,
+  parsePayload,
+  upsertSessionEntry,
+};
