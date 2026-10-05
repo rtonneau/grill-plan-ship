@@ -118,4 +118,36 @@ for (const [payload, format] of [
   assert.throws(() => parsePayload(payload, format), UsageError, `${format}: ${payload}`);
 }
 
+// fix round 1
+// [Unreleased] is recognised and its heading kept
+const bracketed = '# Changelog\n\n## [Unreleased]\n\n- hand\n\n## [1.0.0] - 2026-01-01\n\n- first\n';
+const inBracket = up(bracketed, 's1', 'patch', bullets('- n'));
+assert.strictEqual(inBracket.match(/^## .*Unreleased.*$/gim).length, 1);
+assert.ok(inBracket.includes('## [Unreleased]\n\n- hand\n- n <!-- gps:s1 -->\n<!-- gps:bump=patch session=s1 -->\n\n## [1.0.0]'));
+assert.deepStrictEqual(readUnreleased(inBracket).sessions, ['s1']);
+
+// empty input is a new file
+assert.strictEqual(up('', 's1', 'minor', bullets('- A')), up(null, 's1', 'minor', bullets('- A')));
+assert.strictEqual(up('  \n', 's1', 'minor', bullets('- A')), up(null, 's1', 'minor', bullets('- A')));
+
+// nested bullets: suffix on every line, re-run leaves no orphan
+assert.deepStrictEqual(parsePayload('- **Lead:**\n  - sub one\n  - sub two\n- next', 'plain'),
+  { bullets: ['- **Lead:**\n  - sub one\n  - sub two', '- next'] });
+assert.deepStrictEqual(parsePayload('### Fixed\n- a\n  more\n', 'sections'), { sections: { Fixed: ['- a\n  more'] } });
+assert.throws(() => parsePayload('  - orphan\n- a', 'plain'), UsageError);
+assert.throws(() => parsePayload('### Fixed\n  - orphan', 'sections'), UsageError);
+const nested = up(GPS_HEAD, 's1', 'minor', parsePayload('- **Lead:**\n  - sub one\n  - sub two', 'plain'));
+assert.ok(nested.includes('- **Lead:** <!-- gps:s1 -->\n  - sub one <!-- gps:s1 -->\n  - sub two <!-- gps:s1 -->\n<!-- gps:bump'));
+const renested = up(nested, 's1', 'minor', parsePayload('- other', 'plain'));
+assert.ok(!renested.includes('sub one') && !renested.includes('Lead'));
+assert.ok(renested.includes('- other <!-- gps:s1 -->'));
+const nestedSec = up(KEEP, 's1', 'minor', parsePayload('### Fixed\n- a\n  - b', 'sections'));
+assert.ok(nestedSec.includes('- a <!-- gps:s1 -->\n  - b <!-- gps:s1 -->'));
+
+// an emptied subsection heading is dropped
+const emptied = up(nestedSec, 's1', 'minor', parsePayload('### Added\n- x', 'sections'));
+assert.ok(!emptied.includes('### Fixed'));
+assert.ok(emptied.includes('### Added\n\n- x <!-- gps:s1 -->'));
+assert.ok(emptied.includes('### Added\n\n- first'));
+
 console.log('changelog.test.js: all assertions passed');

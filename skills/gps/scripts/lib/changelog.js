@@ -14,10 +14,11 @@ const SECTIONS = ['Added', 'Changed', 'Deprecated', 'Removed', 'Fixed', 'Securit
 const NEW_FILE_HEADER = '# Changelog\n\nAll notable changes to this project. Versions follow [semantic versioning](https://semver.org/).\n';
 const VERSION_HEADING_RE = /^## +\[?v?(\d+\.\d+\.\d+)\]?(?=\s|$)/;
 
-const UNRELEASED_RE = /^## +Unreleased\s*$/i;
+const UNRELEASED_RE = /^## +\[?Unreleased\]?\s*$/i;
 const H2_RE = /^## /;
 const H3_RE = /^### +(.+?)\s*$/;
 const BULLET_RE = /^[-*] /;
+const CONTINUATION_RE = /^ {2,}\S/;
 const BUMP_RE = /^<!-- gps:bump=\S+ session=(\S+) -->\s*$/;
 
 function toLf(text) {
@@ -61,12 +62,16 @@ function parsePayload(payload, format) {
   const bullets = [];
   const sections = {};
   let current = null;
+  let target = null; // the list whose last bullet a continuation line extends
 
   for (const raw of toLf(payload).split('\n')) {
     const line = raw.trimEnd();
     if (line.trim() === '') continue;
     const heading = line.match(H3_RE);
-    if (heading) {
+    if (CONTINUATION_RE.test(line) && target && target.length) {
+      target[target.length - 1] += `\n${line}`;
+    } else if (heading) {
+      target = null;
       if (!withSections) {
         throw new UsageError(`Unexpected "### ${heading[1]}": this CHANGELOG has no ### sections, so write plain "- " bullets only.`);
       }
@@ -75,6 +80,7 @@ function parsePayload(payload, format) {
       }
       current = sections[heading[1]] || (sections[heading[1]] = []);
     } else if (BULLET_RE.test(line)) {
+      target = withSections ? current : bullets;
       if (!withSections) bullets.push(line);
       else if (current) current.push(line);
       else throw new UsageError('Bullet outside a "### <Section>" heading: this CHANGELOG uses sections, so put every bullet under one.');
@@ -126,10 +132,10 @@ function splitBody(body) {
   return parts;
 }
 
-function addSections(parts, sections, suffix) {
+function addSections(parts, sections, mark) {
   for (const name of SECTIONS) {
     if (!sections[name]) continue;
-    const added = sections[name].map((b) => `${b}${suffix}`);
+    const added = sections[name].flatMap(mark);
     const existing = parts.subsections.find((s) => s.name === name);
     if (existing) {
       existing.lines.push(...added);
@@ -157,8 +163,9 @@ function renderBody(parts) {
 // file, the block and the subsections as needed. Everything else is untouched.
 function upsertSessionEntry(text, { sessionId, bump, entry }) {
   if (!LEVELS.includes(bump)) throw new UsageError(`Unknown bump level "${bump}". Use one of: ${LEVELS.join(', ')}.`);
-  const crlf = text !== null && text.includes('\r\n');
-  const source = text === null ? NEW_FILE_HEADER : toLf(text);
+  const isNew = text === null || text.trim() === '';
+  const crlf = !isNew && text.includes('\r\n');
+  const source = isNew ? NEW_FILE_HEADER : toLf(text);
   const trailingNewline = source.endsWith('\n');
   const own = [`<!-- gps:${sessionId} -->`, `session=${sessionId} -->`];
 
@@ -184,9 +191,13 @@ function upsertSessionEntry(text, { sessionId, bump, entry }) {
   const bumps = inner.filter((line) => BUMP_RE.test(line));
   const parts = splitBody(inner.filter((line) => !BUMP_RE.test(line)));
   const suffix = ` <!-- gps:${sessionId} -->`;
+  // Every line of the entry carries the marker, so a re-run removes all of it.
+  const mark = (bullet) => bullet.split('\n').map((l) => `${l}${suffix}`);
+  // Removing the session's old bullets can leave a heading with nothing under it.
+  parts.subsections = parts.subsections.filter((sub) => sub.lines.length > 1);
 
-  if (entry.sections) addSections(parts, entry.sections, suffix);
-  else parts.preamble.push(...entry.bullets.map((b) => `${b}${suffix}`));
+  if (entry.sections) addSections(parts, entry.sections, mark);
+  else parts.preamble.push(...entry.bullets.flatMap(mark));
   bumps.push(`<!-- gps:bump=${bump} session=${sessionId} -->`);
 
   const rest = lines.slice(block.end);
