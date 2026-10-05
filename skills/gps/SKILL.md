@@ -4,6 +4,8 @@ description: "grill-plan-ship: workflow plugin (grill → plan → ship → fini
 argument-hint: "<init|scout|start|status|clean|config|write|plan|ship|finish|auto|handoff|help> [args]"
 allowed-tools:
   - Bash(node ${CLAUDE_SKILL_DIR}/scripts/auto-route.js *)
+  - Bash(node ${CLAUDE_SKILL_DIR}/scripts/changelog-apply.js *)
+  - Bash(node ${CLAUDE_SKILL_DIR}/scripts/changelog-prepare.js *)
   - Bash(node ${CLAUDE_SKILL_DIR}/scripts/clean.js *)
   - Bash(node ${CLAUDE_SKILL_DIR}/scripts/config.js *)
   - Bash(node ${CLAUDE_SKILL_DIR}/scripts/dispatch-prompt.js *)
