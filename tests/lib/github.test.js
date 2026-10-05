@@ -5,7 +5,7 @@ const os = require('os');
 const path = require('path');
 const { execFileSync } = require('child_process');
 const {
-  isGithubUrl, diagnoseGithub, openPullRequest, ghAuthenticated, createIssue, commentOnIssue, closeIssue, buildIssueBody,
+  isGithubUrl, diagnoseGithub, openPullRequest, ghAuthenticated, createIssue, commentOnIssue, closeIssue, buildIssueBody, releaseExists, createRelease,
 } = require('../../skills/gps/scripts/lib/github');
 const {
   originUrl, currentBranch, validateBranchName, createSessionBranch,
@@ -121,7 +121,9 @@ const fs = require('fs');
 const args = process.argv.slice(2);
 const bodyAt = args.indexOf('--body-file');
 const body = bodyAt >= 0 ? fs.readFileSync(args[bodyAt + 1], 'utf-8') : null;
-fs.appendFileSync(${JSON.stringify(ghLog)}, JSON.stringify({ args, body }) + '\\n');
+const notesAt = args.indexOf('--notes-file');
+const notes = notesAt >= 0 && !process.env.GH_STUB_FAIL ? fs.readFileSync(args[notesAt + 1], 'utf-8') : null;
+fs.appendFileSync(${JSON.stringify(ghLog)}, JSON.stringify({ args, body, notes }) + '\\n');
 if (process.env.GH_STUB_FAIL) { console.error('gh: not logged in'); process.exit(1); }
 if (args[0] === 'auth') process.exit(0);
 if (args[0] === 'issue' && args[1] === 'create') {
@@ -129,6 +131,8 @@ if (args[0] === 'issue' && args[1] === 'create') {
   process.exit(0);
 }
 if (args[0] === 'issue') process.exit(0);
+if (args[0] === 'release' && args[1] === 'view') process.exit(process.env.GH_STUB_RELEASE ? 0 : 1);
+if (args[0] === 'release') { console.log(process.env.GH_STUB_NO_URL ? 'created' : 'https://github.com/acme/app/releases/tag/' + args[2]); process.exit(0); }
 if (args[1] === 'list') { if (process.env.GH_STUB_OPEN_PR) console.log(process.env.GH_STUB_OPEN_PR); process.exit(0); }
 console.log('Creating pull request...');
 console.log('https://github.com/acme/app/pull/7');
@@ -226,6 +230,29 @@ assert.ok(issueBody.indexOf('Problem Statement') < issueBody.indexOf('Success Me
 assert.doesNotMatch(issueBody, /Notes|skip me/);
 assert.match(issueBody, /gps session: `2026-09-25__crash`/);
 assert.match(issueBody, /Generated with \[Claude Code\]/);
+
+// Releases.
+assert.strictEqual(releaseExists(repo, 'v1.0.0'), false);
+assert.deepStrictEqual(ghCalls().pop().args, ['release', 'view', 'v1.0.0']);
+process.env.GH_STUB_RELEASE = '1';
+assert.strictEqual(releaseExists(repo, 'v1.0.0'), true);
+delete process.env.GH_STUB_RELEASE;
+const rel = createRelease(repo, { tag: 'v1.0.0', title: '1.0.0', notes: '### Added\n- x\n' });
+assert.deepStrictEqual(rel, { ok: true, url: 'https://github.com/acme/app/releases/tag/v1.0.0' });
+const relCall = ghCalls().pop();
+assert.deepStrictEqual(relCall.args.slice(0, 5), ['release', 'create', 'v1.0.0', '--title', '1.0.0']);
+assert.strictEqual(relCall.args[5], '--notes-file');
+assert.strictEqual(relCall.notes, '### Added\n- x\n');
+process.env.GH_STUB_NO_URL = '1';
+assert.deepStrictEqual(createRelease(repo, { tag: 'v1.0.1', title: '1.0.1', notes: 'n' }), { ok: true, url: null });
+delete process.env.GH_STUB_NO_URL;
+process.env.GH_STUB_FAIL = '1';
+assert.strictEqual(releaseExists(repo, 'v1.0.0'), false, 'a failing gh counts as no release');
+const badRel = createRelease(repo, { tag: 'v1.0.0', title: '1.0.0', notes: 'n' });
+assert.strictEqual(badRel.ok, false);
+assert.match(badRel.reason, /not logged in/);
+assert.match(badRel.commands[0], /^gh release create v1\.0\.0 --title "1\.0\.0" --notes /);
+delete process.env.GH_STUB_FAIL;
 
 delete process.env.GPS_GH_BIN;
 fs.rmSync(tmp, { recursive: true, force: true });

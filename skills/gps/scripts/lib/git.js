@@ -276,6 +276,71 @@ function pushBranch(projectRoot, branch) {
   }
 }
 
+// Full commit messages (subject and body, trailing whitespace trimmed),
+// newest first: of `base..branch`, or made since `since` (unix seconds).
+// [] on any error.
+function commitMessages(projectRoot, { base, branch, since }) {
+  const args = ['log', '--format=%B%x00'];
+  if (since !== undefined) args.push(`--since=@${Math.floor(since)}`);
+  else args.push(`${base}..${branch}`);
+  return nulList(tryGit(projectRoot, args)).map((m) => m.trim()).filter(Boolean);
+}
+
+// The branch releases come from: origin's default (origin/HEAD), else a
+// local main or master. null when none is found.
+function defaultBranch(projectRoot) {
+  const remote = tryGit(projectRoot, ['symbolic-ref', '--short', 'refs/remotes/origin/HEAD']);
+  if (remote) return remote.replace(/^origin\//, '');
+  return ['main', 'master'].find((b) => tryGit(projectRoot, ['rev-parse', '--verify', '--quiet', `refs/heads/${b}`]) !== null) || null;
+}
+
+// True when nothing is modified, staged or untracked (false outside a repo).
+function isCleanTree(projectRoot) {
+  return tryGit(projectRoot, ['status', '--porcelain', '--untracked-files=all']) === '';
+}
+
+function tagExists(projectRoot, tag) {
+  return tryGit(projectRoot, ['rev-parse', '--verify', '--quiet', `refs/tags/${tag}`]) !== null;
+}
+
+// Annotated tag on HEAD. Never throws: { ok: true } or { ok: false, reason, commands }.
+function createTag(projectRoot, tag, message) {
+  try {
+    git(projectRoot, ['tag', '-a', tag, '-m', message]);
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, reason: failureReason(err), commands: [`git tag -a ${tag} -m ${quote(message)}`] };
+  }
+}
+
+// Subject, body and tags (those pointing at it) of HEAD; null without a commit.
+function headCommit(projectRoot) {
+  const subject = tryGit(projectRoot, ['log', '-1', '--format=%s']);
+  if (subject === null) return null;
+  return {
+    subject,
+    body: tryGit(projectRoot, ['log', '-1', '--format=%b']) || '',
+    tags: lines(tryGit(projectRoot, ['tag', '--points-at', 'HEAD'])),
+  };
+}
+
+// Pushes `branch` and the annotated tags on it. Never throws:
+// { ok: true, commands } or { ok: false, reason, commands }.
+function pushWithTags(projectRoot, branch) {
+  const commands = [`git push --follow-tags origin ${branch}`];
+  try {
+    git(projectRoot, ['push', '--follow-tags', 'origin', branch]);
+    return { ok: true, commands };
+  } catch (err) {
+    return { ok: false, reason: failureReason(err), commands };
+  }
+}
+
+// True when origin has `tag` (false on any error, including no origin).
+function remoteHasTag(projectRoot, tag) {
+  return Boolean(tryGit(projectRoot, ['ls-remote', '--tags', 'origin', `refs/tags/${tag}`]));
+}
+
 module.exports = {
   DEFAULT_MAX_COMMITS,
   BRANCH_TYPES,
@@ -303,4 +368,12 @@ module.exports = {
   describeWorkCommit,
   commitFiles,
   pushBranch,
+  commitMessages,
+  defaultBranch,
+  isCleanTree,
+  tagExists,
+  createTag,
+  headCommit,
+  pushWithTags,
+  remoteHasTag,
 };

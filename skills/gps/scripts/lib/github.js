@@ -162,6 +162,30 @@ function closeIssue(projectRoot, number) {
   }
 }
 
+// True when `gh release view <tag>` succeeds (any failure counts as none).
+function releaseExists(projectRoot, tag) {
+  try {
+    runGh(projectRoot, ['release', 'view', tag]);
+    return true;
+  } catch (_err) {
+    return false;
+  }
+}
+
+// Never throws: { ok: true, url } (url null when gh prints none) or
+// { ok: false, reason, commands }.
+function createRelease(projectRoot, { tag, title, notes }) {
+  const commands = [`gh release create ${tag} --title "${title.replace(/"/g, '\\"')}" --notes "<release notes>"`];
+  try {
+    return withBodyFile(notes, (notesFile) => ({
+      ok: true,
+      url: lastUrl(runGh(projectRoot, ['release', 'create', tag, '--title', title, '--notes-file', notesFile])),
+    }));
+  } catch (err) {
+    return { ok: false, reason: failureReason(err), commands };
+  }
+}
+
 module.exports = {
   PR_ATTRIBUTION,
   isGithubUrl,
@@ -172,4 +196,6 @@ module.exports = {
   createIssue,
   commentOnIssue,
   closeIssue,
+  releaseExists,
+  createRelease,
 };

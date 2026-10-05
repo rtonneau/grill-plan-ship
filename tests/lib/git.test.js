@@ -7,6 +7,7 @@ const { execSync } = require('child_process');
 const {
   readRecentCommits, readGitStatus, commitFiles, commitExists, describeCommit,
   commitWorkDir, describeWorkCommit, branchesHolding, isIgnored, GPS_WORK_PATHS,
+  commitMessages, defaultBranch, isCleanTree, tagExists, createTag, headCommit, pushWithTags, remoteHasTag,
 } = require('../../skills/gps/scripts/lib/git');
 
 const readGitStatusSummary = (root, dir) => readGitStatus(root, dir).session;
@@ -244,6 +245,71 @@ fs.rmSync(projectRoot, { recursive: true, force: true });
   assert.strictEqual(sh('git show --name-only --format= HEAD'), 'sub/.work/sessions/s1/plan.md');
   assert.strictEqual(sh('git diff --cached --name-only'), 'sub/app.js', 'the user\'s staged code stays staged');
   fs.rmSync(repoRoot, { recursive: true, force: true });
+}
+
+// Release helpers: messages, default branch, tags and push with tags.
+{
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'gps-rel-'));
+  const bare = path.join(root, 'origin.git');
+  const repo = path.join(root, 'repo');
+  fs.mkdirSync(repo);
+  const sh = (cwd, cmd) => execSync(cmd, { cwd, encoding: 'utf-8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
+  sh(root, `git init -q --bare "${bare}"`);
+  sh(repo, 'git init -q -b main');
+  sh(repo, 'git config user.email "test@example.com"');
+  sh(repo, 'git config user.name "Test"');
+  assert.deepStrictEqual(commitMessages(repo, { since: 0 }), [], 'no commit yet');
+  assert.strictEqual(headCommit(repo), null);
+  fs.writeFileSync(path.join(repo, 'a.txt'), '1\n');
+  sh(repo, 'git add a.txt');
+  sh(repo, 'git commit -q -m initial');
+  assert.strictEqual(defaultBranch(repo), 'main', 'local main, no origin/HEAD');
+  assert.strictEqual(defaultBranch(root), null, 'not a repo');
+  sh(repo, 'git switch -q -c feat/x');
+  fs.writeFileSync(path.join(repo, 'a.txt'), '2\n');
+  sh(repo, 'git add a.txt');
+  execSync('git commit -q -F -', { cwd: repo, input: 'feat!: drop v1\n\nBREAKING CHANGE: v1 is gone\n', stdio: ['pipe', 'ignore', 'ignore'] });
+  fs.writeFileSync(path.join(repo, 'a.txt'), '3\n');
+  sh(repo, 'git commit -q -am "fix: typo"');
+  const msgs = commitMessages(repo, { base: 'main', branch: 'feat/x' });
+  assert.strictEqual(msgs.length, 2);
+  assert.strictEqual(msgs[0], 'fix: typo', 'newest first, trimmed');
+  assert.match(msgs[1], /BREAKING CHANGE: v1 is gone$/);
+  assert.strictEqual(commitMessages(repo, { since: Math.floor(Date.now() / 1000) - 3600 }).length, 3);
+  assert.deepStrictEqual(commitMessages(repo, { since: Math.floor(Date.now() / 1000) + 3600 }), []);
+  assert.deepStrictEqual(commitMessages(repo, { base: 'nope', branch: 'feat/x' }), []);
+
+  assert.strictEqual(isCleanTree(repo), true);
+  fs.writeFileSync(path.join(repo, 'new.txt'), 'x\n');
+  assert.strictEqual(isCleanTree(repo), false, 'untracked counts');
+  fs.rmSync(path.join(repo, 'new.txt'));
+  assert.strictEqual(isCleanTree(root), false, 'not a repo');
+
+  sh(repo, `git remote add origin "${bare}"`);
+  assert.strictEqual(tagExists(repo, 'v1.0.0'), false);
+  assert.strictEqual(remoteHasTag(repo, 'v1.0.0'), false);
+  assert.deepStrictEqual(headCommit(repo).tags, []);
+  assert.deepStrictEqual(createTag(repo, 'v1.0.0', 'Release 1.0.0'), { ok: true });
+  assert.strictEqual(tagExists(repo, 'v1.0.0'), true);
+  assert.strictEqual(sh(repo, 'git cat-file -t v1.0.0'), 'tag', 'annotated');
+  const dup = createTag(repo, 'v1.0.0', 'again');
+  assert.strictEqual(dup.ok, false);
+  assert.match(dup.commands[0], /^git tag -a v1\.0\.0 -m /);
+  const head = headCommit(repo);
+  assert.strictEqual(head.subject, 'fix: typo');
+  assert.strictEqual(head.body, '');
+  assert.deepStrictEqual(head.tags, ['v1.0.0']);
+
+  const pushed = pushWithTags(repo, 'feat/x');
+  assert.strictEqual(pushed.ok, true, JSON.stringify(pushed));
+  assert.deepStrictEqual(pushed.commands, ['git push --follow-tags origin feat/x']);
+  assert.strictEqual(remoteHasTag(repo, 'v1.0.0'), true);
+  assert.strictEqual(remoteHasTag(repo, 'v1.0'), false, 'exact tag name only');
+  const badPush = pushWithTags(repo, 'missing-branch');
+  assert.strictEqual(badPush.ok, false);
+  assert.ok(badPush.reason && badPush.commands.length === 1);
+  assert.strictEqual(createTag(root, 'v2', 'x').ok, false, 'not a repo');
+  fs.rmSync(root, { recursive: true, force: true });
 }
 
 console.log('git.test.js: all assertions passed');
