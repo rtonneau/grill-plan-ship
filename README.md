@@ -93,6 +93,7 @@ skills/gps/
 └── assets/                markdown templates
 agents/gps-ticket-<level>.md   one ticket subagent per effort level, low to xhigh
 docs/decisions/            why gps works the way it does (e.g. effort hints stop at xhigh)
+docs/WORK-DIR.md           what other skills may do in .work/ (gps owns its sessions and config)
 tests/                     one test per script (tests/lib/: one per lib), e2e and GitHub-flow tests
 ```
 
@@ -148,7 +149,7 @@ Every script in `skills/gps/scripts/` follows the same rules (see `scripts/lib/c
 
 The built-in grill uses a project's own domain docs when it has them, the way mattpocock-skills keeps them: a root `GLOSSARY.md` (or `CONTEXT.md`, its older name, when it reads like a glossary), a `GLOSSARY-MAP.md` / `CONTEXT-MAP.md` for several contexts, and ADRs in `docs/adr/`. Only a project without them gets `.work/GLOSSARY.md` and `.work/adr/`. `domain-doc.js where` shows which are in use, and flags a `.work/` copy that duplicates the project's own.
 
-`.work/` is committed with the code, each time in its own `chore(gps): …` commit: after the plan write (on the session branch), after each ticket (its completed commit log) and at `/gps finish` (INDEX.md and the finished state, pushed to the pull request before switching back). A bounded session's record is committed at finish only. Ticket commits themselves never include `.work/` files. `/gps start` adds `.scratch/` and the per-machine files (`.work/sessions/.current-session`, `.pending-seeds.json`, a write payload in progress) to `.gitignore`. If `.work/` is git-ignored (older gps versions added it), gps warns and commits none of it: `/gps init` offers to remove the line. Since a session's files live on its branch, the commands find the session only with that branch checked out; when it isn't, the error names the branch to switch to. Every state change is appended to the session's `history` in `.session-config.json`; `/gps finish` turns it into a `## Timeline` table. The phase is always derived from the files, and `/gps status` flags any drift from the recorded one.
+`.work/` is committed with the code, each time in its own `chore(gps): …` commit: after the plan write (on the session branch), after each ticket (its completed commit log) and at `/gps finish` (INDEX.md and the finished state, pushed to the pull request before switching back). A bounded session's record is committed at finish only. Ticket commits themselves never include `.work/` files. gps commits only its own paths in `.work/`; other skills can keep files in `.work/<skill-name>/` by following [docs/WORK-DIR.md](docs/WORK-DIR.md). `/gps start` adds `.scratch/` and the per-machine files (`.work/sessions/.current-session`, `.pending-seeds.json`, a write payload in progress) to `.gitignore`. If `.work/` is git-ignored (older gps versions added it), gps warns and commits none of it: `/gps init` offers to remove the line. Since a session's files live on its branch, the commands find the session only with that branch checked out; when it isn't, the error names the branch to switch to. Every state change is appended to the session's `history` in `.session-config.json`; `/gps finish` turns it into a `## Timeline` table. The phase is always derived from the files, and `/gps status` flags any drift from the recorded one.
 
 ## GitHub projects
 

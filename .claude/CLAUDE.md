@@ -18,7 +18,9 @@ skills/gps/
 └── assets/                markdown templates only
 agents/gps-ticket-<level>.md  one ticket subagent per TICKET_EFFORTS level but inherit (lib/ticket-model.js):
                            identical bodies, only name/description/effort differ (checked by tests/skill.test.js)
-docs/decisions/NNNN-*.md   design decisions with their reasons; 0001: effort hints stop at xhigh, no max
+docs/decisions/NNNN-*.md   design decisions with their reasons; 0001: effort hints stop at xhigh, no max;
+                           0002: gps commits only its own .work/ paths
+docs/WORK-DIR.md           contract for other skills sharing .work/ (names every GPS_WORK_PATHS entry, checked by tests/skill.test.js)
 tests/                     <script>.test.js per script, lib/<lib>.test.js per lib, e2e, github-flow, skill
 docs/                      icon.png (listing icon) and gps-workflow.png (README diagram), rendered from the
                            SVG sources on the design-sources branch; no SVG on main (the plugin directory holds them)
@@ -53,7 +55,7 @@ Tests run real scripts in throwaway directories (`tests/helpers.js`), and drive 
 
 ## Session files
 
-`.work/sessions/YYYY-MM-DD__<slug>/`: `01-grill/resume.md`, `02-plan/plan.md` + `tickets/NN-<slug>.md`, `03-implement/NN-<slug>/commit-log.md`, `HANDOFF.md`, `INDEX.md`, `.session-config.json` (history, current_phase, kind, git, issue; sessions from before 2.3.2 may also hold `usage`, read only to backfill their history). Project-wide: `.work/gps-config.json` (`github.enabled`, read via `lib/project-config.js`, detected once, re-detected only by `/gps config --rescan`), and the built-in grill's glossary and ADRs (located and created by `domain-doc.js`, filled by Claude): the project's own root `GLOSSARY.md` (or a glossary-like `CONTEXT.md`), `GLOSSARY-MAP.md` / `CONTEXT-MAP.md` and `docs/adr/` when they exist, else `.work/GLOSSARY.md` and `.work/adr/NNNN-<slug>.md`. `.work/` is committed (`commitWorkDir` in `lib/git.js`: plan write, each ticket, finish), each time in its own `chore(gps)` commit; only the per-machine files in `LOCAL_ONLY` (`lib/setup.js`, written by `/gps start` and `/gps init`) are git-ignored.
+`.work/sessions/YYYY-MM-DD__<slug>/`: `01-grill/resume.md`, `02-plan/plan.md` + `tickets/NN-<slug>.md`, `03-implement/NN-<slug>/commit-log.md`, `HANDOFF.md`, `INDEX.md`, `.session-config.json` (history, current_phase, kind, git, issue; sessions from before 2.3.2 may also hold `usage`, read only to backfill their history). Project-wide: `.work/gps-config.json` (`github.enabled`, read via `lib/project-config.js`, detected once, re-detected only by `/gps config --rescan`), and the built-in grill's glossary and ADRs (located and created by `domain-doc.js`, filled by Claude): the project's own root `GLOSSARY.md` (or a glossary-like `CONTEXT.md`), `GLOSSARY-MAP.md` / `CONTEXT-MAP.md` and `docs/adr/` when they exist, else `.work/GLOSSARY.md` and `.work/adr/NNNN-<slug>.md`. `.work/` is committed (`commitWorkDir` in `lib/git.js`: plan write, each ticket, finish), each time in its own `chore(gps)` commit holding only `GPS_WORK_PATHS` (other skills' `.work/<skill-name>/` stays out; a new gps path under `.work/` goes in that constant and in `docs/WORK-DIR.md`); only the per-machine files in `LOCAL_ONLY` (`lib/setup.js`, written by `/gps start` and `/gps init`) are git-ignored.
 
 ---
 

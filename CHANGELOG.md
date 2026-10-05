@@ -2,6 +2,11 @@
 
 All notable changes to grill-plan-ship. Versions follow [semantic versioning](https://semver.org/).
 
+## 2.5.0
+
+- **Shared `.work/`.** gps now commits only its own paths in `.work/`: `gps-config.json`, `GLOSSARY.md`, `adr/` and `sessions/`. It used to commit everything there, so files another skill kept in `.work/` ended up in gps's `chore(gps)` commits. Other skills can now keep their files in `.work/<skill-name>/` and commit them themselves. [docs/WORK-DIR.md](docs/WORK-DIR.md) says what they may read, where they may write, and what gps promises in return.
+- **Decision 0002.** Why gps lists the paths it owns instead of committing all of `.work/`: see [docs/decisions/0002-gps-commits-only-its-own-work-paths.md](docs/decisions/0002-gps-commits-only-its-own-work-paths.md).
+
 ## 2.4.0
 
 - **Effort hints.** `/gps plan` gives each ticket an `**Effort:**` line (`low`, `medium`, `high`, `xhigh` or `inherit`) beside its `**Model:**` line. In the subagent ship modes, `dispatch-prompt.js` sends the ticket to the subagent for that level (new `agents/gps-ticket-low|medium|high|xhigh.md`, each setting `effort:`), with the model on the call. `--effort` overrides a hint, `/gps ship` shows and confirms `<model>/<effort>` per ticket, and `/gps auto --delegate` takes them as drafted. Inline mode ignores them.
