@@ -296,7 +296,7 @@ fs.writeFileSync(preCommit, '#!/bin/sh\necho "lint failed" >&2\nexit 1\n', { mod
 fs.appendFileSync(path.join(root, 'app.js'), '// another hook log line\n');
 res = ok('finish.js');
 assert.match(res.err, /⚠️ {2}Remaining changes not committed \(lint failed\)\. Run by hand:\n {3}git add -u -- \. ":\(exclude\)\.work"\n {3}git commit -m "chore: commit remaining changes/);
-assert.match(res.err, /⚠️ {2}Session record not committed \(lint failed\)\. Run by hand: git add -- \.work && git commit/);
+assert.match(res.err, /⚠️ {2}Session record not committed \(lint failed\)\. Run by hand: git add -- \.work\/gps-config\.json \.work\/sessions && git commit/);
 assert.match(res.err, /⚠️ {2}Still on feat\/search-filters: commit the remaining changes, then git switch develop\./);
 assert.doesNotMatch(res.out, /Back on/);
 assert.strictEqual(git('branch', '--show-current'), 'feat/search-filters');

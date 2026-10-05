@@ -195,9 +195,14 @@ function commitRemainingChanges(projectRoot, message) {
   }
 }
 
-// Commits gps's record (.work/: sessions, glossary, ADRs, project config) as
-// its own commit; anything else that is staged stays staged. Files git
-// ignores (.current-session, .pending-seeds.json, a write payload) stay out.
+// The paths in .work/ that gps owns; other skills keep out of them and gps
+// keeps out of the rest (docs/WORK-DIR.md).
+const GPS_WORK_PATHS = ['.work/gps-config.json', '.work/GLOSSARY.md', '.work/adr', '.work/sessions'];
+
+// Commits gps's record (GPS_WORK_PATHS: sessions, glossary, ADRs, project
+// config) as its own commit; anything else that is staged stays staged, and
+// other skills' files in .work/ stay out. Files git ignores (.current-session,
+// .pending-seeds.json, a write payload) stay out too.
 // Never throws: { ok: true, sha, files, skipped } (sha null: nothing to
 // commit; skipped: why nothing was tried) or { ok: false, reason, commands }.
 function commitWorkDir(projectRoot, message) {
@@ -205,12 +210,19 @@ function commitWorkDir(projectRoot, message) {
   if (!isWorkTree(projectRoot)) return none('not a git repository');
   if (!fs.existsSync(path.join(projectRoot, '.work'))) return none(null);
   if (isIgnored(projectRoot, '.work/')) return none('.work/ is git-ignored');
-  const commands = ['git add -- .work', `git commit -m ${quote(message)} -- .work`];
+  // git add fails on a path that is neither on disk nor tracked, or ignored.
+  const paths = GPS_WORK_PATHS.filter((p) => isTracked(projectRoot, p)
+    || (fs.existsSync(path.join(projectRoot, p)) && !isIgnored(projectRoot, p)));
+  if (paths.length === 0) return none(null);
+  const commands = [`git add -- ${paths.join(' ')}`, `git commit -m ${quote(message)} -- ${paths.join(' ')}`];
   try {
-    git(projectRoot, ['add', '-A', '--', '.work']);
-    const files = nulList(git(projectRoot, ['diff', '--cached', '--name-only', '-z', '--', '.work']));
+    git(projectRoot, ['add', '-A', '--', ...paths]);
+    const files = nulList(git(projectRoot, ['diff', '--cached', '--name-only', '-z', '--', ...paths]));
     if (files.length === 0) return none(null);
-    git(projectRoot, ['commit', '-q', '-m', message, '--', '.work']);
+    // git commit fails on a directory holding no tracked file, so only the
+    // paths with something staged are named.
+    const staged = paths.filter((p) => files.some((f) => f === p || f.startsWith(`${p}/`)));
+    git(projectRoot, ['commit', '-q', '-m', message, '--', ...staged]);
     return { ok: true, sha: git(projectRoot, ['rev-parse', '--short', 'HEAD']), files, skipped: null };
   } catch (err) {
     return { ok: false, reason: failureReason(err), commands };
@@ -278,6 +290,7 @@ module.exports = {
   pathHasChanges,
   isIgnored,
   commitRemainingChanges,
+  GPS_WORK_PATHS,
   commitWorkDir,
   describeWorkCommit,
   commitFiles,

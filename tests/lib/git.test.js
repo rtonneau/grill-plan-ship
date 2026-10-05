@@ -6,7 +6,7 @@ const path = require('path');
 const { execSync } = require('child_process');
 const {
   readRecentCommits, readGitStatus, commitFiles, commitExists, describeCommit,
-  commitWorkDir, describeWorkCommit, branchesHolding, isIgnored,
+  commitWorkDir, describeWorkCommit, branchesHolding, isIgnored, GPS_WORK_PATHS,
 } = require('../../skills/gps/scripts/lib/git');
 
 const readGitStatusSummary = (root, dir) => readGitStatus(root, dir).session;
@@ -148,7 +148,65 @@ fs.rmSync(projectRoot, { recursive: true, force: true });
   const failed = commitWorkDir(root, 'm');
   assert.strictEqual(failed.ok, false);
   assert.strictEqual(failed.reason, 'lint failed');
-  assert.match(describeWorkCommit(failed).warning, /not committed \(lint failed\)\. Run by hand: git add -- \.work && git commit/);
+  assert.match(describeWorkCommit(failed).warning, /not committed \(lint failed\)\. Run by hand: git add -- \.work\/sessions && git commit/);
+}
+
+// commitWorkDir commits only GPS_WORK_PATHS: other skills' files under .work/
+// stay out (docs/WORK-DIR.md).
+{
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'gps-workpaths-'));
+  const sh = (cmd) => execSync(cmd, { cwd: root, encoding: 'utf-8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
+  sh('git init -q -b main');
+  sh('git config user.email "test@example.com"');
+  sh('git config user.name "Test"');
+  fs.writeFileSync(path.join(root, 'app.js'), '1\n');
+  fs.writeFileSync(path.join(root, '.gitignore'), '.work/sessions/.current-session\n');
+  sh('git add app.js .gitignore');
+  sh('git commit -q -m initial');
+  assert.deepStrictEqual(GPS_WORK_PATHS, ['.work/gps-config.json', '.work/GLOSSARY.md', '.work/adr', '.work/sessions']);
+
+  // sessions/ holds only an ignored file: the config alone is committed.
+  fs.mkdirSync(path.join(root, '.work', 'sessions'), { recursive: true });
+  fs.writeFileSync(path.join(root, '.work', 'sessions', '.current-session'), 's1');
+  fs.writeFileSync(path.join(root, '.work', 'gps-config.json'), '{}\n');
+  let record = commitWorkDir(root, 'chore(gps): config');
+  assert.ok(record.ok && record.sha, JSON.stringify(record));
+  assert.deepStrictEqual(record.files, ['.work/gps-config.json']);
+
+  // Nothing outside GPS_WORK_PATHS is committed; a staged foreign file stays staged.
+  fs.mkdirSync(path.join(root, '.work', 'other-skill'), { recursive: true });
+  fs.writeFileSync(path.join(root, '.work', 'other-skill', 'state.md'), 'x\n');
+  fs.writeFileSync(path.join(root, '.work', 'notes.md'), 'x\n');
+  fs.writeFileSync(path.join(root, '.work', 'other-skill', 'staged.md'), 'x\n');
+  sh('git add .work/other-skill/staged.md');
+  fs.mkdirSync(path.join(root, '.work', 'sessions', 's1'), { recursive: true });
+  fs.writeFileSync(path.join(root, '.work', 'sessions', 's1', 'plan.md'), 'plan\n');
+  fs.writeFileSync(path.join(root, '.work', 'GLOSSARY.md'), 'terms\n');
+  record = commitWorkDir(root, 'chore(gps): plan s1');
+  assert.ok(record.ok, JSON.stringify(record));
+  assert.deepStrictEqual(record.files.sort(), ['.work/GLOSSARY.md', '.work/sessions/s1/plan.md']);
+  assert.strictEqual(sh('git diff --cached --name-only'), '.work/other-skill/staged.md', 'a staged foreign file stays staged');
+  assert.match(sh('git status --porcelain'), /\?\? \.work\/notes\.md/);
+  assert.match(sh('git status --porcelain'), /\?\? \.work\/other-skill\/state\.md/);
+  sh('git reset -q');
+
+  // Deleting a tracked gps file (and a whole session) is committed.
+  fs.rmSync(path.join(root, '.work', 'GLOSSARY.md'));
+  fs.rmSync(path.join(root, '.work', 'sessions', 's1'), { recursive: true });
+  record = commitWorkDir(root, 'chore(gps): clean');
+  assert.ok(record.ok, JSON.stringify(record));
+  assert.deepStrictEqual(record.files.sort(), ['.work/GLOSSARY.md', '.work/sessions/s1/plan.md']);
+  assert.strictEqual(sh('git ls-files .work/GLOSSARY.md .work/sessions'), '');
+
+  // A git-ignored owned path is skipped; the others still commit.
+  fs.appendFileSync(path.join(root, '.gitignore'), '.work/adr/\n');
+  fs.mkdirSync(path.join(root, '.work', 'adr'), { recursive: true });
+  fs.writeFileSync(path.join(root, '.work', 'adr', '0001-x.md'), 'adr\n');
+  fs.writeFileSync(path.join(root, '.work', 'gps-config.json'), '{"a":1}\n');
+  record = commitWorkDir(root, 'chore(gps): ignored adr');
+  assert.ok(record.ok, JSON.stringify(record));
+  assert.deepStrictEqual(record.files, ['.work/gps-config.json']);
+  fs.rmSync(root, { recursive: true, force: true });
 }
 
 console.log('git.test.js: all assertions passed');
