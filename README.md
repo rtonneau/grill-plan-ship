@@ -2,7 +2,7 @@
 
 A Claude Code plugin that runs any code change through four phases:
 
-**grill** (spec the work) → **plan** (atomic tickets) → **ship** (one commit per ticket) → **finish** (summary, and a pull request on GitHub projects).
+**grill** (spec the work) → **plan** (atomic tickets) → **ship** (one commit per ticket) → **finish** (changelog entry, summary, and a pull request on GitHub projects) → **release** (when you choose).
 
 Claude does the judgment work: asking questions, planning, reviewing and summarizing. Everything deterministic (session files, templates, validation, git and gh calls, report formatting) is done by small Node.js scripts with no dependencies.
 
@@ -26,7 +26,8 @@ Restart Claude Code. Update later with `/plugin marketplace update rtonneau/gril
 /gps start add-dark-mode   # creates the session, then the grill conversation starts
 /gps plan                  # once the design is approved: saves it, then drafts tickets
 /gps ship                  # once the tickets are approved: saves them, implements each, one commit each
-/gps finish                # INDEX.md summary; on GitHub, pushes the branch and opens the PR
+/gps finish                # CHANGELOG entry, INDEX.md summary; on GitHub, pushes the branch and opens the PR
+/gps release               # when you choose: turns the Unreleased entries into a version, a tag and a push
 ```
 
 Or, once the direction is clear, `/gps auto` runs from wherever the session is to the end without stopping.
@@ -44,8 +45,9 @@ Or, once the direction is clear, `/gps auto` runs from wherever the session is t
 | `/gps write` | Save the approved grill or plan to disk (`plan`, `ship` and `auto` do it for you) |
 | `/gps plan` | Save the grill if pending, then draft tickets with model and effort hints |
 | `/gps ship [N]` | Save the plan if pending, then implement every remaining ticket (or only ticket N) |
-| `/gps finish` | Close the session: leftovers committed, INDEX.md, PR |
+| `/gps finish` | Close the session: CHANGELOG entry, leftovers committed, INDEX.md, PR |
 | `/gps auto [--delegate] [plan\|ship\|finish]` | Run from the current phase to the target without stopping |
+| `/gps release` | Turn the Unreleased changelog entries into a version: suggest, bump, tag, push |
 | `/gps handoff` | Save an in-flight checkpoint before you stop for the day |
 | `/gps help [command\|question]` | Where you are and what to run next, what a command does, or an answer to any question about the workflow |
 
@@ -65,6 +67,7 @@ Or, once the direction is clear, `/gps auto` runs from wherever the session is t
 /gps ship 3                                # implement only ticket 3, inline
 /gps finish                                # for an issue session it asks "Close issue #N as well?"
 /gps auto --delegate                       # subagent per ticket on its hinted model and effort, reviewed and committed here
+/gps release                               # suggests 1.5.0 (minor); after your yes: version files bumped, tag v1.5.0, then "Push and publish?"
 /gps handoff                               # HANDOFF.md: where you stopped, next step, settled decisions
 /gps help what does auto skip?             # explains from the references, names the command to run
 ```
@@ -83,8 +86,22 @@ Or, once the direction is clear, `/gps auto` runs from wherever the session is t
 
 Only one implementer is ever live. A ticket that can't be finished is recorded with `ticket-block.js` and stops the run; it is never retried automatically. Each ticket's `commit-log.md` gets its test result and review notes from Claude, and its commit and time spent from the script.
 
-## Layout
+## Changelog and releases
 
+`/gps finish` first writes the session's entry in the project's `CHANGELOG.md` (created when missing). Claude drafts user-facing bullets from the session's commits and picks the bump (`patch`, `minor` or `major`); `changelog-apply.js` writes them under `## Unreleased` with a marker line, `<!-- gps:bump=minor session=<id> -->`, and commits the file. The bump can't go below the floor the commit types imply, and going higher needs a reason, which INDEX.md records. The version number is not touched: parallel sessions each add their own block, so their pull requests don't fight over it.
+
+`/gps release` is the step you choose to run, from the base branch with a clean tree, and never under `/gps auto`. It reads the markers, suggests the next version (the highest bump among them) and asks you to confirm or type another. It then renames `Unreleased` to `## X.Y.Z (date)`, drops the markers, writes the version into the version files, commits them as `chore(release): X.Y.Z` and tags `vX.Y.Z`. A second question, "Push and publish?", pushes the commit and tag together and creates the GitHub Release; on no, the commands are printed. The reasoning is in [docs/decisions/0003-changelog-unreleased-then-release.md](docs/decisions/0003-changelog-unreleased-then-release.md).
+
+Settings live in `.work/gps-config.json`; `/gps config` shows them, read-only:
+
+| Key | Default | Meaning |
+|---|---|---|
+| `changelog.enabled` | `true` | `false` skips the changelog step of `/gps finish` |
+| `changelog.path` | `CHANGELOG.md` | where the entries are written |
+| `release.versionFiles` | detected at the first release, then saved | the files that hold the version (e.g. `package.json`) |
+| `release.githubRelease` | `minor+` | GitHub Release at the push: `none`, `minor+` (minor and major) or `all` |
+
+## Layout
 ```
 .claude-plugin/            plugin.json, marketplace.json
 skills/gps/
@@ -125,7 +142,10 @@ Every script in `skills/gps/scripts/` follows the same rules (see `scripts/lib/c
 | `ticket-complete.js` | commit the given files, mark the ticket Done, fill its log |
 | `ticket-block.js` | record why a ticket can't be finished |
 | `ticket-check.js` | verify a ticket really is complete |
+| `changelog-prepare.js` | `/gps finish` step 1: the session's commits, bump floor and payload path for its CHANGELOG entry |
+| `changelog-apply.js` | write the entry under Unreleased with its bump marker and commit it |
 | `finish.js` | close the session |
+| `release.js` | `/gps release`: suggest a version, cut it (version files, commit, tag), or `--push` it |
 | `auto-route.js` | the steps `/gps auto` will run |
 | `handoff.js` | write HANDOFF.md |
 | `help.js` | `/gps help`: where you are, the workflow, every command (or one command's details) |
@@ -170,7 +190,7 @@ gps has no server and no telemetry. Everything it does runs on your machine, thr
 - **Files it writes:** session files under `.work/` and run artifacts under `.scratch/` in your project, a few lines in the project's `.gitignore`, and a temporary file for each pull request or issue body (deleted right after).
 - **Files it reads:** the project it runs in (its files and git history), gps's own scripts and templates, and a file a command is explicitly given, such as the review for `/gps scout --from`. Nothing else: not Claude Code's transcripts, your home directory or your credentials.
 - **Commits it makes:** one commit per ticket with only the files you name, the `chore(gps)` session-record commits described above, a commit of leftover tracked changes at `/gps finish`, and the `chore(gps): set up gps` commit of `/gps init --apply`.
-- **What leaves your machine** (GitHub projects only, with your own git and gh credentials): `git push` of the session branch and `gh pr create` at `/gps finish`; `gh issue create`, `gh issue comment` and `gh issue close` for `/gps start --issue` sessions; and `gh auth status` and `gh pr list`, which only read.
+- **What leaves your machine** (GitHub projects only, with your own git and gh credentials): `git push` of the session branch and `gh pr create` at `/gps finish`; `git push` of the release commit and tag, and the GitHub Release, at `/gps release --push` (after your yes); `gh issue create`, `gh issue comment` and `gh issue close` for `/gps start --issue` sessions; and `gh auth status` and `gh pr list`, which only read.
 
 See [PRIVACY.md](PRIVACY.md).
 

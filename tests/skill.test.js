@@ -148,6 +148,6 @@ const { GPS_WORK_PATHS } = require('../skills/gps/scripts/lib/git');
 const workDirDoc = fs.readFileSync(path.join(repo, 'docs', 'WORK-DIR.md'), 'utf-8');
 for (const p of GPS_WORK_PATHS) assert.ok(workDirDoc.includes(`\`${p}`), `docs/WORK-DIR.md names ${p}`);
 assert.ok(readmeWords >= 40, 'README has at least 40 words outside code blocks');
-assert.match(fs.readFileSync(path.join(repo, 'CHANGELOG.md'), 'utf-8'), new RegExp(`^## ${version.replace(/\./g, '\\.')}$`, 'm'), 'CHANGELOG has an entry for the current version');
+assert.match(fs.readFileSync(path.join(repo, 'CHANGELOG.md'), 'utf-8'), new RegExp(`^## ${version.replace(/\./g, '\\.')}( \\(\\d{4}-\\d{2}-\\d{2}\\))?$`, 'm'), 'CHANGELOG has an entry for the current version');
 
 console.log('skill.test.js: all assertions passed');

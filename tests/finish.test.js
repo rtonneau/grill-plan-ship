@@ -85,4 +85,25 @@ const h = require('./helpers');
   assert.ok(!fs.existsSync(path.join(h.sessionDir(root), 'INDEX.md')));
 }
 
+{
+  // A session that wrote its changelog entry: INDEX.md and the output name the bump.
+  const root = h.gitProject('gps-fin-cl-');
+  h.shipReady(root, 'Add thing', ['a']);
+  h.completeTicket(root, 1, 'a');
+  const prep = h.json(root, 'changelog-prepare.js');
+  fs.writeFileSync(prep.payloadPath, '- Thing added\n');
+  h.ok(root, 'changelog-apply.js', ['--bump', 'major', '--reason', 'removes x']);
+  const res = h.ok(root, 'finish.js');
+  assert.match(res.out, /📝 CHANGELOG\.md: major/);
+  const index = fs.readFileSync(path.join(h.sessionsDir(root), fs.readdirSync(h.sessionsDir(root)).find((n) => /__add-thing$/.test(n)), 'INDEX.md'), 'utf-8');
+  assert.match(index, /## Changelog\n\n- \*\*Bump:\*\* major\n- \*\*Reason:\*\* removes x/);
+
+  // Without a changelog entry: no section, no line.
+  const plain = h.gitProject('gps-fin-nocl-');
+  h.shipReady(plain, 'Plain', ['a']);
+  h.completeTicket(plain, 1, 'a');
+  const out = h.ok(plain, 'finish.js').out;
+  assert.doesNotMatch(out, /CHANGELOG/);
+}
+
 h.done('finish.test.js');

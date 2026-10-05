@@ -40,6 +40,19 @@ assert.match(res.out, /✅ Updated: github\.enabled true → false\./);
 assert.strictEqual(stored().github.enabled, false);
 assert.match(h.ok(root, 'config.js', ['--rescan']).out, /✅ Unchanged; detected_at refreshed\./);
 
+// Changelog and release settings are shown read-only, with their defaults.
+res = h.ok(root, 'config.js');
+assert.match(res.out, /changelog\.enabled = true/);
+assert.match(res.out, /release\.versionFiles = not saved yet/);
+assert.match(res.out, /release\.githubRelease = minor\+/);
+fs.writeFileSync(file, JSON.stringify({ version: 1, github: { enabled: false, detected_at: '2026-01-01T00:00:00.000Z' },
+  changelog: { enabled: false }, release: { versionFiles: ['package.json', 'x.json'], githubRelease: 'none' } }));
+res = h.ok(root, 'config.js');
+assert.match(res.out, /changelog\.enabled = false/);
+assert.match(res.out, /release\.versionFiles = package\.json, x\.json/);
+assert.match(res.out, /release\.githubRelease = none/);
+assert.strictEqual(h.json(root, 'config.js').release.githubRelease, 'none');
+
 // A corrupt file is an error, not silently replaced.
 fs.writeFileSync(file, '{"github": {}}');
 h.assertFails(h.run(root, 'config.js'), 1, /"github\.enabled" must be true or false/);

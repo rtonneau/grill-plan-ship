@@ -18,7 +18,7 @@ skills/gps/
 └── assets/                markdown templates only
 agents/gps-ticket-<level>.md  one ticket subagent per TICKET_EFFORTS level but inherit (lib/ticket-model.js):
                            identical bodies, only name/description/effort differ (checked by tests/skill.test.js)
-docs/decisions/NNNN-*.md   design decisions with their reasons; 0001: effort hints stop at xhigh, no max;
+docs/decisions/NNNN-*.md   design decisions with their reasons; 0001: effort hints stop at xhigh, no max; 0003: changelog under Unreleased, version set only by /gps release;
                            0002: gps commits only its own .work/ paths
 docs/WORK-DIR.md           contract for other skills sharing .work/ (names every GPS_WORK_PATHS entry, checked by tests/skill.test.js)
 tests/                     <script>.test.js per script, lib/<lib>.test.js per lib, e2e, github-flow, skill
@@ -26,7 +26,7 @@ docs/                      icon.png (listing icon) and gps-workflow.png (README 
                            SVG sources on the design-sources branch; no SVG on main (the plugin directory holds them)
 ```
 
-Commands: init, scout, start (`--issue`), status, clean, config, write, plan, ship (`[N]`), finish, auto, handoff, help.
+Commands: init, scout, start (`--issue`), status, clean, config, write, plan, ship (`[N]`), finish, auto, release, handoff, help.
 
 ## Rules for scripts
 

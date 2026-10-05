@@ -29,6 +29,10 @@
  * or switch does not fail the finish: the output lists the commands to run
  * by hand.
  *
+ * When the session wrote its CHANGELOG entry (`changelog` in the config, set
+ * by changelog-apply.js), INDEX.md gets a Changelog section and the output a
+ * line with the bump.
+ *
  * Issue sessions (`issue` in the config): without a branch (bounded),
  * finish comments a summary on the issue and, with --close-issue, closes
  * it. With a branch, the PR body says "Closes #N".
@@ -79,6 +83,7 @@ function buildIndex(config, finishedAt, tickets, bounded, pr, events, issueResul
     );
   }
   if (leftover.sha || !leftover.ok) lines.push(...leftoverSection(leftover));
+  if (config.changelog) lines.push(...changelogSection(config.changelog));
   if (config.git) lines.push(...branchSection(config.git, pr));
   if (config.issue) lines.push(...issueSection(config, issueResult));
   lines.push(...renderTimeline(events));
@@ -94,6 +99,13 @@ function leftoverSection(leftover) {
   } else {
     lines.push(`Not committed (${leftover.reason}). Commit them by hand:`, '', '```bash', ...leftover.commands, '```', '');
   }
+  return lines;
+}
+
+function changelogSection(changelog) {
+  const lines = ['## Changelog', '', `- **Bump:** ${changelog.bump}`];
+  if (changelog.reason) lines.push(`- **Reason:** ${changelog.reason}`);
+  lines.push('');
   return lines;
 }
 
@@ -345,6 +357,7 @@ function finishSession({ options, projectRoot, warn }) {
   if (repushed && !repushed.ok) {
     byHand(`The session record was not pushed (${repushed.reason}).`, [`git push -u origin ${config.git.branch}`]);
   }
+  if (config.changelog) lines.push(`📝 CHANGELOG.md: ${config.changelog.bump}`);
   if (pr && pr.ok) {
     lines.push(`🔀 Pull request${pr.existing ? ' (already open, updated by the push)' : ''}: ${pr.url}`);
   } else if (pr) {

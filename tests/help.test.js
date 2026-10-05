@@ -10,7 +10,8 @@ const h = require('./helpers');
   const res = h.ok(root, 'help.js');
   assert.match(res.out, /## Where you are\n\nNo session yet\./);
   assert.match(res.out, /## The workflow/);
-  for (const name of ['init', 'scout', 'start', 'status', 'clean', 'config', 'write', 'plan', 'ship', 'finish', 'auto', 'handoff', 'help']) {
+  assert.match(res.out, /6\. \*\*Release\*\* \(when you choose\): `\/gps release`/);
+  for (const name of ['init', 'scout', 'start', 'status', 'clean', 'config', 'write', 'plan', 'ship', 'finish', 'auto', 'release', 'handoff', 'help']) {
     assert.match(res.out, new RegExp(`^\\| \`/gps ${name}\\b`, 'm'), `help lists /gps ${name}`);
   }
   // The table cell of /gps auto keeps its pipes escaped.
