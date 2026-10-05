@@ -248,10 +248,16 @@ assert.deepStrictEqual(createRelease(repo, { tag: 'v1.0.1', title: '1.0.1', note
 delete process.env.GH_STUB_NO_URL;
 process.env.GH_STUB_FAIL = '1';
 assert.strictEqual(releaseExists(repo, 'v1.0.0'), false, 'a failing gh counts as no release');
-const badRel = createRelease(repo, { tag: 'v1.0.0', title: '1.0.0', notes: 'n' });
+const badRel = createRelease(repo, { tag: 'v1.0.0', title: '1.0.0', notes: '### Fixed\n- real notes\n' });
 assert.strictEqual(badRel.ok, false);
 assert.match(badRel.reason, /not logged in/);
-assert.match(badRel.commands[0], /^gh release create v1\.0\.0 --title "1\.0\.0" --notes /);
+// The by-hand command points at a kept file holding the real notes, never a placeholder.
+const notesArg = /^gh release create v1\.0\.0 --title "1\.0\.0" --notes-file "([^"]+)"$/.exec(badRel.commands[0]);
+assert.ok(notesArg, badRel.commands[0]);
+assert.strictEqual(badRel.notesFile, notesArg[1]);
+assert.strictEqual(fs.readFileSync(notesArg[1], 'utf-8'), '### Fixed\n- real notes\n');
+assert.doesNotMatch(badRel.commands[0], /<release notes>/);
+fs.rmSync(path.dirname(notesArg[1]), { recursive: true, force: true });
 delete process.env.GH_STUB_FAIL;
 
 delete process.env.GPS_GH_BIN;

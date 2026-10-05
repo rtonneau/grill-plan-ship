@@ -632,6 +632,10 @@ assert.strictEqual(config.history.filter((e) => e.event === 'grill_written').len
   });
   assert.strictEqual(failed.status, 0);
   assert.match(failed.stderr, /gh release create v1\.7\.1/);
+  const keptNotes = /--notes-file "([^"]+)"/.exec(failed.stderr);
+  assert.ok(keptNotes, 'the by-hand command names a notes file');
+  assert.match(fs.readFileSync(keptNotes[1], 'utf-8'), /Fix sharing/);
+  fs.rmSync(path.dirname(keptNotes[1]), { recursive: true, force: true });
   const failedData = JSON.parse(failed.stdout);
   assert.strictEqual(failedData.pushed, true);
   assert.strictEqual(failedData.release.ok, false);

@@ -173,16 +173,21 @@ function releaseExists(projectRoot, tag) {
 }
 
 // Never throws: { ok: true, url } (url null when gh prints none) or
-// { ok: false, reason, commands }.
+// { ok: false, reason, commands, notesFile }. On failure the notes file (in
+// the OS temp dir) is kept, so the by-hand command publishes the real notes.
 function createRelease(projectRoot, { tag, title, notes }) {
-  const commands = [`gh release create ${tag} --title "${title.replace(/"/g, '\\"')}" --notes "<release notes>"`];
+  const notesFile = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'gps-release-')), 'notes.md');
   try {
-    return withBodyFile(notes, (notesFile) => ({
-      ok: true,
-      url: lastUrl(runGh(projectRoot, ['release', 'create', tag, '--title', title, '--notes-file', notesFile])),
-    }));
+    fs.writeFileSync(notesFile, notes);
+    const url = lastUrl(runGh(projectRoot, ['release', 'create', tag, '--title', title, '--notes-file', notesFile]));
+    fs.rmSync(path.dirname(notesFile), { recursive: true, force: true });
+    return { ok: true, url };
   } catch (err) {
-    return { ok: false, reason: failureReason(err), commands };
+    const quoted = (text) => `"${String(text).replace(/"/g, '\\"')}"`;
+    return {
+      ok: false, reason: failureReason(err), notesFile,
+      commands: [`gh release create ${tag} --title ${quoted(title)} --notes-file ${quoted(notesFile)}`],
+    };
   }
 }
 
