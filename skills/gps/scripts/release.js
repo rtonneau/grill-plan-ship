@@ -16,7 +16,8 @@
  * Refuses, changing nothing, off the base branch, on a dirty tree, with the
  * changelog disabled or empty, or when the version is not a new one. A cut
  * first fetches origin's base branch and refuses when HEAD is behind it (no
- * origin or a failed fetch only warns).
+ * origin or a failed fetch only warns). The suggestion also lists the
+ * patch, minor and major candidates (data.alternatives).
  */
 
 const fs = require('fs');
@@ -26,7 +27,7 @@ const { GpsError, UsageError, localDate } = require('./lib/guard');
 const { changelogSettings, releaseSettings, saveVersionFiles, readConfig } = require('./lib/project-config');
 const { readBumpMarkers, unknownBumpLevels, unreleasedHasEntries, latestVersion, cutRelease, sectionNotes } = require('./lib/changelog');
 const { releaseExists, createRelease } = require('./lib/github');
-const { parseVersion, formatVersion, compareVersions, bumpVersion, maxLevel, levelBetween } = require('./lib/semver');
+const { LEVELS, parseVersion, formatVersion, compareVersions, bumpVersion, maxLevel, levelBetween } = require('./lib/semver');
 const { detectVersionFiles, readVersions, writeVersion } = require('./lib/version-files');
 const {
   defaultBranch, currentBranch, isCleanTree, isIgnored, isTracked, tagExists, createTag, commitFiles, headCommit,
@@ -231,12 +232,14 @@ function release({ options, projectRoot, warn }) {
 
   if (!target) {
     const suggested = formatVersion(bumpVersion(currentV, level));
+    const alternatives = Object.fromEntries(LEVELS.map((l) => [l, formatVersion(bumpVersion(currentV, l))]));
     const lines = [`${current} → ${suggested} (${level}: ${sessionIds.length} session(s))`,
       ...raised.map((r) => `  raised by Claude (${r.sessionId}): ${r.reason}`),
+      `Candidates: ${LEVELS.map((l) => `${l} ${alternatives[l]}`).join(', ')}`,
       `Next: ask the user to confirm, then release.js --version ${suggested}`];
     return {
       text: lines.join('\n'),
-      data: { current, suggested, level, sessions: sessionIds.length, raised, versionFiles, mismatches },
+      data: { current, suggested, level, alternatives, sessions: sessionIds.length, raised, versionFiles, mismatches },
     };
   }
 

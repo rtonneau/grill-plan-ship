@@ -54,6 +54,8 @@ function project(prefix, version = '1.4.2') {
   const data = h.json(root, 'release.js');
   assert.strictEqual(h.git(root, 'rev-parse', 'HEAD'), headBefore, 'suggest makes no commit');
   assert.deepStrictEqual([data.current, data.suggested, data.level, data.sessions], ['1.4.2', '1.5.0', 'minor', 2]);
+  assert.deepStrictEqual(data.alternatives, { patch: '1.4.3', minor: '1.5.0', major: '2.0.0' });
+  assert.match(sug.out, /Candidates: patch 1\.4\.3, minor 1\.5\.0, major 2\.0\.0/);
   assert.strictEqual(data.raised.length, 1);
   assert.strictEqual(data.raised[0].sessionId, sid);
   assert.deepStrictEqual(data.versionFiles, ['package.json']);
