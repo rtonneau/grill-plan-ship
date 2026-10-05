@@ -15,7 +15,7 @@ assert.strictEqual(autoEvents().length, 0);
 // The whole route from the grill, asking the ship mode once.
 let res = h.ok(root, 'auto-route.js');
 assert.match(res.out, /target finish\): write:grill → plan → write:plan → ship → finish/);
-assert.match(res.out, /Ask once, before the first step: the ship mode/);
+assert.match(res.out, /Ask once, before the first step: the ship mode \(subagent \+ inline follow-up \(Recommended\)/);
 let route = h.json(root, 'auto-route.js');
 assert.strictEqual(route.target, 'finish');
 assert.deepStrictEqual(route.steps, ['write:grill', 'plan', 'write:plan', 'ship', 'finish']);

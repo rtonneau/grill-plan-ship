@@ -2,6 +2,11 @@
 
 All notable changes to grill-plan-ship. Versions follow [semantic versioning](https://semver.org/).
 
+## 2.5.1
+
+- **`/gps auto` recommends subagent + inline follow-up.** When it asks the ship mode, it puts subagent + inline follow-up first as "(Recommended)", whatever the last ship mode was: each ticket's diff is reviewed and the Verification Step re-run in the session before it is committed. `/gps ship` still recommends the last mode used.
+- **README: no parallel tickets.** It now states that no ship mode runs tickets in parallel: both subagent modes dispatch one subagent per ticket, and the next starts only after the previous ticket is committed.
+
 ## 2.5.0
 
 - **Shared `.work/`.** gps now commits only its own paths in `.work/`: `gps-config.json`, `GLOSSARY.md`, `adr/` and `sessions/`. It used to commit everything there, so files another skill kept in `.work/` ended up in gps's `chore(gps)` commits. Other skills can now keep their files in `.work/<skill-name>/` and commit them themselves. [docs/WORK-DIR.md](docs/WORK-DIR.md) says what they may read, where they may write, and what gps promises in return.

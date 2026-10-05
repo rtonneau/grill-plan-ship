@@ -34,7 +34,7 @@ main({
 
     const lines = [`Route for ${sessionId} (target ${target}): ${steps.join(' → ')}`];
     if (questions.includes('ship-mode')) {
-      lines.push('Ask once, before the first step: the ship mode (subagent, inline, or subagent + inline follow-up).');
+      lines.push('Ask once, before the first step: the ship mode (subagent + inline follow-up (Recommended), subagent, or inline).');
     } else if (shipMode) {
       lines.push(`Ship mode: ${shipMode} (preset by --delegate); ask nothing.`);
     } else {
