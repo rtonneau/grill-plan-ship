@@ -123,6 +123,19 @@ function project(prefix, version = '1.4.2') {
   assert.strictEqual(data.mismatches.length, 2);
 }
 
+// A hand-edited bump marker with an unknown level: ignored, one warning.
+{
+  const root = project('gps-rel12-');
+  finishSession(root, 'only', 'fix', 'patch');
+  const file = path.join(root, 'CHANGELOG.md');
+  const odd = ['<!-- gps:bump=huge session=x -->', '<!-- gps:bump=huge session=y -->'];
+  fs.writeFileSync(file, fs.readFileSync(file, 'utf-8').replace(/(<!-- gps:bump=patch session=\S+ -->)/, (m) => [m, ...odd].join('\n')));
+  h.git(root, 'commit', '-q', '-am', 'hand edit');
+  const res = h.ok(root, 'release.js');
+  assert.match(res.out, /1\.4\.2 → 1\.4\.3 \(patch: 1 session\(s\)\)/);
+  assert.strictEqual(res.err.split('\n').filter((l) => /huge/.test(l)).length, 1, 'warned once');
+}
+
 // Nothing to release / changelog disabled.
 {
   const root = project('gps-rel5-');

@@ -1,7 +1,7 @@
 // tests/lib/changelog.test.js
 const assert = require('assert');
 const {
-  readBumpMarkers, unreleasedHasEntries, latestVersion, cutRelease, sectionNotes,
+  readBumpMarkers, unknownBumpLevels, unreleasedHasEntries, latestVersion, cutRelease, sectionNotes,
   SECTIONS, NEW_FILE_HEADER, VERSION_HEADING_RE, detectFormat, readUnreleased, parsePayload, upsertSessionEntry,
 } = require('../../skills/gps/scripts/lib/changelog');
 const { UsageError } = require('../../skills/gps/scripts/lib/guard');
@@ -157,6 +157,11 @@ rel = up(rel, 's2', 'patch', bullets('- two', '  - sub'));
 rel = rel.replace('## Unreleased\n\n', '## Unreleased\n\n- hand\n');
 assert.deepStrictEqual(readBumpMarkers(rel), [{ level: 'minor', sessionId: 's1' }, { level: 'patch', sessionId: 's2' }]);
 assert.deepStrictEqual(readBumpMarkers(GPS_HEAD), []);
+// A marker whose level is not patch/minor/major (hand-edited) is ignored, and reported.
+const odd = rel.replace('<!-- gps:bump=patch session=s2 -->', '<!-- gps:bump=huge session=s2 -->\n<!-- gps:bump=Major session=s3 -->\n<!-- gps:bump=huge session=s4 -->');
+assert.deepStrictEqual(readBumpMarkers(odd), [{ level: 'minor', sessionId: 's1' }]);
+assert.deepStrictEqual(unknownBumpLevels(odd), ['huge', 'Major']);
+assert.deepStrictEqual(unknownBumpLevels(rel), []);
 assert.strictEqual(unreleasedHasEntries(rel), true);
 assert.strictEqual(unreleasedHasEntries(GPS_HEAD), false);
 assert.strictEqual(unreleasedHasEntries('# C\n\n## Unreleased\n\n- hand\n'), true);

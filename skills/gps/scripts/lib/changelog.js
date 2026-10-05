@@ -222,11 +222,22 @@ function unreleasedLines(text) {
   return block ? lines.slice(block.start + 1, block.end) : [];
 }
 
-function readBumpMarkers(text) {
+function allBumpMarkers(text) {
   return unreleasedLines(text)
     .map((line) => line.match(BUMP_LEVEL_RE))
     .filter(Boolean)
     .map((m) => ({ level: m[1], sessionId: m[2] }));
+}
+
+// The bump markers under Unreleased; a marker whose level is not one of
+// LEVELS (a hand edit) is left out: unknownBumpLevels names those.
+function readBumpMarkers(text) {
+  return allBumpMarkers(text).filter((m) => LEVELS.includes(m.level));
+}
+
+// Distinct levels of the markers readBumpMarkers leaves out, in file order.
+function unknownBumpLevels(text) {
+  return [...new Set(allBumpMarkers(text).map((m) => m.level).filter((l) => !LEVELS.includes(l)))];
 }
 
 function unreleasedHasEntries(text) {
@@ -285,6 +296,7 @@ function sectionNotes(text, version) {
 
 module.exports = {
   readBumpMarkers,
+  unknownBumpLevels,
   unreleasedHasEntries,
   latestVersion,
   cutRelease,

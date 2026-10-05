@@ -22,7 +22,7 @@ const path = require('path');
 const { main } = require('./lib/cli');
 const { GpsError, UsageError, localDate } = require('./lib/guard');
 const { changelogSettings, releaseSettings, saveVersionFiles, readConfig } = require('./lib/project-config');
-const { readBumpMarkers, unreleasedHasEntries, latestVersion, cutRelease, sectionNotes } = require('./lib/changelog');
+const { readBumpMarkers, unknownBumpLevels, unreleasedHasEntries, latestVersion, cutRelease, sectionNotes } = require('./lib/changelog');
 const { releaseExists, createRelease } = require('./lib/github');
 const { parseVersion, formatVersion, compareVersions, bumpVersion, maxLevel } = require('./lib/semver');
 const { detectVersionFiles, readVersions, writeVersion } = require('./lib/version-files');
@@ -168,6 +168,10 @@ function release({ options, projectRoot, warn }) {
   }
 
   const markers = readBumpMarkers(text);
+  const unknown = unknownBumpLevels(text);
+  if (unknown.length) {
+    warn(`Ignored bump marker(s) with an unknown level (${unknown.join(', ')}): use patch, minor or major.`);
+  }
   let level = maxLevel(markers.map((m) => m.level));
   if (!level) {
     level = 'patch';
