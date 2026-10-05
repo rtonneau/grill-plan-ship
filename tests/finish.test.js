@@ -91,10 +91,13 @@ const h = require('./helpers');
   h.shipReady(root, 'Add thing', ['a']);
   h.completeTicket(root, 1, 'a');
   const prep = h.json(root, 'changelog-prepare.js');
-  fs.writeFileSync(prep.payloadPath, '- Thing added\n');
+  // A configured path: the output names it, with the bullet count.
+  fs.writeFileSync(path.join(root, '.work', 'gps-config.json'), JSON.stringify({ github: { enabled: false }, changelog: { path: 'docs/HISTORY.md' } }));
+  fs.writeFileSync(prep.payloadPath, '- Thing added\n- Other thing\n');
   h.ok(root, 'changelog-apply.js', ['--bump', 'major', '--reason', 'removes x']);
   const res = h.ok(root, 'finish.js');
-  assert.match(res.out, /📝 CHANGELOG\.md: major/);
+  assert.match(res.out, /📝 docs\/HISTORY\.md: major \(2 bullet\(s\)\)/);
+  assert.doesNotMatch(res.out, /CHANGELOG\.md/);
   const index = fs.readFileSync(path.join(h.sessionsDir(root), fs.readdirSync(h.sessionsDir(root)).find((n) => /__add-thing$/.test(n)), 'INDEX.md'), 'utf-8');
   assert.match(index, /## Changelog\n\n- \*\*Bump:\*\* major\n- \*\*Reason:\*\* removes x/);
 

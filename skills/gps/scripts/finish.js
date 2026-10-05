@@ -31,7 +31,7 @@
  *
  * When the session wrote its CHANGELOG entry (`changelog` in the config, set
  * by changelog-apply.js), INDEX.md gets a Changelog section and the output a
- * line with the bump.
+ * line with the file, the bump and the bullet count.
  *
  * Issue sessions (`issue` in the config): without a branch (bounded),
  * finish comments a summary on the issue and, with --close-issue, closes
@@ -357,7 +357,12 @@ function finishSession({ options, projectRoot, warn }) {
   if (repushed && !repushed.ok) {
     byHand(`The session record was not pushed (${repushed.reason}).`, [`git push -u origin ${config.git.branch}`]);
   }
-  if (config.changelog) lines.push(`📝 CHANGELOG.md: ${config.changelog.bump}`);
+  if (config.changelog) {
+    // path and bullets are recorded by changelog-apply.js (older sessions lack them).
+    const { bump, bullets } = config.changelog;
+    const file = config.changelog.path || 'CHANGELOG.md';
+    lines.push(`📝 ${file}: ${bump}${typeof bullets === 'number' ? ` (${bullets} bullet(s))` : ''}`);
+  }
   if (pr && pr.ok) {
     lines.push(`🔀 Pull request${pr.existing ? ' (already open, updated by the push)' : ''}: ${pr.url}`);
   } else if (pr) {

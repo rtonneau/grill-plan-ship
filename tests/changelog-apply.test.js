@@ -38,6 +38,8 @@ const cfg = h.readConfig(root).changelog;
 assert.strictEqual(cfg.bump, 'major');
 assert.strictEqual(cfg.floor, 'minor');
 assert.strictEqual(cfg.reason, 'removes x');
+assert.strictEqual(cfg.bullets, 1);
+assert.strictEqual(cfg.path, 'CHANGELOG.md');
 assert.ok(cfg.written_at);
 assert.ok(h.history(root).some((e) => e.event === 'changelog_written'));
 assert.ok(!fs.existsSync(prep.payloadPath));

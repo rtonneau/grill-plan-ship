@@ -78,7 +78,7 @@ function apply({ options, projectRoot, warn }) {
     warn(`${settings.path} written but not committed (${record.reason}). Run by hand: ${record.commands.join(' && ')}`);
   }
 
-  config.changelog = { bump, floor, reason, written_at: new Date().toISOString() };
+  config.changelog = { bump, floor, reason, path: settings.path, bullets: count, written_at: new Date().toISOString() };
   writeJsonAtomic(configPath, config);
   recordEvent(configPath, config, sessionDir, { event: 'changelog_written', detail: { bump } });
   if (payloadPath === defaultPayload) fs.unlinkSync(payloadPath);
