@@ -1,0 +1,132 @@
+// tests/release.test.js — release.js (/gps release): suggest and cut.
+const assert = require('assert');
+const fs = require('fs');
+const path = require('path');
+const h = require('./helpers');
+
+const today = (() => {
+  const d = new Date();
+  const p = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+})();
+
+// Finishes a session through the scripts; `type` is its single commit's type.
+function finishSession(root, name, type, bump, reason) {
+  h.shipReady(root, name, ['a']);
+  h.ok(root, 'ticket-start.js', ['1']);
+  h.fillLog(root, '01-a');
+  fs.writeFileSync(path.join(root, `${name}.js`), `// ${name}\n`);
+  h.ok(root, 'ticket-complete.js', ['1', '--message', `${type}: ${name}`, '--file', `${name}.js`]);
+  const prep = h.json(root, 'changelog-prepare.js');
+  fs.writeFileSync(prep.payloadPath, `- ${name} done\n`);
+  h.ok(root, 'changelog-apply.js', ['--bump', bump, ...(reason ? ['--reason', reason] : [])]);
+  const id = h.currentSession(root);
+  h.ok(root, 'finish.js');
+  // gps's one-time .gitignore setup is the project's to commit.
+  if (h.git(root, 'status', '--porcelain')) { h.git(root, 'add', '-A'); h.git(root, 'commit', '-q', '-m', 'chore: setup'); }
+  return id;
+}
+
+function project(prefix, version = '1.4.2') {
+  const root = h.gitProject(prefix);
+  fs.writeFileSync(path.join(root, 'package.json'), JSON.stringify({ name: 'x', version }, null, 2) + '\n');
+  h.git(root, 'add', 'package.json');
+  h.git(root, 'commit', '-q', '-m', 'add package');
+  return root;
+}
+
+{
+  const root = project('gps-rel-');
+  fs.mkdirSync(path.join(root, '.claude-plugin'));
+  const sid = (() => {
+    const first = finishSession(root, 'first', 'fix', 'minor', 'visible to users');
+    finishSession(root, 'second', 'feat', 'minor');
+    return first;
+  })();
+  assert.strictEqual(h.git(root, 'status', '--porcelain'), '', 'tree clean after finishing');
+  fs.rmdirSync(path.join(root, '.claude-plugin'));
+
+  const sug = h.ok(root, 'release.js');
+  assert.match(sug.out, /1\.4\.2 → 1\.5\.0 \(minor: 2 session\(s\)\)/);
+  assert.match(sug.out, /visible to users/);
+  assert.match(sug.out, /Next: .*release\.js --version 1\.5\.0/);
+  const data = h.json(root, 'release.js');
+  assert.deepStrictEqual([data.current, data.suggested, data.level, data.sessions], ['1.4.2', '1.5.0', 'minor', 2]);
+  assert.strictEqual(data.raised.length, 1);
+  assert.strictEqual(data.raised[0].sessionId, sid);
+  assert.deepStrictEqual(data.versionFiles, ['package.json']);
+  assert.strictEqual(h.git(root, 'status', '--porcelain'), '', 'suggest leaves a clean tree');
+
+  // Refusals change nothing.
+  h.assertFails(h.run(root, 'release.js', ['--version', '1.4.0']), 1, /greater than/);
+  h.assertFails(h.run(root, 'release.js', ['--version', 'abc']), 2);
+  fs.writeFileSync(path.join(root, 'dirty.txt'), 'x');
+  h.assertFails(h.run(root, 'release.js', ['--version', '1.5.0']), 1, /clean|uncommitted/i);
+  h.assertFails(h.run(root, 'release.js'), 1);
+  fs.unlinkSync(path.join(root, 'dirty.txt'));
+  h.git(root, 'switch', '-q', '-c', 'feature');
+  h.assertFails(h.run(root, 'release.js', ['--version', '1.5.0']), 1, /main/);
+  h.git(root, 'switch', '-q', 'main');
+  assert.strictEqual(h.git(root, 'tag'), '');
+
+  h.ok(root, 'release.js', ['--version', '1.5.0']);
+  const log = fs.readFileSync(path.join(root, 'CHANGELOG.md'), 'utf-8');
+  assert.ok(log.includes(`## 1.5.0 (${today})`));
+  assert.ok(!log.includes('<!--'));
+  assert.ok(!/## Unreleased/.test(log));
+  assert.strictEqual(JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf-8')).version, '1.5.0');
+  assert.match(h.git(root, 'log', '-1', '--format=%B'), /^chore\(release\): 1\.5\.0\n\nBump: minor/);
+  assert.ok(h.git(root, 'tag').split('\n').includes('v1.5.0'));
+  assert.strictEqual(h.git(root, 'status', '--porcelain'), '');
+
+  const head = h.git(root, 'rev-parse', 'HEAD');
+  h.assertFails(h.run(root, 'release.js', ['--version', '1.5.0']), 1);
+  assert.strictEqual(h.git(root, 'rev-parse', 'HEAD'), head);
+  assert.strictEqual(h.git(root, 'status', '--porcelain'), '');
+}
+
+// Level written is the marker-derived one, not inferred from the typed version.
+{
+  const root = project('gps-rel2-');
+  finishSession(root, 'only', 'feat', 'minor');
+  const res = h.ok(root, 'release.js', ['--version', '3.0.0']);
+  assert.match(res.out, /Next: .*release\.js --push/);
+  assert.match(h.git(root, 'log', '-1', '--format=%B'), /Bump: minor/);
+}
+
+// No version file and no heading: --version is required.
+{
+  const root = h.gitProject('gps-rel3-');
+  finishSession(root, 'only', 'feat', 'minor');
+  h.assertFails(h.run(root, 'release.js'), 1, /--version/);
+  h.assertFails(h.run(root, 'release.js', ['--version', 'x']), 2);
+  h.ok(root, 'release.js', ['--version', '0.1.0']);
+  assert.ok(fs.readFileSync(path.join(root, 'CHANGELOG.md'), 'utf-8').includes(`## 0.1.0 (${today})`));
+  assert.ok(h.git(root, 'tag').includes('v0.1.0'));
+}
+
+// Disagreeing version files: a warning names both.
+{
+  const root = project('gps-rel4-');
+  fs.mkdirSync(path.join(root, '.claude-plugin'));
+  fs.writeFileSync(path.join(root, '.claude-plugin', 'plugin.json'), JSON.stringify({ name: 'x', version: '1.4.1' }, null, 2) + '\n');
+  h.git(root, 'add', '.');
+  h.git(root, 'commit', '-q', '-m', 'add plugin');
+  finishSession(root, 'only', 'fix', 'patch');
+  const res = h.ok(root, 'release.js');
+  assert.match(res.err, /package\.json.*1\.4\.2[\s\S]*plugin\.json.*1\.4\.1|plugin\.json.*1\.4\.1[\s\S]*package\.json.*1\.4\.2/);
+  const data = h.json(root, 'release.js');
+  assert.strictEqual(data.mismatches.length, 2);
+}
+
+// Nothing to release / changelog disabled.
+{
+  const root = project('gps-rel5-');
+  h.assertFails(h.run(root, 'release.js'), 1);
+  finishSession(root, 'only', 'feat', 'minor');
+  fs.writeFileSync(path.join(root, '.work', 'gps-config.json'), JSON.stringify({ github: { enabled: false }, changelog: { enabled: false } }));
+  h.git(root, 'commit', '-q', '-am', 'config');
+  h.assertFails(h.run(root, 'release.js'), 1, /disabled/);
+}
+
+h.done('release.test.js');
