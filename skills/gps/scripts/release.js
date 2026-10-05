@@ -24,7 +24,7 @@ const { GpsError, UsageError, localDate } = require('./lib/guard');
 const { changelogSettings, releaseSettings, saveVersionFiles, readConfig } = require('./lib/project-config');
 const { readBumpMarkers, unknownBumpLevels, unreleasedHasEntries, latestVersion, cutRelease, sectionNotes } = require('./lib/changelog');
 const { releaseExists, createRelease } = require('./lib/github');
-const { parseVersion, formatVersion, compareVersions, bumpVersion, maxLevel } = require('./lib/semver');
+const { parseVersion, formatVersion, compareVersions, bumpVersion, maxLevel, levelBetween } = require('./lib/semver');
 const { detectVersionFiles, readVersions, writeVersion } = require('./lib/version-files');
 const { defaultBranch, currentBranch, isCleanTree, tagExists, createTag, commitFiles, headCommit, pushWithTags, remoteHasTag, remoteBranchAt, headSha } = require('./lib/git');
 const { sessionsDirOf, listSessionDirs, readConfigOrNull } = require('./lib/session-store');
@@ -49,13 +49,17 @@ function tagFailure(tagName, tag) {
 }
 
 const RELEASE_COMMIT_RE = /^chore\(release\): (\d+\.\d+\.\d+)$/;
+const BUMP_LINE_RE = /^Bump: (\w+)/m;
+
+// The level in a release commit's "Bump:" line, or null.
+const bumpOf = (body) => (BUMP_LINE_RE.exec(body || '') || [])[1] || null;
 
 function pushNext(projectRoot) {
   const branch = currentBranch(projectRoot);
   return `Next: ask the user whether to push (by hand: git push --atomic --follow-tags origin ${branch || '<branch>'}), then release.js --push`;
 }
 
-// Steps 3: push the release commit and tag, then a GitHub Release by policy.
+// Step 3: push the release commit and tag, then a GitHub Release by policy.
 function push({ projectRoot, warn }) {
   const head = headCommit(projectRoot);
   const m = head && RELEASE_COMMIT_RE.exec(head.subject);
@@ -65,7 +69,7 @@ function push({ projectRoot, warn }) {
   }
   const version = m[1];
   const tag = `v${version}`;
-  const level = (/^Bump: (\w+)/m.exec(head.body) || [])[1] || null;
+  const level = bumpOf(head.body);
   const base = baseBranchOf(projectRoot, finishedSessions(projectRoot));
   if (!base) {
     throw new GpsError('Cannot tell which branch releases are cut from; nothing was pushed.',
@@ -153,7 +157,7 @@ function release({ options, projectRoot, warn }) {
     if (head && head.subject === `chore(release): ${version}` && !tagExists(projectRoot, tagName)) {
       const resumed = createTag(projectRoot, tagName, version);
       if (!resumed.ok) throw tagFailure(tagName, resumed);
-      const lvl = (/^Bump: (\w+)/m.exec(head.body) || [])[1] || null;
+      const lvl = bumpOf(head.body);
       return {
         text: `🏷️ ${version} was committed without its tag: tagged ${tagName}\n${pushNext(projectRoot)}`,
         data: { current: null, version, level: lvl, tag: tagName, record: null, versionFiles: [] },
@@ -222,7 +226,10 @@ function release({ options, projectRoot, warn }) {
     };
   }
 
-  // Cut.
+  // Cut. The level recorded is the one of the version chosen (the markers'
+  // level when there is no current version), so a user who picks a minor
+  // version over patch markers gets the minor+ release policy.
+  const chosen = currentV ? levelBetween(currentV, typed) : level;
   const updated = cutRelease(text, target, localDate());
   const writable = found.map((v) => v.file);
   for (const file of versionFiles) {
@@ -233,7 +240,7 @@ function release({ options, projectRoot, warn }) {
   // First release: remember which files carry the version, in the same commit.
   const saveConfig = !storedFiles;
   if (saveConfig) saveVersionFiles(projectRoot, versionFiles);
-  const record = commitFiles(projectRoot, [settings.path, ...writable, ...(saveConfig ? ['.work/gps-config.json'] : [])], `chore(release): ${target}\n\nBump: ${level}`);
+  const record = commitFiles(projectRoot, [settings.path, ...writable, ...(saveConfig ? ['.work/gps-config.json'] : [])], `chore(release): ${target}\n\nBump: ${chosen}`);
   if (!record.ok) {
     throw new GpsError(`Release ${target} written but not committed (${record.reason}).`,
       `Run by hand: ${record.commands.join(' && ')} && git tag -a v${target} -m ${target}`);
@@ -241,8 +248,8 @@ function release({ options, projectRoot, warn }) {
   const tag = createTag(projectRoot, `v${target}`, target);
   if (!tag.ok) throw tagFailure(`v${target}`, tag);
   return {
-    text: `🏷️ ${current ? `${current} → ` : ''}${target} (${level}) committed (${record.sha}), tagged v${target}\n${pushNext(projectRoot)}`,
-    data: { current, version: target, level, tag: `v${target}`, record, versionFiles: writable },
+    text: `🏷️ ${current ? `${current} → ` : ''}${target} (${chosen}) committed (${record.sha}), tagged v${target}\n${pushNext(projectRoot)}`,
+    data: { current, version: target, level: chosen, tag: `v${target}`, record, versionFiles: writable },
   };
 }
 

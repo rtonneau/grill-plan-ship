@@ -37,6 +37,14 @@ function bumpVersion(v, level) {
   return { major: v.major, minor: v.minor, patch: v.patch + 1 };
 }
 
+// The level of the step from `from` to a greater `to`: the highest component
+// that changed (so 0.4.2 → 0.5.0 is minor, whatever the 0.x rule).
+function levelBetween(from, to) {
+  if (to.major !== from.major) return 'major';
+  if (to.minor !== from.minor) return 'minor';
+  return 'patch';
+}
+
 function maxLevel(levels) {
   let best = null;
   for (const level of levels) {
@@ -60,5 +68,5 @@ function bumpFloor(messages) {
 }
 
 module.exports = {
-  LEVELS, parseVersion, formatVersion, compareVersions, bumpVersion, maxLevel, levelRank, bumpFloor,
+  LEVELS, parseVersion, formatVersion, compareVersions, bumpVersion, maxLevel, levelRank, bumpFloor, levelBetween,
 };

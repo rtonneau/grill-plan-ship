@@ -1,7 +1,7 @@
 // tests/lib/semver.test.js
 const assert = require('assert');
 const {
-  LEVELS, parseVersion, formatVersion, compareVersions, bumpVersion, maxLevel, levelRank, bumpFloor,
+  LEVELS, parseVersion, formatVersion, compareVersions, bumpVersion, maxLevel, levelRank, bumpFloor, levelBetween,
 } = require('../../skills/gps/scripts/lib/semver');
 
 const p = parseVersion;
@@ -33,6 +33,13 @@ assert.strictEqual(levelRank('patch'), 0);
 assert.strictEqual(levelRank('major'), 2);
 assert.strictEqual(maxLevel(['patch', 'major', 'minor']), 'major');
 assert.strictEqual(maxLevel([]), null);
+
+// levelBetween: the highest component that changed.
+assert.strictEqual(levelBetween(p('1.4.2'), p('3.0.0')), 'major');
+assert.strictEqual(levelBetween(p('1.4.2'), p('1.5.0')), 'minor');
+assert.strictEqual(levelBetween(p('1.4.2'), p('1.5.7')), 'minor');
+assert.strictEqual(levelBetween(p('1.4.2'), p('1.4.9')), 'patch');
+assert.strictEqual(levelBetween(p('0.4.2'), p('0.5.0')), 'minor');
 
 // bumpFloor
 assert.strictEqual(bumpFloor(['fix: a', 'chore: b']), 'patch');

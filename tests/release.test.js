@@ -89,13 +89,14 @@ function project(prefix, version = '1.4.2') {
   assert.strictEqual(h.git(root, 'status', '--porcelain'), '');
 }
 
-// Level written is the marker-derived one, not inferred from the typed version.
+// Level written is the one of the version chosen (current → target), not the markers'.
 {
   const root = project('gps-rel2-');
   finishSession(root, 'only', 'feat', 'minor');
   const res = h.ok(root, 'release.js', ['--version', '3.0.0']);
+  assert.match(res.out, /1\.4\.2 → 3\.0\.0 \(major\)/);
   assert.match(res.out, /Next: .*release\.js --push/);
-  assert.match(h.git(root, 'log', '-1', '--format=%B'), /Bump: minor/);
+  assert.match(h.git(root, 'log', '-1', '--format=%B'), /Bump: major/);
 }
 
 // No version file and no heading: --version is required.

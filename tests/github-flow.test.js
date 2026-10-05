@@ -589,21 +589,34 @@ assert.strictEqual(config.history.filter((e) => e.event === 'grill_written').len
   assert.deepStrictEqual(data.release, { skipped: 'policy' });
   assert.strictEqual(releaseCalls('create').length, 1);
 
+  // Patch markers, but the user chose a minor version: the release is minor,
+  // so minor+ publishes it.
+  addUnreleased('Polish export', 'patch');
+  rgit('add', '-A');
+  rgit('commit', '-q', '-m', 'fix: polish export');
+  assert.strictEqual(JSON.parse(rok('--json').out).suggested, '1.5.2');
+  rok('--version', '1.6.0');
+  assert.match(rgit('log', '-1', '--format=%B'), /Bump: minor/);
+  data = JSON.parse(rok('--push', '--json').out);
+  assert.strictEqual(data.release.ok, true);
+  assert.strictEqual(releaseCalls('create').length, 2);
+  assert.strictEqual(releaseCalls('create')[1].args[2], 'v1.6.0');
+
   // githubRelease "all": the patch release is published too.
   writeProjectConfig('all');
   rgit('add', '-A');
   rgit('commit', '-q', '-m', 'chore: release policy all');
-  data = cutAndPush('1.5.2', 'Fix import', 'patch');
+  data = cutAndPush('1.6.1', 'Fix import', 'patch');
   assert.strictEqual(data.release.ok, true);
-  assert.strictEqual(releaseCalls('create').length, 2);
+  assert.strictEqual(releaseCalls('create').length, 3);
 
   // "none": never.
   writeProjectConfig('none');
   rgit('add', '-A');
   rgit('commit', '-q', '-m', 'chore: release policy none');
-  data = cutAndPush('1.6.0', 'Add sharing', 'minor');
+  data = cutAndPush('1.7.0', 'Add sharing', 'minor');
   assert.deepStrictEqual(data.release, { skipped: 'policy' });
-  assert.strictEqual(releaseCalls('create').length, 2);
+  assert.strictEqual(releaseCalls('create').length, 3);
 
   // gh fails after a good push: exit 0, a warning with the manual command.
   writeProjectConfig('all');
@@ -612,17 +625,17 @@ assert.strictEqual(config.history.filter((e) => e.event === 'grill_written').len
   addUnreleased('Fix sharing', 'patch');
   rgit('add', '-A');
   rgit('commit', '-q', '-m', 'fix: sharing');
-  rok('--version', '1.6.1');
+  rok('--version', '1.7.1');
   const failed = spawnSync(process.execPath, [path.join(SCRIPTS, 'release.js'), '--push', '--json'], {
     cwd: rroot, encoding: 'utf-8',
     env: { ...process.env, CLAUDE_CODE_SESSION_ID: '', GPS_GH_BIN: ghStub, GH_STUB_FAIL_RELEASE: '1' },
   });
   assert.strictEqual(failed.status, 0);
-  assert.match(failed.stderr, /gh release create v1\.6\.1/);
+  assert.match(failed.stderr, /gh release create v1\.7\.1/);
   const failedData = JSON.parse(failed.stdout);
   assert.strictEqual(failedData.pushed, true);
   assert.strictEqual(failedData.release.ok, false);
-  assert.ok(remoteTags().includes('v1.6.1'));
+  assert.ok(remoteTags().includes('v1.7.1'));
   // Re-run: the push is skipped, the release is retried and now created.
   data = JSON.parse(rok('--push', '--json').out);
   assert.strictEqual(data.pushed, false);
