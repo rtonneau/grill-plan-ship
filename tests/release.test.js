@@ -46,11 +46,13 @@ function project(prefix, version = '1.4.2') {
   assert.strictEqual(h.git(root, 'status', '--porcelain'), '', 'tree clean after finishing');
   fs.rmdirSync(path.join(root, '.claude-plugin'));
 
+  const headBefore = h.git(root, 'rev-parse', 'HEAD');
   const sug = h.ok(root, 'release.js');
   assert.match(sug.out, /1\.4\.2 → 1\.5\.0 \(minor: 2 session\(s\)\)/);
   assert.match(sug.out, /visible to users/);
   assert.match(sug.out, /Next: .*release\.js --version 1\.5\.0/);
   const data = h.json(root, 'release.js');
+  assert.strictEqual(h.git(root, 'rev-parse', 'HEAD'), headBefore, 'suggest makes no commit');
   assert.deepStrictEqual([data.current, data.suggested, data.level, data.sessions], ['1.4.2', '1.5.0', 'minor', 2]);
   assert.strictEqual(data.raised.length, 1);
   assert.strictEqual(data.raised[0].sessionId, sid);
@@ -79,6 +81,8 @@ function project(prefix, version = '1.4.2') {
   assert.ok(h.git(root, 'tag').split('\n').includes('v1.5.0'));
   assert.strictEqual(h.git(root, 'status', '--porcelain'), '');
 
+  assert.match(h.git(root, 'show', '--name-only', '--format=', 'HEAD'), /\.work\/gps-config\.json/);
+  assert.deepStrictEqual(JSON.parse(fs.readFileSync(path.join(root, '.work', 'gps-config.json'), 'utf-8')).release.versionFiles, ['package.json']);
   const head = h.git(root, 'rev-parse', 'HEAD');
   h.assertFails(h.run(root, 'release.js', ['--version', '1.5.0']), 1);
   assert.strictEqual(h.git(root, 'rev-parse', 'HEAD'), head);
@@ -127,6 +131,31 @@ function project(prefix, version = '1.4.2') {
   fs.writeFileSync(path.join(root, '.work', 'gps-config.json'), JSON.stringify({ github: { enabled: false }, changelog: { enabled: false } }));
   h.git(root, 'commit', '-q', '-am', 'config');
   h.assertFails(h.run(root, 'release.js'), 1, /disabled/);
+}
+
+// A failed tag resumes: the commit exists, only the tag is recreated.
+{
+  const root = project('gps-rel6-');
+  finishSession(root, 'only', 'feat', 'minor');
+  h.ok(root, 'release.js', ['--version', '1.5.0']);
+  const head = h.git(root, 'rev-parse', 'HEAD');
+  h.git(root, 'tag', '-d', 'v1.5.0');
+  const res = h.ok(root, 'release.js', ['--version', '1.5.0']);
+  assert.match(res.out, /tagged v1\.5\.0/);
+  assert.ok(h.git(root, 'tag').includes('v1.5.0'));
+  assert.strictEqual(h.git(root, 'rev-parse', 'HEAD'), head);
+  assert.strictEqual(h.git(root, 'status', '--porcelain'), '');
+}
+
+// Tag exists while Unreleased still has entries: refused.
+{
+  const root = project('gps-rel7-');
+  finishSession(root, 'only', 'feat', 'minor');
+  h.git(root, 'tag', 'v1.5.0');
+  const head = h.git(root, 'rev-parse', 'HEAD');
+  h.assertFails(h.run(root, 'release.js', ['--version', '1.5.0']), 1, /Tag v1\.5\.0 already exists/);
+  assert.strictEqual(h.git(root, 'rev-parse', 'HEAD'), head);
+  assert.strictEqual(h.git(root, 'status', '--porcelain'), '');
 }
 
 h.done('release.test.js');

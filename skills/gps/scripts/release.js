@@ -20,7 +20,7 @@ const { changelogSettings, releaseSettings, saveVersionFiles } = require('./lib/
 const { readBumpMarkers, unreleasedHasEntries, latestVersion, cutRelease } = require('./lib/changelog');
 const { parseVersion, formatVersion, compareVersions, bumpVersion, maxLevel } = require('./lib/semver');
 const { detectVersionFiles, readVersions, writeVersion } = require('./lib/version-files');
-const { defaultBranch, currentBranch, isCleanTree, tagExists, createTag, commitFiles } = require('./lib/git');
+const { defaultBranch, currentBranch, isCleanTree, tagExists, createTag, commitFiles, headCommit } = require('./lib/git');
 const { sessionsDirOf, listSessionDirs, readConfigOrNull } = require('./lib/session-store');
 
 // Finished sessions' configs, most recently finished first.
@@ -35,6 +35,11 @@ function finishedSessions(projectRoot) {
 function baseBranchOf(projectRoot, finished) {
   const fallback = finished.find((s) => s.config.git && s.config.git.base_branch);
   return defaultBranch(projectRoot) || (fallback ? fallback.config.git.base_branch : null);
+}
+
+function tagFailure(tagName, tag) {
+  return new GpsError(`Release committed but tag ${tagName} not created (${tag.reason}).`,
+    `Run by hand: ${tag.commands.join(' && ')}, or run this again to resume.`);
 }
 
 function release({ options, projectRoot, warn }) {
@@ -62,6 +67,22 @@ function release({ options, projectRoot, warn }) {
   if (!isCleanTree(projectRoot)) {
     throw new GpsError('The working tree has uncommitted changes (the tree must be clean); nothing was changed.',
       'Commit or stash them, then run this again.');
+  }
+  // A release commit whose tag failed: only the tag is missing.
+  if (typed) {
+    const version = formatVersion(typed);
+    const tagName = `v${version}`;
+    const head = headCommit(projectRoot);
+    if (head && head.subject === `chore(release): ${version}` && !tagExists(projectRoot, tagName)) {
+      const resumed = createTag(projectRoot, tagName, version);
+      if (!resumed.ok) throw tagFailure(tagName, resumed);
+      const lvl = (/^Bump: (\w+)/m.exec(head.body) || [])[1] || null;
+      return {
+        text: `🏷️ ${version} was committed without its tag: tagged ${tagName}
+Next: ask the user whether to push, then release.js --push`,
+        data: { current: null, version, level: lvl, tag: tagName, record: null, versionFiles: [] },
+      };
+    }
   }
   const changelogPath = path.join(projectRoot, settings.path);
   const text = fs.existsSync(changelogPath) ? fs.readFileSync(changelogPath, 'utf-8') : '';
@@ -106,13 +127,6 @@ function release({ options, projectRoot, warn }) {
     }
   }
 
-  // First run: remember which files carry the version (a tracked config change, committed alone).
-  if (!storedFiles) {
-    saveVersionFiles(projectRoot, versionFiles);
-    const saved = commitFiles(projectRoot, ['.work/gps-config.json'], 'chore(gps): record release version files');
-    if (!saved.ok) warn(`Release version files saved but not committed (${saved.reason}). Run by hand: ${saved.commands.join(' && ')}`);
-  }
-
   if (mismatches.length) {
     warn(`Version files disagree: ${mismatches.map((v) => `${v.file} ${v.version}`).join(', ')}.`);
   }
@@ -136,17 +150,20 @@ function release({ options, projectRoot, warn }) {
   }
   fs.writeFileSync(changelogPath, updated);
   for (const file of writable) writeVersion(projectRoot, file, target);
-  const record = commitFiles(projectRoot, [settings.path, ...writable], `chore(release): ${target}\n\nBump: ${level}`);
+  // First release: remember which files carry the version, in the same commit.
+  const saveConfig = !storedFiles;
+  if (saveConfig) saveVersionFiles(projectRoot, versionFiles);
+  const record = commitFiles(projectRoot, [settings.path, ...writable, ...(saveConfig ? ['.work/gps-config.json'] : [])], `chore(release): ${target}\n\nBump: ${level}`);
   if (!record.ok) {
     throw new GpsError(`Release ${target} written but not committed (${record.reason}).`,
       `Run by hand: ${record.commands.join(' && ')} && git tag -a v${target} -m ${target}`);
   }
   const tag = createTag(projectRoot, `v${target}`, target);
-  if (!tag.ok) warn(`Tag v${target} not created (${tag.reason}). Run by hand: ${tag.commands.join(' && ')}`);
+  if (!tag.ok) throw tagFailure(`v${target}`, tag);
   return {
-    text: `🏷️ ${current ? `${current} → ` : ''}${target} (${level}) committed (${record.sha})${tag.ok ? `, tagged v${target}` : ''}\n`
+    text: `🏷️ ${current ? `${current} → ` : ''}${target} (${level}) committed (${record.sha}), tagged v${target}\n`
       + 'Next: ask the user whether to push, then release.js --push',
-    data: { current, version: target, level, tag: tag.ok ? `v${target}` : null, record, versionFiles: writable },
+    data: { current, version: target, level, tag: `v${target}`, record, versionFiles: writable },
   };
 }
 
