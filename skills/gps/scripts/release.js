@@ -26,7 +26,7 @@ const { readBumpMarkers, unreleasedHasEntries, latestVersion, cutRelease, sectio
 const { releaseExists, createRelease } = require('./lib/github');
 const { parseVersion, formatVersion, compareVersions, bumpVersion, maxLevel } = require('./lib/semver');
 const { detectVersionFiles, readVersions, writeVersion } = require('./lib/version-files');
-const { defaultBranch, currentBranch, isCleanTree, tagExists, createTag, commitFiles, headCommit, pushWithTags, remoteHasTag } = require('./lib/git');
+const { defaultBranch, currentBranch, isCleanTree, tagExists, createTag, commitFiles, headCommit, pushWithTags, remoteHasTag, remoteBranchAt, headSha } = require('./lib/git');
 const { sessionsDirOf, listSessionDirs, readConfigOrNull } = require('./lib/session-store');
 
 // Finished sessions' configs, most recently finished first.
@@ -52,7 +52,7 @@ const RELEASE_COMMIT_RE = /^chore\(release\): (\d+\.\d+\.\d+)$/;
 
 function pushNext(projectRoot) {
   const branch = currentBranch(projectRoot);
-  return `Next: ask the user whether to push (by hand: git push --follow-tags origin ${branch || '<branch>'}), then release.js --push`;
+  return `Next: ask the user whether to push (by hand: git push --atomic --follow-tags origin ${branch || '<branch>'}), then release.js --push`;
 }
 
 // Steps 3: push the release commit and tag, then a GitHub Release by policy.
@@ -66,13 +66,24 @@ function push({ projectRoot, warn }) {
   const version = m[1];
   const tag = `v${version}`;
   const level = (/^Bump: (\w+)/m.exec(head.body) || [])[1] || null;
-  const branch = currentBranch(projectRoot);
-  if (!branch) {
-    throw new GpsError('A detached HEAD cannot be pushed; nothing was pushed.', `Run git switch <branch>, then run this again.`);
+  const base = baseBranchOf(projectRoot, finishedSessions(projectRoot));
+  if (!base) {
+    throw new GpsError('Cannot tell which branch releases are cut from; nothing was pushed.',
+      'Create a main or master branch, or set origin/HEAD.');
   }
+  const branch = currentBranch(projectRoot);
+  if (branch !== base) {
+    throw new GpsError(`Releases are cut from ${base}, but ${branch || 'a detached HEAD'} is checked out; nothing was pushed.`,
+      `Run git switch ${base}, then run this again.`);
+  }
+  // Validate the config before anything is pushed.
+  const config = readConfig(projectRoot);
+  const policy = releaseSettings(projectRoot).githubRelease;
+  const changelogPath = path.join(projectRoot, changelogSettings(projectRoot).path);
 
+  // Done only when origin has the tag and its branch is at HEAD (a push can land the tag alone).
   let pushed = false;
-  if (!remoteHasTag(projectRoot, tag)) {
+  if (!remoteHasTag(projectRoot, tag) || remoteBranchAt(projectRoot, branch) !== headSha(projectRoot)) {
     const res = pushWithTags(projectRoot, branch);
     if (!res.ok) {
       throw new GpsError(`Push failed (${res.reason}); nothing else was done.`,
@@ -81,9 +92,7 @@ function push({ projectRoot, warn }) {
     pushed = true;
   }
 
-  // Read-only: a missing config means GitHub off (never create files here).
-  const config = readConfig(projectRoot);
-  const policy = releaseSettings(projectRoot).githubRelease;
+  // A missing config means GitHub off (never create files here).
   let result;
   if (!config || !config.github.enabled) {
     result = { skipped: 'github-off' };
@@ -92,7 +101,6 @@ function push({ projectRoot, warn }) {
   } else if (releaseExists(projectRoot, tag)) {
     result = { ok: true, url: null };
   } else {
-    const changelogPath = path.join(projectRoot, changelogSettings(projectRoot).path);
     const notes = (fs.existsSync(changelogPath) && sectionNotes(fs.readFileSync(changelogPath, 'utf-8'), version)) || `Release ${version}`;
     result = createRelease(projectRoot, { tag, title: version, notes });
     if (!result.ok) {

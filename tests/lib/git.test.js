@@ -7,7 +7,7 @@ const { execSync } = require('child_process');
 const {
   readRecentCommits, readGitStatus, commitFiles, commitExists, describeCommit,
   commitWorkDir, describeWorkCommit, branchesHolding, isIgnored, GPS_WORK_PATHS,
-  commitMessages, defaultBranch, isCleanTree, tagExists, createTag, headCommit, pushWithTags, remoteHasTag,
+  commitMessages, defaultBranch, isCleanTree, tagExists, createTag, headCommit, pushWithTags, remoteHasTag, remoteBranchAt, headSha,
 } = require('../../skills/gps/scripts/lib/git');
 
 const readGitStatusSummary = (root, dir) => readGitStatus(root, dir).session;
@@ -302,9 +302,11 @@ fs.rmSync(projectRoot, { recursive: true, force: true });
 
   const pushed = pushWithTags(repo, 'feat/x');
   assert.strictEqual(pushed.ok, true, JSON.stringify(pushed));
-  assert.deepStrictEqual(pushed.commands, ['git push --follow-tags origin feat/x']);
+  assert.deepStrictEqual(pushed.commands, ['git push --atomic --follow-tags origin feat/x']);
   assert.strictEqual(remoteHasTag(repo, 'v1.0.0'), true);
   assert.strictEqual(remoteHasTag(repo, 'v1.0'), false, 'exact tag name only');
+  assert.strictEqual(remoteBranchAt(repo, 'feat/x'), headSha(repo));
+  assert.strictEqual(remoteBranchAt(repo, 'nope'), null);
   const badPush = pushWithTags(repo, 'missing-branch');
   assert.strictEqual(badPush.ok, false);
   assert.ok(badPush.reason && badPush.commands.length === 1);

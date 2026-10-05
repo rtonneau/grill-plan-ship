@@ -327,9 +327,9 @@ function headCommit(projectRoot) {
 // Pushes `branch` and the annotated tags on it. Never throws:
 // { ok: true, commands } or { ok: false, reason, commands }.
 function pushWithTags(projectRoot, branch) {
-  const commands = [`git push --follow-tags origin ${branch}`];
+  const commands = [`git push --atomic --follow-tags origin ${branch}`];
   try {
-    git(projectRoot, ['push', '--follow-tags', 'origin', branch]);
+    git(projectRoot, ['push', '--atomic', '--follow-tags', 'origin', branch]);
     return { ok: true, commands };
   } catch (err) {
     return { ok: false, reason: failureReason(err), commands };
@@ -339,6 +339,17 @@ function pushWithTags(projectRoot, branch) {
 // True when origin has `tag` (false on any error, including no origin).
 function remoteHasTag(projectRoot, tag) {
   return Boolean(tryGit(projectRoot, ['ls-remote', '--tags', 'origin', `refs/tags/${tag}`]));
+}
+
+// The sha origin holds for `branch`, or null (no origin, no such branch).
+function remoteBranchAt(projectRoot, branch) {
+  const out = tryGit(projectRoot, ['ls-remote', 'origin', `refs/heads/${branch}`]);
+  return out ? out.split(/\s+/)[0] : null;
+}
+
+// Full sha of HEAD, or null without a commit.
+function headSha(projectRoot) {
+  return tryGit(projectRoot, ['rev-parse', 'HEAD']);
 }
 
 module.exports = {
@@ -376,4 +387,6 @@ module.exports = {
   headCommit,
   pushWithTags,
   remoteHasTag,
+  remoteBranchAt,
+  headSha,
 };

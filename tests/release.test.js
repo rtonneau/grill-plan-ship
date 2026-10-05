@@ -169,7 +169,7 @@ function project(prefix, version = '1.4.2') {
   h.assertFails(h.run(root, 'release.js', ['--push']), 1, /not a release/i);
   h.assertFails(h.run(root, 'release.js', ['--push', '--version', '1.5.0']), 2);
   const cut = h.ok(root, 'release.js', ['--version', '1.5.0']);
-  assert.match(cut.out, /git push --follow-tags origin main/);
+  assert.match(cut.out, /git push --atomic --follow-tags origin main/);
   assert.strictEqual(h.git(root, 'status', '--porcelain'), '');
 
   const res = h.ok(root, 'release.js', ['--push']);
@@ -188,7 +188,51 @@ function project(prefix, version = '1.4.2') {
   h.git(root2, 'remote', 'add', 'origin', path.join(bare, 'missing'));
   finishSession(root2, 'only', 'feat', 'minor');
   h.ok(root2, 'release.js', ['--version', '1.5.0']);
-  h.assertFails(h.run(root2, 'release.js', ['--push']), 1, /git push --follow-tags origin main/);
+  h.assertFails(h.run(root2, 'release.js', ['--push']), 1, /git push --atomic --follow-tags origin main/);
+}
+
+// Partial push: origin is ahead, so the atomic push is rejected; a tag put on
+// origin by hand (the old non-atomic outcome) must not make a re-run succeed.
+{
+  const { execFileSync } = require('child_process');
+  const os = require('os');
+  const root = project('gps-rel10-');
+  const bare = fs.mkdtempSync(path.join(os.tmpdir(), 'gps-rel10-origin-'));
+  execFileSync('git', ['init', '-q', '--bare', bare], { stdio: 'ignore' });
+  h.git(root, 'remote', 'add', 'origin', bare);
+  h.git(root, 'push', '-q', 'origin', 'main');
+  // Another clone pushes a commit.
+  const other = fs.mkdtempSync(path.join(os.tmpdir(), 'gps-rel10-other-'));
+  execFileSync('git', ['clone', '-q', bare, other], { stdio: 'ignore' });
+  h.git(other, 'config', 'user.email', 'o@example.com');
+  h.git(other, 'config', 'user.name', 'Other');
+  fs.writeFileSync(path.join(other, 'other.js'), '// x');
+  h.git(other, 'add', '.');
+  h.git(other, 'commit', '-q', '-m', 'other');
+  h.git(other, 'push', '-q', 'origin', 'main');
+  finishSession(root, 'only', 'feat', 'minor');
+  h.ok(root, 'release.js', ['--version', '1.5.0']);
+  h.assertFails(h.run(root, 'release.js', ['--push']), 1, /Push failed/);
+  assert.strictEqual(execFileSync('git', ['--git-dir', bare, 'tag'], { encoding: 'utf-8' }).trim(), '', 'atomic: no tag on origin');
+  h.git(root, 'push', '-q', 'origin', 'v1.5.0');
+  const again = h.run(root, 'release.js', ['--push']);
+  h.assertFails(again, 1, /Push failed/);
+  assert.doesNotMatch(again.out, /already on origin/);
+}
+
+// --push checks the base branch and the config before pushing anything.
+{
+  const root = project('gps-rel11-');
+  finishSession(root, 'only', 'feat', 'minor');
+  h.git(root, 'switch', '-q', '-c', 'feature');
+  h.git(root, 'switch', '-q', 'main');
+  h.ok(root, 'release.js', ['--version', '1.5.0']);
+  h.git(root, 'branch', '-f', 'feature', 'HEAD');
+  h.git(root, 'switch', '-q', 'feature');
+  h.assertFails(h.run(root, 'release.js', ['--push']), 1, /Releases are cut from main/);
+  h.git(root, 'switch', '-q', 'main');
+  fs.writeFileSync(path.join(root, '.work', 'gps-config.json'), '{ "github": { "enabled": "yes" } }');
+  h.assertFails(h.run(root, 'release.js', ['--push']), 1, /gps-config.json is invalid/);
 }
 
 h.done('release.test.js');
