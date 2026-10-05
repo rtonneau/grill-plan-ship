@@ -5,7 +5,7 @@ const os = require('os');
 const path = require('path');
 const { execFileSync } = require('child_process');
 const { GpsError } = require('../../skills/gps/scripts/lib/guard');
-const { CONFIG_FILENAME, ensureProjectConfig, githubEnabled, rescanProjectConfig } = require('../../skills/gps/scripts/lib/project-config');
+const { CONFIG_FILENAME, ensureProjectConfig, githubEnabled, rescanProjectConfig, changelogSettings, releaseSettings, saveVersionFiles } = require('../../skills/gps/scripts/lib/project-config');
 
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'gps-projcfg-'));
 const marker = path.join(tmp, 'gh-called');
@@ -120,6 +120,26 @@ assert.strictEqual(readFile(fresh).github.enabled, false);
 fs.writeFileSync(configFile(fresh), '{ not json');
 assert.throws(() => rescanProjectConfig(fresh, { apply: true }), GpsError);
 assert.strictEqual(fs.readFileSync(configFile(fresh), 'utf-8'), '{ not json');
+
+// changelog / release settings: defaults on read, never written by a read.
+const cfgDir = makeProject('settings');
+assert.deepStrictEqual(changelogSettings(cfgDir), { enabled: true, path: 'CHANGELOG.md' });
+assert.deepStrictEqual(releaseSettings(cfgDir), { versionFiles: null, githubRelease: 'minor+' });
+assert.ok(!fs.existsSync(configFile(cfgDir)));
+ensureProjectConfig(cfgDir);
+const cfgBefore = fs.readFileSync(configFile(cfgDir), 'utf-8');
+assert.deepStrictEqual(releaseSettings(cfgDir), { versionFiles: null, githubRelease: 'minor+' });
+assert.strictEqual(fs.readFileSync(configFile(cfgDir), 'utf-8'), cfgBefore);
+saveVersionFiles(cfgDir, ['package.json']);
+assert.deepStrictEqual(releaseSettings(cfgDir).versionFiles, ['package.json']);
+assert.strictEqual(readFile(cfgDir).github.enabled, false);
+fs.writeFileSync(configFile(cfgDir), JSON.stringify({ github: { enabled: false }, changelog: { enabled: false, path: 'docs/CL.md' }, release: { githubRelease: 'all' } }));
+assert.deepStrictEqual(changelogSettings(cfgDir), { enabled: false, path: 'docs/CL.md' });
+assert.deepStrictEqual(releaseSettings(cfgDir), { versionFiles: null, githubRelease: 'all' });
+for (const [bad, re] of [[{ changelog: { enabled: 'yes' } }, /changelog.enabled/], [{ changelog: { path: 3 } }, /changelog.path/], [{ release: { githubRelease: 'sometimes' } }, /githubRelease/]]) {
+  fs.writeFileSync(configFile(cfgDir), JSON.stringify({ github: { enabled: false }, ...bad }));
+  assert.throws(() => changelogSettings(cfgDir), (e) => e instanceof GpsError && re.test(e.message));
+}
 
 delete process.env.GPS_GH_BIN;
 fs.rmSync(tmp, { recursive: true, force: true });

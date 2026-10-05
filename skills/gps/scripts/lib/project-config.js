@@ -19,12 +19,36 @@ function configPath(projectRoot) {
   return path.join(projectRoot, '.work', CONFIG_FILENAME);
 }
 
+const GITHUB_RELEASE_MODES = ['none', 'minor+', 'all'];
+
+function invalid(what, filePath) {
+  return new GpsError(
+    `${CONFIG_FILENAME} is invalid: ${what} (${filePath}).`,
+    'Fix the file by hand, or delete it so the next command detects the settings again.'
+  );
+}
+
 function validate(config, filePath) {
   if (!config || !config.github || typeof config.github.enabled !== 'boolean') {
-    throw new GpsError(
-      `${CONFIG_FILENAME} is invalid: "github.enabled" must be true or false (${filePath}).`,
-      'Fix the file by hand, or delete it so the next command detects GitHub again.'
-    );
+    throw invalid('"github.enabled" must be true or false', filePath);
+  }
+  const { changelog, release } = config;
+  if (changelog !== undefined) {
+    if (changelog.enabled !== undefined && typeof changelog.enabled !== 'boolean') {
+      throw invalid('"changelog.enabled" must be true or false', filePath);
+    }
+    if (changelog.path !== undefined && (typeof changelog.path !== 'string' || !changelog.path)) {
+      throw invalid('"changelog.path" must be a file path string', filePath);
+    }
+  }
+  if (release !== undefined) {
+    if (release.githubRelease !== undefined && !GITHUB_RELEASE_MODES.includes(release.githubRelease)) {
+      throw invalid(`"release.githubRelease" must be one of ${GITHUB_RELEASE_MODES.join(', ')}`, filePath);
+    }
+    const files = release.versionFiles;
+    if (files !== undefined && files !== null && !(Array.isArray(files) && files.every((f) => typeof f === 'string'))) {
+      throw invalid('"release.versionFiles" must be a list of file paths', filePath);
+    }
   }
   return config;
 }
@@ -88,4 +112,30 @@ function rescanProjectConfig(projectRoot, { apply = false, check = false } = {})
   return { status: same ? 'unchanged' : 'updated', stored, storedAt, detected, config };
 }
 
-module.exports = { CONFIG_FILENAME, readConfig, ensureProjectConfig, githubEnabled, rescanProjectConfig };
+// Changelog and release settings, defaults applied on read (a read never
+// writes the file). versionFiles is null until saved: callers detect them.
+function changelogSettings(projectRoot) {
+  const changelog = (readConfig(projectRoot) || {}).changelog || {};
+  return {
+    enabled: changelog.enabled === undefined ? true : changelog.enabled,
+    path: changelog.path || 'CHANGELOG.md',
+  };
+}
+
+function releaseSettings(projectRoot) {
+  const release = (readConfig(projectRoot) || {}).release || {};
+  return {
+    versionFiles: release.versionFiles || null,
+    githubRelease: release.githubRelease || 'minor+',
+  };
+}
+
+function saveVersionFiles(projectRoot, files) {
+  const config = ensureProjectConfig(projectRoot);
+  writeConfig(projectRoot, { ...config, release: { ...config.release, versionFiles: files } });
+}
+
+module.exports = {
+  CONFIG_FILENAME, readConfig, ensureProjectConfig, githubEnabled, rescanProjectConfig,
+  changelogSettings, releaseSettings, saveVersionFiles,
+};
