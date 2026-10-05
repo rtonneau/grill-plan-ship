@@ -20,7 +20,7 @@ Write only inside `.work/<skill-name>/`, using a name that is not one of the pat
 
 - gps never commits, edits or deletes anything outside the paths it owns. Its `chore(gps)` commits contain only those paths, even when your files are staged.
 - `/gps clean` deletes only session directories (folders under `.work/sessions/` that hold a `.session-config.json`) and entries of `.pending-seeds.json`.
-- gps's git checks leave out all of `.work/`. Your uncommitted files there never block a ticket or `/gps finish`.
+- gps's git checks leave out all of `.work/`. Your uncommitted files there never make a ticket or `/gps finish` fail. One exception: if a tracked file of yours is modified, and differs on the base branch, `/gps finish` can't switch back to that branch. It then stays on the session branch and says so.
 
 ## What your skill must do
 
@@ -30,7 +30,13 @@ Write only inside `.work/<skill-name>/`, using a name that is not one of the pat
   - `.work/sessions/.current-session`: the current session's id. It is absent when there is none.
   - `.work/sessions/<id>/.session-config.json`
   - `02-plan/plan.md` and `02-plan/tickets/` in that session.
-- **Rely only on the stable `.session-config.json` fields:** `current_phase`, `kind`, `feature_name` and `git.branch`. Any other field may change between gps versions.
+- **Rely only on the stable `.session-config.json` fields**, and know when each one can be missing:
+  - `feature_name`: always set.
+  - `kind`: `"issue"` for a `/gps start --issue` session; absent for a feature session.
+  - `git.branch`: the session branch. `git` is absent until `/gps write` creates the branch, and for a session without one.
+  - `current_phase`: the last phase gps recorded. The files are the truth: the phase is derived from them, and `/gps status` reports when the two disagree.
+
+  Any other field may change between gps versions.
 - **Expect sessions on other branches.** `.work/` is committed with the code, so a session's files live on its branch. Sessions on a branch that isn't checked out are not on disk.
 
 If `.work/` is git-ignored (older gps versions added that line), gps commits none of its own files. `/gps init` offers to remove the line.

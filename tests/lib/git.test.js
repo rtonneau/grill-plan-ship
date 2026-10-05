@@ -206,7 +206,44 @@ fs.rmSync(projectRoot, { recursive: true, force: true });
   record = commitWorkDir(root, 'chore(gps): ignored adr');
   assert.ok(record.ok, JSON.stringify(record));
   assert.deepStrictEqual(record.files, ['.work/gps-config.json']);
+
+  // A tracked folder the user then git-ignores: its tracked changes still
+  // commit, and the other owned paths are not blocked by it.
+  fs.writeFileSync(path.join(root, '.gitignore'), '.work/sessions/.current-session\n');
+  assert.deepStrictEqual(commitWorkDir(root, 'chore(gps): adr').files, ['.work/adr/0001-x.md']);
+  fs.writeFileSync(path.join(root, '.gitignore'), '.work/sessions/.current-session\n.work/adr/\n');
+  sh('git add .gitignore');
+  sh('git commit -q -m "ignore adr"');
+  fs.writeFileSync(path.join(root, '.work', 'gps-config.json'), '{"a":2}\n');
+  fs.writeFileSync(path.join(root, '.work', 'adr', '0001-x.md'), 'adr v2\n');
+  record = commitWorkDir(root, 'chore(gps): tracked ignored adr');
+  assert.ok(record.ok, JSON.stringify(record));
+  assert.deepStrictEqual(record.files.sort(), ['.work/adr/0001-x.md', '.work/gps-config.json']);
   fs.rmSync(root, { recursive: true, force: true });
+}
+
+// A project in a subfolder of its repo: only its own .work/ files are
+// committed, never the user's staged code.
+{
+  const repoRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'gps-subdir-'));
+  const root = path.join(repoRoot, 'sub');
+  const sh = (cmd) => execSync(cmd, { cwd: repoRoot, encoding: 'utf-8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
+  sh('git init -q -b main');
+  sh('git config user.email "test@example.com"');
+  sh('git config user.name "Test"');
+  fs.mkdirSync(path.join(root, '.work', 'sessions', 's1'), { recursive: true });
+  fs.writeFileSync(path.join(root, 'app.js'), '1\n');
+  sh('git add sub/app.js');
+  sh('git commit -q -m initial');
+  fs.writeFileSync(path.join(root, 'app.js'), '2\n');
+  sh('git add sub/app.js');
+  fs.writeFileSync(path.join(root, '.work', 'sessions', 's1', 'plan.md'), 'plan\n');
+  const record = commitWorkDir(root, 'chore(gps): plan s1');
+  assert.ok(record.ok && record.sha, JSON.stringify(record));
+  assert.deepStrictEqual(record.files, ['.work/sessions/s1/plan.md']);
+  assert.strictEqual(sh('git show --name-only --format= HEAD'), 'sub/.work/sessions/s1/plan.md');
+  assert.strictEqual(sh('git diff --cached --name-only'), 'sub/app.js', 'the user\'s staged code stays staged');
+  fs.rmSync(repoRoot, { recursive: true, force: true });
 }
 
 console.log('git.test.js: all assertions passed');

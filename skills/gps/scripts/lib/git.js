@@ -210,18 +210,26 @@ function commitWorkDir(projectRoot, message) {
   if (!isWorkTree(projectRoot)) return none('not a git repository');
   if (!fs.existsSync(path.join(projectRoot, '.work'))) return none(null);
   if (isIgnored(projectRoot, '.work/')) return none('.work/ is git-ignored');
-  // git add fails on a path that is neither on disk nor tracked, or ignored.
-  const paths = GPS_WORK_PATHS.filter((p) => isTracked(projectRoot, p)
-    || (fs.existsSync(path.join(projectRoot, p)) && !isIgnored(projectRoot, p)));
+  // git add fails on a path that is neither on disk nor tracked, and `add -A`
+  // on an ignored one: a tracked path the user ignores only gets `add -u`.
+  const tracked = (p) => isTracked(projectRoot, p);
+  const updateOnly = GPS_WORK_PATHS.filter((p) => tracked(p) && isIgnored(projectRoot, p));
+  const addAll = GPS_WORK_PATHS.filter((p) => !isIgnored(projectRoot, p)
+    && (tracked(p) || fs.existsSync(path.join(projectRoot, p))));
+  const paths = GPS_WORK_PATHS.filter((p) => addAll.includes(p) || updateOnly.includes(p));
   if (paths.length === 0) return none(null);
   const commands = [`git add -- ${paths.join(' ')}`, `git commit -m ${quote(message)} -- ${paths.join(' ')}`];
   try {
-    git(projectRoot, ['add', '-A', '--', ...paths]);
-    const files = nulList(git(projectRoot, ['diff', '--cached', '--name-only', '-z', '--', ...paths]));
+    if (addAll.length > 0) git(projectRoot, ['add', '-A', '--', ...addAll]);
+    if (updateOnly.length > 0) git(projectRoot, ['add', '-u', '--', ...updateOnly]);
+    // --relative: paths as seen from projectRoot, which may be a subfolder of the repo.
+    const files = nulList(git(projectRoot, ['diff', '--cached', '--name-only', '--relative', '-z', '--', ...paths]));
     if (files.length === 0) return none(null);
     // git commit fails on a directory holding no tracked file, so only the
     // paths with something staged are named.
     const staged = paths.filter((p) => files.some((f) => f === p || f.startsWith(`${p}/`)));
+    // Never commit without a pathspec: that would take the whole index.
+    if (staged.length === 0) return none(null);
     git(projectRoot, ['commit', '-q', '-m', message, '--', ...staged]);
     return { ok: true, sha: git(projectRoot, ['rev-parse', '--short', 'HEAD']), files, skipped: null };
   } catch (err) {
