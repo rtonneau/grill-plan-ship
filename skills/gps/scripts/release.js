@@ -14,7 +14,9 @@
  * version into the version files, commits those files alone as
  * `chore(release): X.Y.Z` (body `Bump: <level>`) and tags vX.Y.Z.
  * Refuses, changing nothing, off the base branch, on a dirty tree, with the
- * changelog disabled or empty, or when the version is not a new one.
+ * changelog disabled or empty, or when the version is not a new one. A cut
+ * first fetches origin's base branch and refuses when HEAD is behind it (no
+ * origin or a failed fetch only warns).
  */
 
 const fs = require('fs');
@@ -28,7 +30,7 @@ const { parseVersion, formatVersion, compareVersions, bumpVersion, maxLevel, lev
 const { detectVersionFiles, readVersions, writeVersion } = require('./lib/version-files');
 const {
   defaultBranch, currentBranch, isCleanTree, isIgnored, isTracked, tagExists, createTag, commitFiles, headCommit,
-  pushWithTags, remoteHasTag, remoteBranchAt, headSha,
+  pushWithTags, remoteHasTag, remoteBranchAt, headSha, fetchBehind,
 } = require('./lib/git');
 const { sessionsDirOf, listSessionDirs, readConfigOrNull } = require('./lib/session-store');
 
@@ -166,12 +168,21 @@ function release({ options, projectRoot, warn }) {
         data: { current: null, version, level: lvl, tag: tagName, record: null, versionFiles: [] },
       };
     }
+    // Cut from origin's latest base (merged PRs land there); suggest mode
+    // stays read-only and never fetches.
+    const sync = fetchBehind(projectRoot, base);
+    if (!sync.ok) {
+      warn(`${base} not checked against origin (${sync.reason}): cutting from the local ${base}.`);
+    } else if (sync.behind > 0) {
+      throw new GpsError(`${base} is ${sync.behind} commit(s) behind origin/${base}; nothing was changed.`,
+        'Run git pull, then run this again.');
+    }
   }
   const changelogPath = path.join(projectRoot, settings.path);
   const text = fs.existsSync(changelogPath) ? fs.readFileSync(changelogPath, 'utf-8') : '';
   if (!unreleasedHasEntries(text)) {
     throw new GpsError(`${settings.path} has no entries under "## Unreleased"; nothing was changed.`,
-      'Finish a session (it writes its entry), then run this again.');
+      'Run git pull if sessions were merged elsewhere, or finish a session (it writes its entry), then run this again.');
   }
 
   const markers = readBumpMarkers(text);

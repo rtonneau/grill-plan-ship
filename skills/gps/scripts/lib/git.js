@@ -347,6 +347,19 @@ function remoteBranchAt(projectRoot, branch) {
   return out ? out.split(/\s+/)[0] : null;
 }
 
+// Fetches origin's `branch` (updating origin/<branch>) and counts the
+// commits it has that HEAD lacks. Changes no tracked file. Never throws:
+// { ok: true, behind } or { ok: false, reason } (no origin, fetch failed).
+function fetchBehind(projectRoot, branch) {
+  if (!originUrl(projectRoot)) return { ok: false, reason: 'no origin remote' };
+  try {
+    git(projectRoot, ['fetch', '-q', 'origin', `+refs/heads/${branch}:refs/remotes/origin/${branch}`]);
+    return { ok: true, behind: Number(git(projectRoot, ['rev-list', '--count', `HEAD..refs/remotes/origin/${branch}`])) };
+  } catch (err) {
+    return { ok: false, reason: failureReason(err) };
+  }
+}
+
 // Full sha of HEAD, or null without a commit.
 function headSha(projectRoot) {
   return tryGit(projectRoot, ['rev-parse', 'HEAD']);
@@ -389,4 +402,5 @@ module.exports = {
   remoteHasTag,
   remoteBranchAt,
   headSha,
+  fetchBehind,
 };

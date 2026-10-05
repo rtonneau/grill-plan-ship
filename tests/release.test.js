@@ -95,6 +95,7 @@ function project(prefix, version = '1.4.2') {
   finishSession(root, 'only', 'feat', 'minor');
   const res = h.ok(root, 'release.js', ['--version', '3.0.0']);
   assert.match(res.out, /1\.4\.2 → 3\.0\.0 \(major\)/);
+  assert.match(res.err, /not checked against origin \(no origin remote\)/, 'no origin: a warning, the cut goes on');
   assert.match(res.out, /Next: .*release\.js --push/);
   assert.match(h.git(root, 'log', '-1', '--format=%B'), /Bump: major/);
 }
@@ -155,7 +156,7 @@ function project(prefix, version = '1.4.2') {
 // Nothing to release / changelog disabled.
 {
   const root = project('gps-rel5-');
-  h.assertFails(h.run(root, 'release.js'), 1);
+  h.assertFails(h.run(root, 'release.js'), 1, /no entries under "## Unreleased"[\s\S]*git pull/);
   finishSession(root, 'only', 'feat', 'minor');
   fs.writeFileSync(path.join(root, '.work', 'gps-config.json'), JSON.stringify({ github: { enabled: false }, changelog: { enabled: false } }));
   h.git(root, 'commit', '-q', '-am', 'config');
@@ -230,17 +231,33 @@ function project(prefix, version = '1.4.2') {
   execFileSync('git', ['init', '-q', '--bare', bare], { stdio: 'ignore' });
   h.git(root, 'remote', 'add', 'origin', bare);
   h.git(root, 'push', '-q', 'origin', 'main');
-  // Another clone pushes a commit.
   const other = fs.mkdtempSync(path.join(os.tmpdir(), 'gps-rel10-other-'));
   execFileSync('git', ['clone', '-q', bare, other], { stdio: 'ignore' });
   h.git(other, 'config', 'user.email', 'o@example.com');
   h.git(other, 'config', 'user.name', 'Other');
+  finishSession(root, 'only', 'feat', 'minor');
+
+  // The cut fetches origin: behind it, the cut is refused, changing nothing.
   fs.writeFileSync(path.join(other, 'other.js'), '// x');
   h.git(other, 'add', '.');
   h.git(other, 'commit', '-q', '-m', 'other');
   h.git(other, 'push', '-q', 'origin', 'main');
-  finishSession(root, 'only', 'feat', 'minor');
+  const headBefore = h.git(root, 'rev-parse', 'HEAD');
+  const logBefore = fs.readFileSync(path.join(root, 'CHANGELOG.md'), 'utf-8');
+  assert.match(h.ok(root, 'release.js').out, /1\.5\.0/, 'suggest stays read-only and works behind origin');
+  h.assertFails(h.run(root, 'release.js', ['--version', '1.5.0']), 1, /behind origin\/main[\s\S]*git pull/);
+  assert.strictEqual(h.git(root, 'rev-parse', 'HEAD'), headBefore);
+  assert.strictEqual(fs.readFileSync(path.join(root, 'CHANGELOG.md'), 'utf-8'), logBefore);
+  assert.strictEqual(h.git(root, 'tag'), '');
+  assert.strictEqual(h.git(root, 'status', '--porcelain'), '');
+  h.git(root, 'pull', '-q', '--no-rebase', '--no-edit', 'origin', 'main');
   h.ok(root, 'release.js', ['--version', '1.5.0']);
+
+  // Another clone pushes after the cut: the atomic push is rejected.
+  fs.writeFileSync(path.join(other, 'other2.js'), '// y');
+  h.git(other, 'add', '.');
+  h.git(other, 'commit', '-q', '-m', 'other 2');
+  h.git(other, 'push', '-q', 'origin', 'main');
   h.assertFails(h.run(root, 'release.js', ['--push']), 1, /Push failed/);
   assert.strictEqual(execFileSync('git', ['--git-dir', bare, 'tag'], { encoding: 'utf-8' }).trim(), '', 'atomic: no tag on origin');
   h.git(root, 'push', '-q', 'origin', 'v1.5.0');

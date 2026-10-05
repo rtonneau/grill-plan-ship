@@ -7,7 +7,7 @@ const { execSync } = require('child_process');
 const {
   readRecentCommits, readGitStatus, commitFiles, commitExists, describeCommit,
   commitWorkDir, describeWorkCommit, branchesHolding, isIgnored, GPS_WORK_PATHS,
-  commitMessages, defaultBranch, isCleanTree, tagExists, createTag, headCommit, pushWithTags, remoteHasTag, remoteBranchAt, headSha,
+  commitMessages, defaultBranch, isCleanTree, tagExists, createTag, headCommit, pushWithTags, remoteHasTag, remoteBranchAt, headSha, fetchBehind,
 } = require('../../skills/gps/scripts/lib/git');
 
 const readGitStatusSummary = (root, dir) => readGitStatus(root, dir).session;
@@ -307,6 +307,20 @@ fs.rmSync(projectRoot, { recursive: true, force: true });
   assert.strictEqual(remoteHasTag(repo, 'v1.0'), false, 'exact tag name only');
   assert.strictEqual(remoteBranchAt(repo, 'feat/x'), headSha(repo));
   assert.strictEqual(remoteBranchAt(repo, 'nope'), null);
+  // fetchBehind: fetches origin's branch, counts the commits HEAD lacks.
+  assert.deepStrictEqual(fetchBehind(repo, 'feat/x'), { ok: true, behind: 0 });
+  fs.writeFileSync(path.join(repo, 'ahead.txt'), 'x\n');
+  sh(repo, 'git add ahead.txt');
+  sh(repo, 'git commit -q -m "chore: ahead"');
+  sh(repo, 'git push -q origin feat/x');
+  sh(repo, 'git reset -q --hard HEAD~1');
+  sh(repo, 'git update-ref -d refs/remotes/origin/feat/x');
+  assert.deepStrictEqual(fetchBehind(repo, 'feat/x'), { ok: true, behind: 1 }, 'the fetch brings the new commit');
+  sh(repo, 'git merge -q --ff-only origin/feat/x');
+  const missing = fetchBehind(repo, 'no-such-branch');
+  assert.strictEqual(missing.ok, false);
+  assert.ok(missing.reason);
+  assert.deepStrictEqual(fetchBehind(root, 'main'), { ok: false, reason: 'no origin remote' });
   const badPush = pushWithTags(repo, 'missing-branch');
   assert.strictEqual(badPush.ok, false);
   assert.ok(badPush.reason && badPush.commands.length === 1);
