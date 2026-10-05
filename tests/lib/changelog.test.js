@@ -1,6 +1,7 @@
 // tests/lib/changelog.test.js
 const assert = require('assert');
 const {
+  readBumpMarkers, unreleasedHasEntries, latestVersion, cutRelease, sectionNotes,
   SECTIONS, NEW_FILE_HEADER, VERSION_HEADING_RE, detectFormat, readUnreleased, parsePayload, upsertSessionEntry,
 } = require('../../skills/gps/scripts/lib/changelog');
 const { UsageError } = require('../../skills/gps/scripts/lib/guard');
@@ -149,5 +150,32 @@ const emptied = up(nestedSec, 's1', 'minor', parsePayload('### Added\n- x', 'sec
 assert.ok(!emptied.includes('### Fixed'));
 assert.ok(emptied.includes('### Added\n\n- x <!-- gps:s1 -->'));
 assert.ok(emptied.includes('### Added\n\n- first'));
+
+// release side
+let rel = up(GPS_HEAD, 's1', 'minor', bullets('- one'));
+rel = up(rel, 's2', 'patch', bullets('- two', '  - sub'));
+rel = rel.replace('## Unreleased\n\n', '## Unreleased\n\n- hand\n');
+assert.deepStrictEqual(readBumpMarkers(rel), [{ level: 'minor', sessionId: 's1' }, { level: 'patch', sessionId: 's2' }]);
+assert.deepStrictEqual(readBumpMarkers(GPS_HEAD), []);
+assert.strictEqual(unreleasedHasEntries(rel), true);
+assert.strictEqual(unreleasedHasEntries(GPS_HEAD), false);
+assert.strictEqual(unreleasedHasEntries('# C\n\n## Unreleased\n\n- hand\n'), true);
+assert.strictEqual(latestVersion(rel), '2.5.1');
+assert.strictEqual(latestVersion('# C\n\n## v1.2.3\n'), '1.2.3');
+assert.strictEqual(latestVersion('# C\n'), null);
+const cut = cutRelease(rel, '2.6.0', '2026-10-05');
+assert.ok(cut.includes('## 2.6.0 (2026-10-05)\n\n- hand\n- one\n- two\n  - sub\n\n## 2.5.1'));
+assert.ok(!cut.includes('<!--') && !cut.includes('Unreleased'));
+assert.ok(cut.endsWith(GPS_HEAD.slice(GPS_HEAD.indexOf('## 2.5.1'))));
+assert.ok(!/[ \t]+$/m.test(cut));
+assert.strictEqual(sectionNotes(cut, '2.6.0'), '- hand\n- one\n- two\n  - sub');
+assert.strictEqual(sectionNotes(cut, '9.9.9'), '');
+const secSrc = up(KEEP, 's1', 'minor', parsePayload('### Fixed\n- a', 'sections')).replace('## Unreleased\n\n', '## Unreleased\n\n### Added\n\n');
+const secCut = cutRelease(secSrc, '1.1.0', '2026-10-05');
+assert.ok(secCut.includes('## 1.1.0 (2026-10-05)\n\n### Fixed\n\n- a\n\n## [1.0.0]'));
+assert.ok(cutRelease('# C\n\n## [Unreleased]\n\n- x <!-- gps:s -->\n', '1.0.0', 'd').includes('## 1.0.0 (d)\n\n- x\n'));
+const crlfCut = cutRelease(rel.replace(/\n/g, '\r\n'), '2.6.0', '2026-10-05');
+assert.ok(crlfCut.includes('## 2.6.0 (2026-10-05)\r\n') && !/[^\r]\n/.test(crlfCut) && !crlfCut.includes('<!--'));
+assert.throws(() => cutRelease(GPS_HEAD, '2.6.0', 'd'), UsageError);
 
 console.log('changelog.test.js: all assertions passed');

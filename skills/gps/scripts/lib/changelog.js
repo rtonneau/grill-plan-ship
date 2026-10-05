@@ -213,7 +213,82 @@ function upsertSessionEntry(text, { sessionId, bump, entry }) {
   return crlf ? joined.replace(/\n/g, '\r\n') : joined;
 }
 
+const BUMP_LEVEL_RE = /^<!-- gps:bump=(\S+) session=(\S+) -->\s*$/;
+const MARKER_SUFFIX_RE = /\s*<!-- gps:.*? -->\s*$/;
+
+function unreleasedLines(text) {
+  const lines = toLf(text || '').split('\n');
+  const block = findUnreleased(lines);
+  return block ? lines.slice(block.start + 1, block.end) : [];
+}
+
+function readBumpMarkers(text) {
+  return unreleasedLines(text)
+    .map((line) => line.match(BUMP_LEVEL_RE))
+    .filter(Boolean)
+    .map((m) => ({ level: m[1], sessionId: m[2] }));
+}
+
+function unreleasedHasEntries(text) {
+  return unreleasedLines(text).some((line) => BULLET_RE.test(line));
+}
+
+function latestVersion(text) {
+  for (const line of toLf(text || '').split('\n')) {
+    const m = line.match(VERSION_HEADING_RE);
+    if (m) return m[1];
+  }
+  return null;
+}
+
+// Turns the Unreleased block into "## <version> (<date>)": gps markers go, and
+// so do subsection headings left with no bullet. Other sections are untouched.
+function cutRelease(text, version, date) {
+  const crlf = text.includes('\r\n');
+  const lines = toLf(text).split('\n');
+  const trailingNewline = text.endsWith('\n');
+  if (trailingNewline) lines.pop();
+  const block = findUnreleased(lines);
+  if (!block) throw new UsageError('No "## Unreleased" section in the CHANGELOG: nothing to release.');
+
+  const inner = lines.slice(block.start + 1, block.end)
+    .filter((line) => !BUMP_RE.test(line))
+    .map((line) => line.replace(MARKER_SUFFIX_RE, ''));
+  const parts = splitBody(inner);
+  parts.subsections = parts.subsections.filter((sub) => sub.lines.length > 1);
+
+  const rest = lines.slice(block.end);
+  const out = [
+    ...lines.slice(0, block.start),
+    `## ${version} (${date})`,
+    '',
+    ...renderBody(parts),
+    ...(rest.length ? [''] : []),
+    ...rest,
+  ];
+  const joined = out.join('\n') + (trailingNewline ? '\n' : '');
+  return crlf ? joined.replace(/\n/g, '\r\n') : joined;
+}
+
+// Body of the "## <version> ..." section, up to the next "## ", trimmed.
+function sectionNotes(text, version) {
+  const lines = toLf(text || '').split('\n');
+  const start = lines.findIndex((line) => {
+    const m = line.match(VERSION_HEADING_RE);
+    return m && m[1] === version;
+  });
+  if (start === -1) return '';
+  let end = lines.findIndex((line, i) => i > start && H2_RE.test(line));
+  if (end === -1) end = lines.length;
+  return lines.slice(start + 1, end).join('\n').trim();
+}
+
 module.exports = {
+  readBumpMarkers,
+  unreleasedHasEntries,
+  latestVersion,
+  cutRelease,
+  sectionNotes,
   SECTIONS,
   NEW_FILE_HEADER,
   VERSION_HEADING_RE,
