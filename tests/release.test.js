@@ -158,4 +158,37 @@ function project(prefix, version = '1.4.2') {
   assert.strictEqual(h.git(root, 'status', '--porcelain'), '');
 }
 
+// --push: a local bare origin, no GitHub (github.enabled is false here).
+{
+  const { execFileSync } = require('child_process');
+  const root = project('gps-rel8-');
+  const bare = fs.mkdtempSync(path.join(require('os').tmpdir(), 'gps-rel8-origin-'));
+  execFileSync('git', ['init', '-q', '--bare', bare], { stdio: 'ignore' });
+  h.git(root, 'remote', 'add', 'origin', bare);
+  finishSession(root, 'only', 'feat', 'minor');
+  h.assertFails(h.run(root, 'release.js', ['--push']), 1, /not a release/i);
+  h.assertFails(h.run(root, 'release.js', ['--push', '--version', '1.5.0']), 2);
+  const cut = h.ok(root, 'release.js', ['--version', '1.5.0']);
+  assert.match(cut.out, /git push --follow-tags origin main/);
+  assert.strictEqual(h.git(root, 'status', '--porcelain'), '');
+
+  const res = h.ok(root, 'release.js', ['--push']);
+  const data = JSON.parse(h.ok(root, 'release.js', ['--push', '--json']).out);
+  assert.strictEqual(data.version, '1.5.0');
+  assert.strictEqual(data.pushed, false, 'the second run does not push again');
+  assert.deepStrictEqual(data.release, { skipped: 'github-off' });
+  assert.match(res.out, /1\.5\.0/);
+  const remote = (...a) => execFileSync('git', ['--git-dir', bare, ...a], { encoding: 'utf-8' }).trim();
+  assert.strictEqual(remote('rev-parse', 'refs/heads/main'), h.git(root, 'rev-parse', 'HEAD'));
+  assert.ok(remote('tag').split('\n').includes('v1.5.0'));
+  assert.strictEqual(h.git(root, 'status', '--porcelain'), '', '--push leaves a clean tree');
+
+  // A push that fails: exit 1 with the command.
+  const root2 = project('gps-rel9-');
+  h.git(root2, 'remote', 'add', 'origin', path.join(bare, 'missing'));
+  finishSession(root2, 'only', 'feat', 'minor');
+  h.ok(root2, 'release.js', ['--version', '1.5.0']);
+  h.assertFails(h.run(root2, 'release.js', ['--push']), 1, /git push --follow-tags origin main/);
+}
+
 h.done('release.test.js');

@@ -1,7 +1,12 @@
 #!/usr/bin/env node
 
 /**
- * release.js [--version X.Y.Z] [--json]
+ * release.js [--version X.Y.Z | --push] [--json]
+ *
+ * --push (step 3) pushes the release commit and its tag, then creates the
+ * GitHub Release when GitHub is on and release.githubRelease allows it for
+ * the level in the commit's "Bump:" line. Re-runnable: it skips a push the
+ * origin already has and a release that already exists.
  *
  * /gps release, steps 1 and 2. Without --version (read-only): suggests the
  * next version from the gps bump markers under the CHANGELOG's Unreleased
@@ -16,11 +21,12 @@ const fs = require('fs');
 const path = require('path');
 const { main } = require('./lib/cli');
 const { GpsError, UsageError, localDate } = require('./lib/guard');
-const { changelogSettings, releaseSettings, saveVersionFiles } = require('./lib/project-config');
-const { readBumpMarkers, unreleasedHasEntries, latestVersion, cutRelease } = require('./lib/changelog');
+const { changelogSettings, releaseSettings, saveVersionFiles, readConfig } = require('./lib/project-config');
+const { readBumpMarkers, unreleasedHasEntries, latestVersion, cutRelease, sectionNotes } = require('./lib/changelog');
+const { releaseExists, createRelease } = require('./lib/github');
 const { parseVersion, formatVersion, compareVersions, bumpVersion, maxLevel } = require('./lib/semver');
 const { detectVersionFiles, readVersions, writeVersion } = require('./lib/version-files');
-const { defaultBranch, currentBranch, isCleanTree, tagExists, createTag, commitFiles, headCommit } = require('./lib/git');
+const { defaultBranch, currentBranch, isCleanTree, tagExists, createTag, commitFiles, headCommit, pushWithTags, remoteHasTag } = require('./lib/git');
 const { sessionsDirOf, listSessionDirs, readConfigOrNull } = require('./lib/session-store');
 
 // Finished sessions' configs, most recently finished first.
@@ -42,7 +48,70 @@ function tagFailure(tagName, tag) {
     `Run by hand: ${tag.commands.join(' && ')}, or run this again to resume.`);
 }
 
+const RELEASE_COMMIT_RE = /^chore\(release\): (\d+\.\d+\.\d+)$/;
+
+function pushNext(projectRoot) {
+  const branch = currentBranch(projectRoot);
+  return `Next: ask the user whether to push (by hand: git push --follow-tags origin ${branch || '<branch>'}), then release.js --push`;
+}
+
+// Steps 3: push the release commit and tag, then a GitHub Release by policy.
+function push({ projectRoot, warn }) {
+  const head = headCommit(projectRoot);
+  const m = head && RELEASE_COMMIT_RE.exec(head.subject);
+  if (!m || !head.tags.includes(`v${m[1]}`)) {
+    throw new GpsError('HEAD is not a release commit with its tag (chore(release): X.Y.Z, tagged vX.Y.Z); nothing was pushed.',
+      'Run release.js --version X.Y.Z first.');
+  }
+  const version = m[1];
+  const tag = `v${version}`;
+  const level = (/^Bump: (\w+)/m.exec(head.body) || [])[1] || null;
+  const branch = currentBranch(projectRoot);
+  if (!branch) {
+    throw new GpsError('A detached HEAD cannot be pushed; nothing was pushed.', `Run git switch <branch>, then run this again.`);
+  }
+
+  let pushed = false;
+  if (!remoteHasTag(projectRoot, tag)) {
+    const res = pushWithTags(projectRoot, branch);
+    if (!res.ok) {
+      throw new GpsError(`Push failed (${res.reason}); nothing else was done.`,
+        `Run by hand: ${res.commands.join(' && ')}, then run this again.`);
+    }
+    pushed = true;
+  }
+
+  // Read-only: a missing config means GitHub off (never create files here).
+  const config = readConfig(projectRoot);
+  const policy = releaseSettings(projectRoot).githubRelease;
+  let result;
+  if (!config || !config.github.enabled) {
+    result = { skipped: 'github-off' };
+  } else if (policy === 'none' || (policy === 'minor+' && level !== 'minor' && level !== 'major')) {
+    result = { skipped: 'policy' };
+  } else if (releaseExists(projectRoot, tag)) {
+    result = { ok: true, url: null };
+  } else {
+    const changelogPath = path.join(projectRoot, changelogSettings(projectRoot).path);
+    const notes = (fs.existsSync(changelogPath) && sectionNotes(fs.readFileSync(changelogPath, 'utf-8'), version)) || `Release ${version}`;
+    result = createRelease(projectRoot, { tag, title: version, notes });
+    if (!result.ok) {
+      warn(`GitHub Release not created (${result.reason}). Run by hand: ${result.commands.join(' && ')}`);
+    }
+  }
+
+  const lines = [`🚀 ${version}: ${pushed ? `pushed ${branch} and ${tag}` : `${tag} was already on origin, nothing pushed`}`];
+  if (result.skipped === 'github-off') lines.push('GitHub Release skipped: GitHub is off for this project.');
+  else if (result.skipped === 'policy') lines.push(`GitHub Release skipped: release.githubRelease is "${policy}" (${level || 'unknown'} release).`);
+  else if (result.ok) lines.push(result.url ? `GitHub Release: ${result.url}` : 'GitHub Release already exists.');
+  return { text: lines.join('\n'), data: { version, pushed, release: result } };
+}
+
 function release({ options, projectRoot, warn }) {
+  if (options.push) {
+    if (options.version != null) throw new UsageError('--push and --version cannot be combined.');
+    return push({ projectRoot, warn });
+  }
   const typed = options.version == null ? null : parseVersion(options.version);
   if (options.version != null && !typed) {
     throw new UsageError(`"${options.version}" is not a version. Use X.Y.Z.`);
@@ -78,8 +147,7 @@ function release({ options, projectRoot, warn }) {
       if (!resumed.ok) throw tagFailure(tagName, resumed);
       const lvl = (/^Bump: (\w+)/m.exec(head.body) || [])[1] || null;
       return {
-        text: `🏷️ ${version} was committed without its tag: tagged ${tagName}
-Next: ask the user whether to push, then release.js --push`,
+        text: `🏷️ ${version} was committed without its tag: tagged ${tagName}\n${pushNext(projectRoot)}`,
         data: { current: null, version, level: lvl, tag: tagName, record: null, versionFiles: [] },
       };
     }
@@ -161,14 +229,13 @@ Next: ask the user whether to push, then release.js --push`,
   const tag = createTag(projectRoot, `v${target}`, target);
   if (!tag.ok) throw tagFailure(`v${target}`, tag);
   return {
-    text: `🏷️ ${current ? `${current} → ` : ''}${target} (${level}) committed (${record.sha}), tagged v${target}\n`
-      + 'Next: ask the user whether to push, then release.js --push',
+    text: `🏷️ ${current ? `${current} → ` : ''}${target} (${level}) committed (${record.sha}), tagged v${target}\n${pushNext(projectRoot)}`,
     data: { current, version: target, level, tag: `v${target}`, record, versionFiles: writable },
   };
 }
 
 main({
-  usage: 'release.js [--version X.Y.Z] [--json]',
-  options: { version: 'string' },
+  usage: 'release.js [--version X.Y.Z | --push] [--json]',
+  options: { version: 'string', push: 'boolean' },
   run: release,
 });
