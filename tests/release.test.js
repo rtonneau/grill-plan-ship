@@ -99,6 +99,21 @@ function project(prefix, version = '1.4.2') {
   assert.match(h.git(root, 'log', '-1', '--format=%B'), /Bump: major/);
 }
 
+// First release with .work/ git-ignored: the config is saved but stays out of the commit.
+{
+  const root = project('gps-rel13-');
+  fs.writeFileSync(path.join(root, '.gitignore'), '.work/\n');
+  h.git(root, 'add', '.gitignore');
+  h.git(root, 'commit', '-q', '-m', 'ignore .work');
+  finishSession(root, 'only', 'feat', 'minor');
+  h.ok(root, 'release.js', ['--version', '1.5.0']);
+  assert.match(h.git(root, 'log', '-1', '--format=%s'), /^chore\(release\): 1\.5\.0$/);
+  assert.doesNotMatch(h.git(root, 'show', '--name-only', '--format=', 'HEAD'), /\.work\//);
+  assert.deepStrictEqual(JSON.parse(fs.readFileSync(path.join(root, '.work', 'gps-config.json'), 'utf-8')).release.versionFiles, ['package.json']);
+  assert.ok(h.git(root, 'tag').split('\n').includes('v1.5.0'));
+  assert.strictEqual(h.git(root, 'status', '--porcelain'), '');
+}
+
 // No version file and no heading: --version is required.
 {
   const root = h.gitProject('gps-rel3-');

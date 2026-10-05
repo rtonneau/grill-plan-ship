@@ -26,7 +26,10 @@ const { readBumpMarkers, unknownBumpLevels, unreleasedHasEntries, latestVersion,
 const { releaseExists, createRelease } = require('./lib/github');
 const { parseVersion, formatVersion, compareVersions, bumpVersion, maxLevel, levelBetween } = require('./lib/semver');
 const { detectVersionFiles, readVersions, writeVersion } = require('./lib/version-files');
-const { defaultBranch, currentBranch, isCleanTree, tagExists, createTag, commitFiles, headCommit, pushWithTags, remoteHasTag, remoteBranchAt, headSha } = require('./lib/git');
+const {
+  defaultBranch, currentBranch, isCleanTree, isIgnored, isTracked, tagExists, createTag, commitFiles, headCommit,
+  pushWithTags, remoteHasTag, remoteBranchAt, headSha,
+} = require('./lib/git');
 const { sessionsDirOf, listSessionDirs, readConfigOrNull } = require('./lib/session-store');
 
 // Finished sessions' configs, most recently finished first.
@@ -238,9 +241,12 @@ function release({ options, projectRoot, warn }) {
   fs.writeFileSync(changelogPath, updated);
   for (const file of writable) writeVersion(projectRoot, file, target);
   // First release: remember which files carry the version, in the same commit.
+  // A git-ignored (and untracked) config is saved but stays out of the commit.
+  const configFile = '.work/gps-config.json';
   const saveConfig = !storedFiles;
   if (saveConfig) saveVersionFiles(projectRoot, versionFiles);
-  const record = commitFiles(projectRoot, [settings.path, ...writable, ...(saveConfig ? ['.work/gps-config.json'] : [])], `chore(release): ${target}\n\nBump: ${chosen}`);
+  const commitConfig = saveConfig && (isTracked(projectRoot, configFile) || !isIgnored(projectRoot, configFile));
+  const record = commitFiles(projectRoot, [settings.path, ...writable, ...(commitConfig ? [configFile] : [])], `chore(release): ${target}\n\nBump: ${chosen}`);
   if (!record.ok) {
     throw new GpsError(`Release ${target} written but not committed (${record.reason}).`,
       `Run by hand: ${record.commands.join(' && ')} && git tag -a v${target} -m ${target}`);
