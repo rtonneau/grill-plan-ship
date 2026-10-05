@@ -5,6 +5,10 @@ All notable changes to grill-plan-ship. Versions follow [semantic versioning](ht
 ## 2.5.0
 
 - **Shared `.work/`.** gps now commits only its own paths in `.work/`: `gps-config.json`, `GLOSSARY.md`, `adr/` and `sessions/`. It used to commit everything there, so files another skill kept in `.work/` ended up in gps's `chore(gps)` commits. Other skills can now keep their files in `.work/<skill-name>/` and commit them themselves. [docs/WORK-DIR.md](docs/WORK-DIR.md) says what they may read, where they may write, and what gps promises in return.
+- **What other skills can rely on.** The contract names four `.session-config.json` fields that gps keeps stable between versions: `feature_name`, `kind`, `git.branch` and `current_phase`. It also says when each one can be missing or out of date.
+- **gps's record commit is more robust:**
+  - A tracked `.work/` path that the user later git-ignores is still updated, instead of failing the whole commit.
+  - gps never runs `git commit` without naming the paths to commit, so it can't take the whole index by mistake.
 - **Decision 0002.** Why gps lists the paths it owns instead of committing all of `.work/`: see [docs/decisions/0002-gps-commits-only-its-own-work-paths.md](docs/decisions/0002-gps-commits-only-its-own-work-paths.md).
 
 ## 2.4.0
