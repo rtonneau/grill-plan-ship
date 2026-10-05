@@ -136,10 +136,28 @@ assert.strictEqual(readFile(cfgDir).github.enabled, false);
 fs.writeFileSync(configFile(cfgDir), JSON.stringify({ github: { enabled: false }, changelog: { enabled: false, path: 'docs/CL.md' }, release: { githubRelease: 'all' } }));
 assert.deepStrictEqual(changelogSettings(cfgDir), { enabled: false, path: 'docs/CL.md' });
 assert.deepStrictEqual(releaseSettings(cfgDir), { versionFiles: null, githubRelease: 'all' });
-for (const [bad, re] of [[{ changelog: { enabled: 'yes' } }, /changelog.enabled/], [{ changelog: { path: 3 } }, /changelog.path/], [{ release: { githubRelease: 'sometimes' } }, /githubRelease/]]) {
+const invalidCases = [
+  [{ changelog: { enabled: 'yes' } }, /changelog.enabled/], [{ changelog: { path: 3 } }, /changelog.path/],
+  [{ release: { githubRelease: 'sometimes' } }, /githubRelease/],
+  // Not an object: a GpsError, never a TypeError.
+  [{ changelog: null }, /"changelog" must be an object/], [{ changelog: 'yes' }, /"changelog" must be an object/],
+  [{ release: null }, /"release" must be an object/], [{ release: [] }, /"release" must be an object/],
+  [{ release: { versionFiles: 'package.json' } }, /release.versionFiles/], [{ release: { versionFiles: [3] } }, /release.versionFiles/],
+  // Paths stay inside the project.
+  [{ changelog: { path: '../CHANGELOG.md' } }, /changelog.path.*inside the project/],
+  [{ changelog: { path: 'docs/../../x.md' } }, /changelog.path.*inside the project/],
+  [{ changelog: { path: path.resolve(tmp, 'abs.md') } }, /changelog.path.*inside the project/],
+  [{ changelog: { path: '/etc/x.md' } }, /changelog.path.*inside the project/],
+  [{ release: { versionFiles: ['package.json', '../other/package.json'] } }, /release.versionFiles.*inside the project/],
+  [{ release: { versionFiles: [path.resolve(tmp, 'package.json')] } }, /release.versionFiles.*inside the project/],
+];
+for (const [bad, re] of invalidCases) {
   fs.writeFileSync(configFile(cfgDir), JSON.stringify({ github: { enabled: false }, ...bad }));
-  assert.throws(() => changelogSettings(cfgDir), (e) => e instanceof GpsError && re.test(e.message));
+  assert.throws(() => changelogSettings(cfgDir), (e) => e instanceof GpsError && re.test(e.message), JSON.stringify(bad));
 }
+fs.writeFileSync(configFile(cfgDir), JSON.stringify({ github: { enabled: false }, changelog: { path: 'docs/./CL.md' }, release: { versionFiles: ['sub/package.json'] } }));
+assert.strictEqual(changelogSettings(cfgDir).path, 'docs/./CL.md');
+assert.deepStrictEqual(releaseSettings(cfgDir).versionFiles, ['sub/package.json']);
 
 delete process.env.GPS_GH_BIN;
 fs.rmSync(tmp, { recursive: true, force: true });

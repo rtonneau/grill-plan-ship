@@ -28,26 +28,48 @@ function invalid(what, filePath) {
   );
 }
 
+const isObject = (value) => value !== null && typeof value === 'object' && !Array.isArray(value);
+
+// True when `relPath` is relative and stays inside `projectRoot` (no
+// absolute path, no ".." escape), on any platform.
+function insideProject(projectRoot, relPath) {
+  if (path.isAbsolute(relPath) || path.posix.isAbsolute(relPath) || path.win32.isAbsolute(relPath)) return false;
+  const rel = path.relative(projectRoot, path.resolve(projectRoot, relPath));
+  return rel !== '' && rel !== '..' && !rel.startsWith(`..${path.sep}`) && !path.isAbsolute(rel);
+}
+
 function validate(config, filePath) {
   if (!config || !config.github || typeof config.github.enabled !== 'boolean') {
     throw invalid('"github.enabled" must be true or false', filePath);
   }
+  // The file is <projectRoot>/.work/gps-config.json.
+  const projectRoot = path.dirname(path.dirname(filePath));
   const { changelog, release } = config;
   if (changelog !== undefined) {
+    if (!isObject(changelog)) throw invalid('"changelog" must be an object', filePath);
     if (changelog.enabled !== undefined && typeof changelog.enabled !== 'boolean') {
       throw invalid('"changelog.enabled" must be true or false', filePath);
     }
     if (changelog.path !== undefined && (typeof changelog.path !== 'string' || !changelog.path)) {
       throw invalid('"changelog.path" must be a file path string', filePath);
     }
+    if (changelog.path !== undefined && !insideProject(projectRoot, changelog.path)) {
+      throw invalid('"changelog.path" must be a relative path inside the project', filePath);
+    }
   }
   if (release !== undefined) {
+    if (!isObject(release)) throw invalid('"release" must be an object', filePath);
     if (release.githubRelease !== undefined && !GITHUB_RELEASE_MODES.includes(release.githubRelease)) {
       throw invalid(`"release.githubRelease" must be one of ${GITHUB_RELEASE_MODES.join(', ')}`, filePath);
     }
     const files = release.versionFiles;
-    if (files !== undefined && files !== null && !(Array.isArray(files) && files.every((f) => typeof f === 'string'))) {
-      throw invalid('"release.versionFiles" must be a list of file paths', filePath);
+    if (files !== undefined && files !== null) {
+      if (!(Array.isArray(files) && files.every((f) => typeof f === 'string' && f))) {
+        throw invalid('"release.versionFiles" must be a list of file paths', filePath);
+      }
+      if (!files.every((f) => insideProject(projectRoot, f))) {
+        throw invalid('"release.versionFiles" must hold relative paths inside the project', filePath);
+      }
     }
   }
   return config;
