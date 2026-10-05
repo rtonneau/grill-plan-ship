@@ -62,8 +62,40 @@ const p2 = h.json(plain, 'changelog-prepare.js');
 assert.deepStrictEqual(p2.commits, []);
 fs.writeFileSync(p2.payloadPath, '- Something\n');
 const ng = h.ok(plain, 'changelog-apply.js', ['--bump', 'patch']);
-assert.match(ng.err, /not committed|not a git repository/);
+assert.match(ng.err, /not committed.*git add -- .*git commit -m/);
 assert.ok(fs.existsSync(path.join(plain, 'CHANGELOG.md')));
 assert.strictEqual(h.readConfig(plain).changelog.bump, 'patch');
 
 h.done('changelog-apply.test.js');
+
+// Identical re-run: no false warning, still one docs(changelog) commit.
+{
+  const r = h.gitProject('gps-cla3-');
+  h.shipReady(r, 'Twice', ['a']);
+  h.completeTicket(r, 1, 'a');
+  const p = h.json(r, 'changelog-prepare.js');
+  fs.writeFileSync(p.payloadPath, '- Same\n');
+  h.ok(r, 'changelog-apply.js', ['--bump', 'minor']);
+  fs.writeFileSync(p.payloadPath, '- Same\n');
+  const second = h.ok(r, 'changelog-apply.js', ['--bump', 'minor']);
+  assert.doesNotMatch(second.err, /⚠️/);
+  assert.match(second.out, /unchanged[\s\S]*Next: finish\.js/);
+  assert.strictEqual(h.git(r, 'log', '--format=%s').split('\n').filter((s) => s.startsWith('docs(changelog):')).length, 1);
+  assert.ok(!fs.existsSync(p.payloadPath));
+}
+
+// Unknown format warns.
+{
+  const r = h.gitProject('gps-cla4-');
+  h.shipReady(r, 'Odd', ['a']);
+  h.completeTicket(r, 1, 'a');
+  fs.writeFileSync(path.join(r, 'CHANGELOG.md'), 'just some notes\n');
+  h.git(r, 'add', 'CHANGELOG.md');
+  h.git(r, 'commit', '-q', '-m', 'notes');
+  const p = h.json(r, 'changelog-prepare.js');
+  assert.strictEqual(p.format, 'unknown');
+  fs.writeFileSync(p.payloadPath, '- Odd\n');
+  const res = h.ok(r, 'changelog-apply.js', ['--bump', 'minor']);
+  assert.match(res.err, /Unrecognised CHANGELOG\.md structure: check the result\./);
+}
+h.done('changelog-apply.test.js (fix round 1)');

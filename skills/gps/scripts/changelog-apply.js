@@ -25,6 +25,9 @@ const { commitFiles } = require('./lib/git');
 const { recordEvent } = require('./lib/history');
 const { GpsError, UsageError, writeJsonAtomic } = require('./lib/guard');
 
+// commitFiles' reason when the file matches HEAD.
+const NOTHING_TO_COMMIT = 'none of the given files has changes to commit';
+
 function apply({ options, projectRoot, warn }) {
   if (!options.bump) throw new UsageError('--bump <patch|minor|major> is required.');
   if (!LEVELS.includes(options.bump)) {
@@ -69,7 +72,9 @@ function apply({ options, projectRoot, warn }) {
   if (format === 'unknown') warn('Unrecognised CHANGELOG.md structure: check the result.');
 
   const record = commitFiles(projectRoot, [settings.path], `docs(changelog): ${config.feature_name}`);
-  if (!record.ok) {
+  // An identical re-run leaves nothing to commit: the entry is already there.
+  const unchanged = !record.ok && record.reason === NOTHING_TO_COMMIT;
+  if (!record.ok && !unchanged) {
     warn(`${settings.path} written but not committed (${record.reason}). Run by hand: ${record.commands.join(' && ')}`);
   }
 
@@ -78,7 +83,7 @@ function apply({ options, projectRoot, warn }) {
   recordEvent(configPath, config, sessionDir, { event: 'changelog_written', detail: { bump } });
   if (payloadPath === defaultPayload) fs.unlinkSync(payloadPath);
 
-  const committed = record.ok ? `committed (${record.sha})` : 'not committed';
+  const committed = record.ok ? `committed (${record.sha})` : unchanged ? 'unchanged, already committed' : 'not committed';
   return {
     text: `📝 ${settings.path}: ${bump} (${count} bullet(s)) ${committed}\nNext: finish.js`,
     data: { sessionId, path: settings.path, bump, floor, reason, bullets: count, record },
