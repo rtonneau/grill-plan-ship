@@ -1,5 +1,7 @@
 # Design: automatic CHANGELOG.md and `/gps release`
 
+**Amended by:** 2026-10-06-changelog-fragments-design.md — entries are per-session fragments, not Unreleased edits.
+
 **Date:** 2026-10-05 · **Status:** approved design, awaiting spec review
 
 ## Goal

@@ -26,8 +26,8 @@ Restart Claude Code. Update later with `/plugin marketplace update rtonneau/gril
 /gps start add-dark-mode   # creates the session, then the grill conversation starts
 /gps plan                  # once the design is approved: saves it, then drafts tickets
 /gps ship                  # once the tickets are approved: saves them, implements each, one commit each
-/gps finish                # CHANGELOG entry, INDEX.md summary; on GitHub, pushes the branch and opens the PR
-/gps release               # when you choose: turns the Unreleased entries into a version, a tag and a push
+/gps finish                # changelog fragment, INDEX.md summary; on GitHub, pushes the branch and opens the PR
+/gps release               # when you choose: turns the changelog fragments into a version, a tag and a push
 ```
 
 Or, once the direction is clear, `/gps auto` runs from wherever the session is to the end without stopping.
@@ -45,9 +45,9 @@ Or, once the direction is clear, `/gps auto` runs from wherever the session is t
 | `/gps write` | Save the approved grill or plan to disk (`plan`, `ship` and `auto` do it for you) |
 | `/gps plan` | Save the grill if pending, then draft tickets with model and effort hints |
 | `/gps ship [N]` | Save the plan if pending, then implement every remaining ticket (or only ticket N) |
-| `/gps finish` | Close the session: CHANGELOG entry, leftovers committed, INDEX.md, PR |
+| `/gps finish` | Close the session: changelog fragment, leftovers committed, INDEX.md, PR |
 | `/gps auto [--delegate] [plan\|ship\|finish]` | Run from the current phase to the target without stopping |
-| `/gps release` | Turn the Unreleased changelog entries into a version: suggest, bump, tag, push |
+| `/gps release` | Turn the changelog fragments into a version: suggest, bump, tag, push |
 | `/gps handoff` | Save an in-flight checkpoint before you stop for the day |
 | `/gps help [command\|question]` | Where you are and what to run next, what a command does, or an answer to any question about the workflow |
 
@@ -88,9 +88,9 @@ Only one implementer is ever live. A ticket that can't be finished is recorded w
 
 ## Changelog and releases
 
-`/gps finish` first writes the session's entry in the project's `CHANGELOG.md` (created when missing). Claude drafts user-facing bullets from the session's commits and picks the bump (`patch`, `minor` or `major`); `changelog-apply.js` writes them under `## Unreleased` with a marker line, `<!-- gps:bump=minor session=<id> -->`, and commits the file. The bump can't go below the floor the commit types imply, and going higher needs a reason, which INDEX.md records. The version number is not touched, so parallel sessions never claim the same version. Their pull requests do edit the same spot (each adds its block right under `## Unreleased`), so the second one to merge gets a textual conflict there: keep both sides, including both `<!-- gps:bump=... -->` lines.
+`/gps finish` first writes the session's changelog entry to its own file, `.work/changelog/<session-id>.md`: front matter (`bump`, `floor`, and a `reason` when the bump is above the floor) and bullets. Claude drafts user-facing bullets from the session's commits and picks the bump (`patch`, `minor` or `major`); `changelog-apply.js` writes the fragment. It never edits `CHANGELOG.md` and makes no commit of its own: the `chore(gps): finish …` record commit carries the fragment, so the pull request shows it. The bump can't go below the floor the commit types imply, and going higher needs a reason, which INDEX.md records. No version number is touched, and no two sessions write the same file, so parallel sessions never conflict. If `.work/` is git-ignored, the fragment stays on your machine and `changelog-prepare.js` warns.
 
-`/gps release` is the step you choose to run, from the base branch with a clean tree, and never under `/gps auto`. Before cutting, it fetches the base branch from `origin` and refuses when yours is behind (run `git pull`). It reads the markers, suggests the next version (the highest bump among them) and asks you to confirm or type another. It then renames `Unreleased` to `## X.Y.Z (date)`, drops the markers, writes the version into the version files, commits them as `chore(release): X.Y.Z` and tags `vX.Y.Z`. A second question, "Push and publish?", pushes the commit and tag together and creates the GitHub Release; on no, the commands are printed. The reasoning is in [docs/decisions/0003-changelog-unreleased-then-release.md](docs/decisions/0003-changelog-unreleased-then-release.md).
+`/gps release` is the step you choose to run, from the base branch with a clean tree, and never under `/gps auto`. Before cutting, it fetches the base branch from `origin` and refuses when yours is behind (run `git pull`). It reads the fragments and any hand-written `## Unreleased` bullets, suggests the next version (the highest bump among them) and asks you to confirm or type another. With `--version`, it renders the hand-written bullets first, then the fragments by filename, into `## X.Y.Z (date)`, writes the version into the version files, and commits the CHANGELOG, the version files and the fragment deletions as one `chore(release): X.Y.Z` commit, then tags `vX.Y.Z`. The fragments are deleted only after that commit succeeds, and an invalid one (bad front matter, unknown level, unparsable body) is refused with its file name. A second question, "Push and publish?", pushes the commit and tag together and creates the GitHub Release; on no, the commands are printed. The reasoning is in [docs/decisions/0003-changelog-unreleased-then-release.md](docs/decisions/0003-changelog-unreleased-then-release.md).
 
 Settings live in `.work/gps-config.json`; `/gps config` shows them, read-only:
 
@@ -143,7 +143,7 @@ Every script in `skills/gps/scripts/` follows the same rules (see `scripts/lib/c
 | `ticket-block.js` | record why a ticket can't be finished |
 | `ticket-check.js` | verify a ticket really is complete |
 | `changelog-prepare.js` | `/gps finish` step 1: the session's commits, bump floor and payload path for its CHANGELOG entry |
-| `changelog-apply.js` | write the entry under Unreleased with its bump marker and commit it |
+| `changelog-apply.js` | write the session's fragment `.work/changelog/<session-id>.md` (bump, floor, bullets) |
 | `finish.js` | close the session |
 | `release.js` | `/gps release`: suggest a version, cut it (version files, commit, tag), or `--push` it |
 | `auto-route.js` | the steps `/gps auto` will run |
@@ -187,9 +187,9 @@ The built-in grill uses a project's own domain docs when it has them, the way ma
 gps has no server and no telemetry. Everything it does runs on your machine, through the scripts in `skills/gps/scripts/` (plain, readable Node.js with no dependencies):
 
 - **Commands it runs:** `node` for its own scripts, which the skill pre-approves one by one in `allowed-tools` (`Bash(node ${CLAUDE_SKILL_DIR}/scripts/<name>.js *)` for each script in `skills/gps/scripts/`) so they run without a permission prompt; nothing else is pre-approved. The scripts call `git` and, on GitHub projects, `gh`, always with an argument list, never through a shell.
-- **Files it writes:** session files under `.work/` and run artifacts under `.scratch/` in your project, a few lines in the project's `.gitignore`, the CHANGELOG entry at `/gps finish`, the CHANGELOG and the version files (such as `package.json`) at `/gps release`, and a temporary file for each pull request, issue or GitHub Release body (deleted right after, except a release's notes file when `gh release create` fails: the by-hand command uses it).
+- **Files it writes:** session files under `.work/` and run artifacts under `.scratch/` in your project, a few lines in the project's `.gitignore`, the changelog fragment `.work/changelog/<session-id>.md` at `/gps finish`, the CHANGELOG and the version files (such as `package.json`) at `/gps release`, which also deletes the fragments, and a temporary file for each pull request, issue or GitHub Release body (deleted right after, except a release's notes file when `gh release create` fails: the by-hand command uses it).
 - **Files it reads:** the project it runs in (its files and git history), gps's own scripts and templates, and a file a command is explicitly given, such as the review for `/gps scout --from`. Nothing else: not Claude Code's transcripts, your home directory or your credentials.
-- **Commits it makes:** one commit per ticket with only the files you name, the `chore(gps)` session-record commits described above, a commit of leftover tracked changes and the `docs(changelog): <feature>` commit at `/gps finish`, the `chore(release): X.Y.Z` commit and its annotated tag `vX.Y.Z` at `/gps release`, and the `chore(gps): set up gps` commit of `/gps init --apply`.
+- **Commits it makes:** one commit per ticket with only the files you name, the `chore(gps)` session-record commits described above, a commit of leftover tracked changes at `/gps finish` (the changelog fragment travels in its `chore(gps)` record commit), the `chore(release): X.Y.Z` commit (CHANGELOG, version files and fragment deletions) and its annotated tag `vX.Y.Z` at `/gps release`, and the `chore(gps): set up gps` commit of `/gps init --apply`.
 - **What leaves your machine** (with your own git and gh credentials): with any `origin`, at `/gps release` only, `git fetch` of the base branch before a cut, `git push` of the release commit and tag at `/gps release --push` (after your yes) and `git ls-remote`, which only reads. On GitHub projects only: `git push` of the session branch and `gh pr create` at `/gps finish`; `gh release create` at `/gps release --push` when `release.githubRelease` allows it; `gh issue create`, `gh issue comment` and `gh issue close` for `/gps start --issue` sessions; and `gh auth status`, `gh pr list` and `gh release view`, which only read.
 
 See [PRIVACY.md](PRIVACY.md).
