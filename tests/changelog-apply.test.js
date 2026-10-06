@@ -140,5 +140,11 @@ h.done('changelog-apply.test.js');
   h.git(r, 'merge', '-q', '--no-edit', 'B');
   assert.deepStrictEqual(fs.readdirSync(path.join(r, '.work', 'changelog')).sort(), [`${a}.md`, `${b}.md`].sort());
   assert.ok(!fs.existsSync(path.join(r, 'CHANGELOG.md')));
+  // The release holds both sessions' entries, in session order.
+  h.ok(r, 'release.js', ['--version', '0.1.0']);
+  const log = fs.readFileSync(path.join(r, 'CHANGELOG.md'), 'utf-8');
+  assert.match(log, /^## 0\.1\.0 \(\d{4}-\d{2}-\d{2}\)\n\n- Session A\n- Session B\n/m);
+  assert.deepStrictEqual(fs.readdirSync(path.join(r, '.work', 'changelog')), []);
+  assert.strictEqual(h.git(r, 'status', '--porcelain'), '');
 }
 h.done('changelog-apply.test.js (merge)');

@@ -1,13 +1,10 @@
 // skills/gps/scripts/lib/changelog.js
 //
 // Pure text handling for CHANGELOG.md (no fs, no git): detect the file's
-// format, parse the entry Claude writes, and keep one "Unreleased" entry per
-// session. Every line gps writes carries a marker so a re-run replaces its own
-// lines and leaves hand-written ones alone:
-//   bullet:    "- text <!-- gps:<session-id> -->"
-//   bump line: "<!-- gps:bump=<level> session=<session-id> -->"
+// format, parse the entry Claude writes (a session's fragment body, see
+// changelog-fragments.js), read the hand-written Unreleased block, and render
+// a release section from it and the fragments.
 
-const { LEVELS } = require('./semver');
 const { UsageError } = require('./guard');
 
 const SECTIONS = ['Added', 'Changed', 'Deprecated', 'Removed', 'Fixed', 'Security'];
@@ -19,7 +16,6 @@ const H2_RE = /^## /;
 const H3_RE = /^### +(.+?)\s*$/;
 const BULLET_RE = /^[-*] /;
 const CONTINUATION_RE = /^ {2,}\S/;
-const BUMP_RE = /^<!-- gps:bump=\S+ session=(\S+) -->\s*$/;
 
 function toLf(text) {
   return text.replace(/\r\n/g, '\n');
@@ -51,10 +47,8 @@ function findUnreleased(lines) {
 function readUnreleased(text) {
   const lines = toLf(text || '').split('\n');
   const block = findUnreleased(lines);
-  if (!block) return { exists: false, body: '', sessions: [] };
-  const body = lines.slice(block.start + 1, block.end);
-  const sessions = body.map((line) => line.match(BUMP_RE)).filter(Boolean).map((m) => m[1]);
-  return { exists: true, body: body.join('\n').trim(), sessions };
+  if (!block) return { exists: false, body: '' };
+  return { exists: true, body: lines.slice(block.start + 1, block.end).join('\n').trim() };
 }
 
 function parsePayload(payload, format) {
@@ -132,10 +126,12 @@ function splitBody(body) {
   return parts;
 }
 
-function addSections(parts, sections, mark) {
+// Merges a sections entry into `parts`, each bullet turned into its lines by
+// `toLines`; a missing subsection is created in SECTIONS order.
+function addSections(parts, sections, toLines) {
   for (const name of SECTIONS) {
     if (!sections[name]) continue;
-    const added = sections[name].flatMap(mark);
+    const added = sections[name].flatMap(toLines);
     const existing = parts.subsections.find((s) => s.name === name);
     if (existing) {
       existing.lines.push(...added);
@@ -159,85 +155,10 @@ function renderBody(parts) {
   return out;
 }
 
-// Adds (or replaces) the session's entry in the Unreleased block, creating the
-// file, the block and the subsections as needed. Everything else is untouched.
-function upsertSessionEntry(text, { sessionId, bump, entry }) {
-  if (!LEVELS.includes(bump)) throw new UsageError(`Unknown bump level "${bump}". Use one of: ${LEVELS.join(', ')}.`);
-  const isNew = text === null || text.trim() === '';
-  const crlf = !isNew && text.includes('\r\n');
-  const source = isNew ? NEW_FILE_HEADER : toLf(text);
-  const trailingNewline = source.endsWith('\n');
-  const own = [`<!-- gps:${sessionId} -->`, `session=${sessionId} -->`];
-
-  let lines = source.split('\n');
-  if (trailingNewline) lines.pop();
-  lines = lines.filter((line) => !own.some((marker) => line.includes(marker)));
-
-  let block = findUnreleased(lines);
-  if (!block) {
-    const firstVersion = lines.findIndex((line) => VERSION_HEADING_RE.test(line));
-    let at = lines.length;
-    if (firstVersion !== -1) at = firstVersion;
-    else if (!lines.some((line) => /^# /.test(line))) at = Math.min(1, lines.length);
-    const before = trimTrailingBlanks(lines.slice(0, at));
-    const rest = trimBlanks(lines.slice(at));
-    const start = before.length + (before.length ? 1 : 0);
-    lines = [...before, ...(before.length ? [''] : []), '## Unreleased', ...rest];
-    // The new block is just its heading, whatever follows (an unknown structure).
-    block = { start, end: start + 1 };
-  }
-
-  const inner = lines.slice(block.start + 1, block.end);
-  const bumps = inner.filter((line) => BUMP_RE.test(line));
-  const parts = splitBody(inner.filter((line) => !BUMP_RE.test(line)));
-  const suffix = ` <!-- gps:${sessionId} -->`;
-  // Every line of the entry carries the marker, so a re-run removes all of it.
-  const mark = (bullet) => bullet.split('\n').map((l) => `${l}${suffix}`);
-  // Removing the session's old bullets can leave a heading with nothing under it.
-  parts.subsections = parts.subsections.filter((sub) => sub.lines.length > 1);
-
-  if (entry.sections) addSections(parts, entry.sections, mark);
-  else parts.preamble.push(...entry.bullets.flatMap(mark));
-  bumps.push(`<!-- gps:bump=${bump} session=${sessionId} -->`);
-
-  const rest = lines.slice(block.end);
-  const out = [
-    ...lines.slice(0, block.start + 1),
-    '',
-    ...renderBody(parts),
-    ...bumps,
-    ...(rest.length ? [''] : []),
-    ...rest,
-  ];
-  const joined = out.join('\n') + (trailingNewline ? '\n' : '');
-  return crlf ? joined.replace(/\n/g, '\r\n') : joined;
-}
-
-const BUMP_LEVEL_RE = /^<!-- gps:bump=(\S+) session=(\S+) -->\s*$/;
-const MARKER_SUFFIX_RE = /\s*<!-- gps:.*? -->\s*$/;
-
 function unreleasedLines(text) {
   const lines = toLf(text || '').split('\n');
   const block = findUnreleased(lines);
   return block ? lines.slice(block.start + 1, block.end) : [];
-}
-
-function allBumpMarkers(text) {
-  return unreleasedLines(text)
-    .map((line) => line.match(BUMP_LEVEL_RE))
-    .filter(Boolean)
-    .map((m) => ({ level: m[1], sessionId: m[2] }));
-}
-
-// The bump markers under Unreleased; a marker whose level is not one of
-// LEVELS (a hand edit) is left out: unknownBumpLevels names those.
-function readBumpMarkers(text) {
-  return allBumpMarkers(text).filter((m) => LEVELS.includes(m.level));
-}
-
-// Distinct levels of the markers readBumpMarkers leaves out, in file order.
-function unknownBumpLevels(text) {
-  return [...new Set(allBumpMarkers(text).map((m) => m.level).filter((l) => !LEVELS.includes(l)))];
 }
 
 function unreleasedHasEntries(text) {
@@ -250,35 +171,6 @@ function latestVersion(text) {
     if (m) return m[1];
   }
   return null;
-}
-
-// Turns the Unreleased block into "## <version> (<date>)": gps markers go, and
-// so do subsection headings left with no bullet. Other sections are untouched.
-function cutRelease(text, version, date) {
-  const crlf = text.includes('\r\n');
-  const lines = toLf(text).split('\n');
-  const trailingNewline = text.endsWith('\n');
-  if (trailingNewline) lines.pop();
-  const block = findUnreleased(lines);
-  if (!block) throw new UsageError('No "## Unreleased" section in the CHANGELOG: nothing to release.');
-
-  const inner = lines.slice(block.start + 1, block.end)
-    .filter((line) => !BUMP_RE.test(line))
-    .map((line) => line.replace(MARKER_SUFFIX_RE, ''));
-  const parts = splitBody(inner);
-  parts.subsections = parts.subsections.filter((sub) => sub.lines.length > 1);
-
-  const rest = lines.slice(block.end);
-  const out = [
-    ...lines.slice(0, block.start),
-    `## ${version} (${date})`,
-    '',
-    ...renderBody(parts),
-    ...(rest.length ? [''] : []),
-    ...rest,
-  ];
-  const joined = out.join('\n') + (trailingNewline ? '\n' : '');
-  return crlf ? joined.replace(/\n/g, '\r\n') : joined;
 }
 
 // Section for a release: the hand-written Unreleased bullets first, then each
@@ -353,11 +245,8 @@ function sectionNotes(text, version) {
 }
 
 module.exports = {
-  readBumpMarkers,
-  unknownBumpLevels,
   unreleasedHasEntries,
   latestVersion,
-  cutRelease,
   renderRelease,
   sectionNotes,
   SECTIONS,
@@ -366,5 +255,4 @@ module.exports = {
   detectFormat,
   readUnreleased,
   parsePayload,
-  upsertSessionEntry,
 };

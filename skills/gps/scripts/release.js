@@ -9,15 +9,19 @@
  * origin already has and a release that already exists.
  *
  * /gps release, steps 1 and 2. Without --version (read-only): suggests the
- * next version from the gps bump markers under the CHANGELOG's Unreleased
- * block. With --version: turns Unreleased into "## X.Y.Z (date)", writes the
- * version into the version files, commits those files alone as
- * `chore(release): X.Y.Z` (body `Bump: <level>`) and tags vX.Y.Z.
+ * next version from the sessions' changelog fragments (.work/changelog/, the
+ * highest bump wins; hand-written Unreleased bullets alone suggest patch).
+ * With --version: writes the release section "## X.Y.Z (date)" (hand-written
+ * Unreleased bullets first, then the fragments in file order), writes the
+ * version into the version files, deletes the fragments, commits those files
+ * alone as `chore(release): X.Y.Z` (body `Bump: <level>`) and tags vX.Y.Z.
  * Refuses, changing nothing, off the base branch, on a dirty tree, with the
- * changelog disabled or empty, or when the version is not a new one. A cut
+ * changelog disabled, nothing to release or an invalid fragment, or when the
+ * version is not a new one. A cut
  * first fetches origin's base branch and refuses when HEAD is behind it (no
  * origin or a failed fetch only warns). The suggestion also lists the
- * patch, minor and major candidates (data.alternatives).
+ * patch, minor and major candidates (data.alternatives); the text lists each
+ * distinct version once.
  */
 
 const fs = require('fs');
@@ -25,9 +29,10 @@ const path = require('path');
 const { main } = require('./lib/cli');
 const { GpsError, UsageError, localDate } = require('./lib/guard');
 const { changelogSettings, releaseSettings, saveVersionFiles, readConfig } = require('./lib/project-config');
-const { readBumpMarkers, unknownBumpLevels, unreleasedHasEntries, latestVersion, cutRelease, sectionNotes } = require('./lib/changelog');
+const { unreleasedHasEntries, latestVersion, renderRelease, sectionNotes } = require('./lib/changelog');
+const { FRAGMENTS_DIR, listFragments, deleteFragments } = require('./lib/changelog-fragments');
 const { releaseExists, createRelease } = require('./lib/github');
-const { LEVELS, parseVersion, formatVersion, compareVersions, bumpVersion, maxLevel, levelBetween } = require('./lib/semver');
+const { LEVELS, parseVersion, formatVersion, compareVersions, bumpVersion, maxLevel, levelBetween, levelRank } = require('./lib/semver');
 const { detectVersionFiles, readVersions, writeVersion } = require('./lib/version-files');
 const {
   defaultBranch, currentBranch, isCleanTree, isIgnored, isTracked, tagExists, createTag, commitFiles, headCommit,
@@ -180,26 +185,22 @@ function release({ options, projectRoot, warn }) {
     }
   }
   const changelogPath = path.join(projectRoot, settings.path);
-  const text = fs.existsSync(changelogPath) ? fs.readFileSync(changelogPath, 'utf-8') : '';
-  if (!unreleasedHasEntries(text)) {
-    throw new GpsError(`${settings.path} has no entries under "## Unreleased"; nothing was changed.`,
-      'Run git pull if sessions were merged elsewhere, or finish a session (it writes its entry), then run this again.');
+  const text = fs.existsSync(changelogPath) ? fs.readFileSync(changelogPath, 'utf-8') : null;
+  // An invalid fragment refuses here, naming the file, before anything is written.
+  const fragments = listFragments(projectRoot);
+  if (fragments.length === 0 && !unreleasedHasEntries(text)) {
+    throw new GpsError(`Nothing to release: no changelog fragment and no entry under "## Unreleased" in ${settings.path}; nothing was changed.`,
+      `Run git pull if sessions were merged elsewhere, or finish a session (it writes ${FRAGMENTS_DIR}/<session-id>.md), then run this again.`);
   }
 
-  const markers = readBumpMarkers(text);
-  const unknown = unknownBumpLevels(text);
-  if (unknown.length) {
-    warn(`Ignored bump marker(s) with an unknown level (${unknown.join(', ')}): use patch, minor or major.`);
-  }
-  let level = maxLevel(markers.map((m) => m.level));
+  let level = maxLevel(fragments.map((f) => f.bump));
   if (!level) {
     level = 'patch';
-    warn('No gps bump markers under Unreleased: suggesting patch.');
+    warn(`No changelog fragment in ${FRAGMENTS_DIR}/, only hand-written entries under "## Unreleased": suggesting patch.`);
   }
-  const sessionIds = [...new Set(markers.map((m) => m.sessionId))];
-  const raised = finished
-    .filter((s) => sessionIds.includes(s.id) && s.config.changelog && s.config.changelog.reason)
-    .map((s) => ({ sessionId: s.id, reason: s.config.changelog.reason }));
+  const raised = fragments
+    .filter((f) => levelRank(f.bump) > levelRank(f.floor))
+    .map((f) => ({ sessionId: f.sessionId, reason: f.reason }));
 
   const storedFiles = releaseSettings(projectRoot).versionFiles;
   const versionFiles = storedFiles || detectVersionFiles(projectRoot);
@@ -233,34 +234,44 @@ function release({ options, projectRoot, warn }) {
   if (!target) {
     const suggested = formatVersion(bumpVersion(currentV, level));
     const alternatives = Object.fromEntries(LEVELS.map((l) => [l, formatVersion(bumpVersion(currentV, l))]));
-    const lines = [`${current} → ${suggested} (${level}: ${sessionIds.length} session(s))`,
-      ...raised.map((r) => `  raised by Claude (${r.sessionId}): ${r.reason}`),
-      `Candidates: ${LEVELS.map((l) => `${l} ${alternatives[l]}`).join(', ')}`,
+    // Each distinct version once, with every level that gives it (0.x: minor/major).
+    const byVersion = new Map();
+    for (const l of LEVELS) byVersion.set(alternatives[l], [...(byVersion.get(alternatives[l]) || []), l]);
+    const lines = [`${current} → ${suggested} (${level}: ${fragments.length} session(s))`,
+      ...raised.map((r) => `  raised by Claude (${r.sessionId}): ${r.reason || '(no reason given)'}`),
+      `Candidates: ${[...byVersion].map(([v, levels]) => `${levels.join('/')} ${v}`).join(', ')}`,
       `Next: ask the user to confirm, then release.js --version ${suggested}`];
     return {
       text: lines.join('\n'),
-      data: { current, suggested, level, alternatives, sessions: sessionIds.length, raised, versionFiles, mismatches },
+      data: { current, suggested, level, alternatives, sessions: fragments.length, raised, versionFiles, mismatches },
     };
   }
 
-  // Cut. The level recorded is the one of the version chosen (the markers'
+  // Cut. The level recorded is the one of the version chosen (the fragments'
   // level when there is no current version), so a user who picks a minor
-  // version over patch markers gets the minor+ release policy.
+  // version over patch fragments gets the minor+ release policy.
   const chosen = currentV ? levelBetween(currentV, typed) : level;
-  const updated = cutRelease(text, target, localDate());
+  const updated = renderRelease(text, target, localDate(), fragments.map((f) => f.body));
   const writable = found.map((v) => v.file);
   for (const file of versionFiles) {
     if (!writable.includes(file)) warn(`${file} has no readable version: left as is.`);
   }
+  fs.mkdirSync(path.dirname(changelogPath), { recursive: true });
   fs.writeFileSync(changelogPath, updated);
   for (const file of writable) writeVersion(projectRoot, file, target);
+  // The released fragments go; their deletion is staged only when git tracks
+  // them (git add of a deleted tracked path stages the removal) and .work/ is
+  // not ignored (git add refuses an ignored path).
+  const files = fragments.map((f) => f.file);
+  const deleted = isIgnored(projectRoot, '.work/') ? [] : files.filter((f) => isTracked(projectRoot, f));
+  deleteFragments(projectRoot, files);
   // First release: remember which files carry the version, in the same commit.
   // A git-ignored (and untracked) config is saved but stays out of the commit.
   const configFile = '.work/gps-config.json';
   const saveConfig = !storedFiles;
   if (saveConfig) saveVersionFiles(projectRoot, versionFiles);
   const commitConfig = saveConfig && (isTracked(projectRoot, configFile) || !isIgnored(projectRoot, configFile));
-  const record = commitFiles(projectRoot, [settings.path, ...writable, ...(commitConfig ? [configFile] : [])], `chore(release): ${target}\n\nBump: ${chosen}`);
+  const record = commitFiles(projectRoot, [settings.path, ...writable, ...deleted, ...(commitConfig ? [configFile] : [])], `chore(release): ${target}\n\nBump: ${chosen}`);
   if (!record.ok) {
     throw new GpsError(`Release ${target} written but not committed (${record.reason}).`,
       `Run by hand: ${record.commands.join(' && ')} && git tag -a v${target} -m ${target}`);

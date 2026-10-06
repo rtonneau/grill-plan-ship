@@ -40,16 +40,24 @@ function project(prefix, version = '1.4.2') {
   fs.mkdirSync(path.join(root, '.claude-plugin'));
   const sid = (() => {
     const first = finishSession(root, 'first', 'fix', 'minor', 'visible to users');
-    finishSession(root, 'second', 'feat', 'minor');
+    finishSession(root, 'second', 'fix', 'patch');
     return first;
   })();
   assert.strictEqual(h.git(root, 'status', '--porcelain'), '', 'tree clean after finishing');
   fs.rmdirSync(path.join(root, '.claude-plugin'));
+  assert.ok(!fs.existsSync(path.join(root, 'CHANGELOG.md')), 'finish never writes CHANGELOG.md');
+  const fragments = fs.readdirSync(path.join(root, '.work', 'changelog')).sort();
+  assert.deepStrictEqual(fragments.map((n) => n.replace(/^\d{4}-\d{2}-\d{2}__/, '')), ['first.md', 'second.md']);
+  // A hand-written Unreleased bullet goes first in the release.
+  fs.writeFileSync(path.join(root, 'CHANGELOG.md'), '# Changelog\n\n## Unreleased\n\n- hand note\n');
+  h.git(root, 'add', 'CHANGELOG.md');
+  h.git(root, 'commit', '-q', '-m', 'docs: hand note');
 
   const headBefore = h.git(root, 'rev-parse', 'HEAD');
   const sug = h.ok(root, 'release.js');
   assert.match(sug.out, /1\.4\.2 → 1\.5\.0 \(minor: 2 session\(s\)\)/);
-  assert.match(sug.out, /visible to users/);
+  assert.match(sug.out, new RegExp(`raised by Claude \\(${sid}\\): visible to users`));
+  assert.strictEqual(sug.out.split('\n').filter((l) => /raised by Claude/.test(l)).length, 1);
   assert.match(sug.out, /Next: .*release\.js --version 1\.5\.0/);
   const data = h.json(root, 'release.js');
   assert.strictEqual(h.git(root, 'rev-parse', 'HEAD'), headBefore, 'suggest makes no commit');
@@ -75,7 +83,7 @@ function project(prefix, version = '1.4.2') {
 
   h.ok(root, 'release.js', ['--version', '1.5.0']);
   const log = fs.readFileSync(path.join(root, 'CHANGELOG.md'), 'utf-8');
-  assert.ok(log.includes(`## 1.5.0 (${today})`));
+  assert.ok(log.includes(`## 1.5.0 (${today})\n\n- hand note\n- first done\n- second done\n`), log);
   assert.ok(!log.includes('<!--'));
   assert.ok(!/## Unreleased/.test(log));
   assert.strictEqual(JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf-8')).version, '1.5.0');
@@ -83,7 +91,10 @@ function project(prefix, version = '1.4.2') {
   assert.ok(h.git(root, 'tag').split('\n').includes('v1.5.0'));
   assert.strictEqual(h.git(root, 'status', '--porcelain'), '');
 
-  assert.match(h.git(root, 'show', '--name-only', '--format=', 'HEAD'), /\.work\/gps-config\.json/);
+  const released = h.git(root, 'show', '--name-only', '--format=', 'HEAD').split('\n').sort();
+  assert.deepStrictEqual(released, ['.work/gps-config.json', 'CHANGELOG.md', ...fragments.map((n) => `.work/changelog/${n}`), 'package.json'].sort());
+  const left = path.join(root, '.work', 'changelog');
+  assert.deepStrictEqual(fs.existsSync(left) ? fs.readdirSync(left) : [], [], 'fragments deleted');
   assert.deepStrictEqual(JSON.parse(fs.readFileSync(path.join(root, '.work', 'gps-config.json'), 'utf-8')).release.versionFiles, ['package.json']);
   const head = h.git(root, 'rev-parse', 'HEAD');
   h.assertFails(h.run(root, 'release.js', ['--version', '1.5.0']), 1);
@@ -108,9 +119,12 @@ function project(prefix, version = '1.4.2') {
   fs.writeFileSync(path.join(root, '.gitignore'), '.work/\n');
   h.git(root, 'add', '.gitignore');
   h.git(root, 'commit', '-q', '-m', 'ignore .work');
-  finishSession(root, 'only', 'feat', 'minor');
+  const onlyId = finishSession(root, 'only', 'feat', 'minor');
+  assert.ok(fs.existsSync(path.join(root, '.work', 'changelog', `${onlyId}.md`)));
   h.ok(root, 'release.js', ['--version', '1.5.0']);
   assert.match(h.git(root, 'log', '-1', '--format=%s'), /^chore\(release\): 1\.5\.0$/);
+  assert.ok(!fs.existsSync(path.join(root, '.work', 'changelog', `${onlyId}.md`)), 'fragment deleted from disk');
+  assert.ok(fs.readFileSync(path.join(root, 'CHANGELOG.md'), 'utf-8').includes('- only done'));
   assert.doesNotMatch(h.git(root, 'show', '--name-only', '--format=', 'HEAD'), /\.work\//);
   assert.deepStrictEqual(JSON.parse(fs.readFileSync(path.join(root, '.work', 'gps-config.json'), 'utf-8')).release.versionFiles, ['package.json']);
   assert.ok(h.git(root, 'tag').split('\n').includes('v1.5.0'));
@@ -142,23 +156,51 @@ function project(prefix, version = '1.4.2') {
   assert.strictEqual(data.mismatches.length, 2);
 }
 
-// A hand-edited bump marker with an unknown level: ignored, one warning.
+// An invalid fragment: suggest and cut refuse, naming the file; nothing changes.
 {
   const root = project('gps-rel12-');
   finishSession(root, 'only', 'fix', 'patch');
-  const file = path.join(root, 'CHANGELOG.md');
-  const odd = ['<!-- gps:bump=huge session=x -->', '<!-- gps:bump=huge session=y -->'];
-  fs.writeFileSync(file, fs.readFileSync(file, 'utf-8').replace(/(<!-- gps:bump=patch session=\S+ -->)/, (m) => [m, ...odd].join('\n')));
-  h.git(root, 'commit', '-q', '-am', 'hand edit');
+  fs.writeFileSync(path.join(root, '.work', 'changelog', 'zz-odd.md'), '---\nbump: huge\nfloor: patch\n---\n- odd\n');
+  h.git(root, 'add', '.work/changelog/zz-odd.md');
+  h.git(root, 'commit', '-q', '-m', 'hand fragment');
+  const head = h.git(root, 'rev-parse', 'HEAD');
+  h.assertFails(h.run(root, 'release.js'), 1, /\.work\/changelog\/zz-odd\.md: bump "huge"/);
+  h.assertFails(h.run(root, 'release.js', ['--version', '1.4.3']), 1, /zz-odd\.md/);
+  assert.strictEqual(h.git(root, 'rev-parse', 'HEAD'), head);
+  assert.strictEqual(h.git(root, 'status', '--porcelain'), '');
+  assert.strictEqual(h.git(root, 'tag'), '');
+}
+
+// 0.x: minor and major give the same version, listed once.
+{
+  const root = project('gps-rel14-', '0.4.2');
+  finishSession(root, 'only', 'feat', 'minor');
   const res = h.ok(root, 'release.js');
-  assert.match(res.out, /1\.4\.2 → 1\.4\.3 \(patch: 1 session\(s\)\)/);
-  assert.strictEqual(res.err.split('\n').filter((l) => /huge/.test(l)).length, 1, 'warned once');
+  assert.match(res.out, /0\.4\.2 → 0\.5\.0 \(minor: 1 session\(s\)\)/);
+  assert.match(res.out, /^Candidates: patch 0\.4\.3, minor\/major 0\.5\.0$/m);
+  assert.deepStrictEqual(h.json(root, 'release.js').alternatives, { patch: '0.4.3', minor: '0.5.0', major: '0.5.0' });
+}
+
+// Hand-written Unreleased bullets and no fragment: patch, with a warning.
+{
+  const root = project('gps-rel15-');
+  fs.writeFileSync(path.join(root, 'CHANGELOG.md'), '# Changelog\n\n## Unreleased\n\n- by hand\n\n## 1.4.2\n\n- old\n');
+  h.git(root, 'add', 'CHANGELOG.md');
+  h.git(root, 'commit', '-q', '-m', 'docs: by hand');
+  const res = h.ok(root, 'release.js');
+  assert.match(res.out, /1\.4\.2 → 1\.4\.3 \(patch: 0 session\(s\)\)/);
+  assert.match(res.err, /No changelog fragment/);
+  h.ok(root, 'release.js', ['--version', '1.4.3']);
+  const log = fs.readFileSync(path.join(root, 'CHANGELOG.md'), 'utf-8');
+  assert.ok(log.includes(`## 1.4.3 (${today})\n\n- by hand\n\n## 1.4.2\n`), log);
+  // No gps config yet in this project: release saves it (first release).
+  assert.deepStrictEqual(h.git(root, 'show', '--name-only', '--format=', 'HEAD').split('\n').sort(), ['.work/gps-config.json', 'CHANGELOG.md', 'package.json'].sort());
 }
 
 // Nothing to release / changelog disabled.
 {
   const root = project('gps-rel5-');
-  h.assertFails(h.run(root, 'release.js'), 1, /no entries under "## Unreleased"[\s\S]*git pull/);
+  h.assertFails(h.run(root, 'release.js'), 1, /Nothing to release: no changelog fragment and no entry under "## Unreleased"[\s\S]*git pull/);
   finishSession(root, 'only', 'feat', 'minor');
   fs.writeFileSync(path.join(root, '.work', 'gps-config.json'), JSON.stringify({ github: { enabled: false }, changelog: { enabled: false } }));
   h.git(root, 'commit', '-q', '-am', 'config');
@@ -245,11 +287,12 @@ function project(prefix, version = '1.4.2') {
   h.git(other, 'commit', '-q', '-m', 'other');
   h.git(other, 'push', '-q', 'origin', 'main');
   const headBefore = h.git(root, 'rev-parse', 'HEAD');
-  const logBefore = fs.readFileSync(path.join(root, 'CHANGELOG.md'), 'utf-8');
+  const fragmentsBefore = fs.readdirSync(path.join(root, '.work', 'changelog'));
   assert.match(h.ok(root, 'release.js').out, /1\.5\.0/, 'suggest stays read-only and works behind origin');
   h.assertFails(h.run(root, 'release.js', ['--version', '1.5.0']), 1, /behind origin\/main[\s\S]*git pull/);
   assert.strictEqual(h.git(root, 'rev-parse', 'HEAD'), headBefore);
-  assert.strictEqual(fs.readFileSync(path.join(root, 'CHANGELOG.md'), 'utf-8'), logBefore);
+  assert.ok(!fs.existsSync(path.join(root, 'CHANGELOG.md')));
+  assert.deepStrictEqual(fs.readdirSync(path.join(root, '.work', 'changelog')), fragmentsBefore);
   assert.strictEqual(h.git(root, 'tag'), '');
   assert.strictEqual(h.git(root, 'status', '--porcelain'), '');
   h.git(root, 'pull', '-q', '--no-rebase', '--no-edit', 'origin', 'main');

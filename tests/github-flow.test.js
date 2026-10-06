@@ -538,10 +538,13 @@ assert.strictEqual(config.history.filter((e) => e.event === 'grill_written').len
       version: 1, github: { enabled: true }, release: githubRelease ? { githubRelease } : {},
     }, null, 2));
   };
+  // A finished session's changelog fragment, as changelog-apply.js writes it.
+  let fragments = 0;
   const addUnreleased = (bullet, level) => {
-    const file = path.join(rroot, 'CHANGELOG.md');
-    const old = fs.existsSync(file) ? fs.readFileSync(file, 'utf-8').replace(/^# Changelog\n\n/, '') : '';
-    fs.writeFileSync(file, `# Changelog\n\n## Unreleased\n\n- ${bullet} <!-- gps:s-${level} -->\n<!-- gps:bump=${level} session=s-${level} -->\n\n${old}`);
+    fragments += 1;
+    const dir = path.join(rroot, '.work', 'changelog');
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(path.join(dir, `s-${fragments}.md`), `---\nbump: ${level}\nfloor: ${level}\n---\n- ${bullet}\n`);
   };
   const releaseCalls = (verb) => ghCalls().filter((c) => c.args[0] === 'release' && c.args[1] === verb);
   const remoteTags = () => execFileSync('git', ['--git-dir', rbare, 'tag'], { encoding: 'utf-8' }).trim().split('\n');
@@ -576,6 +579,7 @@ assert.strictEqual(config.history.filter((e) => e.event === 'grill_written').len
   assert.match(created.body, /Add export/);
   assert.doesNotMatch(created.body, /gps:/);
   assert.strictEqual(rgit('status', '--porcelain'), '');
+  assert.match(rgit('show', '--name-only', '--format=', 'v1.5.0'), /^\.work\/changelog\/s-1\.md$/m, 'the release commit deletes the fragment');
 
   // Second --push: no second push, no second release.
   data = JSON.parse(rok('--push', '--json').out);

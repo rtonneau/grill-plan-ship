@@ -116,6 +116,8 @@ assert.strictEqual(after.sessions[0].phase, 'finished');
   fs.writeFileSync(path.join(root, 'package.json'), JSON.stringify({ name: 'x', version: '1.0.0' }, null, 2) + '\n');
   h.git(root, 'add', '-A');
   h.git(root, 'commit', '-q', '-m', 'chore: setup');
+  assert.ok(!fs.existsSync(path.join(root, 'CHANGELOG.md')), 'finish leaves CHANGELOG.md to the release');
+  assert.strictEqual(fs.readdirSync(path.join(root, '.work', 'changelog')).length, 1, 'one fragment per session');
   const sug = h.json(root, 'release.js');
   assert.strictEqual(sug.current, '1.0.0');
   assert.strictEqual(sug.sessions, 1);
@@ -125,6 +127,8 @@ assert.strictEqual(after.sessions[0].phase, 'finished');
   assert.match(log, new RegExp(`^## ${escaped} \\(${today}\\)$`, 'm'));
   assert.ok(!log.includes('<!--'), 'no gps marker is left in the CHANGELOG');
   assert.ok(!log.includes('Unreleased'));
+  assert.ok(log.includes('- Dark mode toggle, remembered between visits\n'));
+  assert.deepStrictEqual(fs.readdirSync(path.join(root, '.work', 'changelog')), [], 'the release deletes the fragment');
   assert.ok(h.git(root, 'tag', '-l').split('\n').includes(`v${sug.suggested}`), 'the version is tagged');
 }
 
