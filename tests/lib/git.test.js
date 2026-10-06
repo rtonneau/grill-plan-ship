@@ -5,7 +5,7 @@ const os = require('os');
 const path = require('path');
 const { execSync } = require('child_process');
 const {
-  readRecentCommits, readGitStatus, commitFiles, commitExists, describeCommit,
+  readRecentCommits, readGitStatus, commitFiles, restoreFromHead, commitExists, describeCommit,
   commitWorkDir, describeWorkCommit, branchesHolding, isIgnored, GPS_WORK_PATHS,
   commitMessages, defaultBranch, isCleanTree, tagExists, createTag, headCommit, pushWithTags, remoteHasTag, remoteBranchAt, headSha, fetchBehind,
 } = require('../../skills/gps/scripts/lib/git');
@@ -97,28 +97,39 @@ assert.match(commitFiles(projectRoot, ['code.js'], 'again').reason, /has changes
 assert.strictEqual(commitFiles(projectRoot, ['nope.js'], 'x').ok, false);
 assert.strictEqual(commitExists(projectRoot, 'deadbeef'), false);
 assert.strictEqual(describeCommit(projectRoot, 'deadbeef'), null);
-// commitFiles { remove }: the removal is in the same commit, the file stays on disk.
+// commitFiles with a tracked file deleted from disk: committed as a deletion
+// with a pathspec (nothing else staged goes in), even under an ignored
+// directory; restoreFromHead puts files back after a failed commit.
 {
   const r = fs.mkdtempSync(path.join(os.tmpdir(), 'gps-rm-'));
   const g = (cmd) => execSync(cmd, { cwd: r, encoding: 'utf-8' }).trim();
-  g('git init -q -b main && git config user.email t@e && git config user.name T');
+  g('git init -q -b main && git config user.email t@e && git config user.name T && git config core.autocrlf false');
   fs.mkdirSync(path.join(r, 'w'));
+  fs.writeFileSync(path.join(r, '.gitignore'), 'w/\n');
   fs.writeFileSync(path.join(r, 'w', 'frag.md'), 'f\n');
   fs.writeFileSync(path.join(r, 'log.md'), 'a\n');
-  g('git add -A && git commit -q -m init');
-  // Something else staged: refused, the index is as before.
+  g('git add .gitignore log.md && git add -f w/frag.md && git commit -q -m init');
   fs.writeFileSync(path.join(r, 'log.md'), 'b\n');
   fs.writeFileSync(path.join(r, 'stray.js'), 's\n');
   g('git add stray.js');
-  const refused = commitFiles(r, ['log.md'], 'rel', { remove: ['w/frag.md'] });
-  assert.strictEqual(refused.ok, false);
-  assert.match(refused.reason, /other staged changes would go in too: stray\.js/);
-  assert.strictEqual(g('git ls-files w'), 'w/frag.md', 'the removal is unstaged again');
-  g('git reset -q stray.js');
-  const res = commitFiles(r, ['log.md'], 'rel', { remove: ['w/frag.md'] });
+  fs.rmSync(path.join(r, 'w', 'frag.md'));
+  // A failing hook: nothing committed; the by-hand commands git rm the deleted file.
+  const hook = path.join(r, '.git', 'hooks', 'pre-commit');
+  fs.writeFileSync(hook, '#!/bin/sh\nexit 1\n', { mode: 0o755 });
+  const failed = commitFiles(r, ['log.md', 'w/frag.md'], 'rel');
+  assert.strictEqual(failed.ok, false);
+  assert.deepStrictEqual(failed.commands, ['git add -- "log.md"', 'git rm -q -- "w/frag.md"', 'git commit -m "rel" -- "log.md" "w/frag.md"']);
+  assert.deepStrictEqual(restoreFromHead(r, ['w/frag.md']), { ok: true });
+  assert.ok(fs.existsSync(path.join(r, 'w', 'frag.md')), 'back on disk');
+  assert.strictEqual(g('git status --porcelain -- w'), '', 'and in the index as in HEAD');
+  assert.strictEqual(restoreFromHead(r, ['nope.md']).ok, false);
+  assert.deepStrictEqual(restoreFromHead(r, []), { ok: true });
+  fs.unlinkSync(hook);
+  fs.rmSync(path.join(r, 'w', 'frag.md'));
+  const res = commitFiles(r, ['log.md', 'w/frag.md'], 'rel');
   assert.strictEqual(res.ok, true, res.reason);
   assert.deepStrictEqual(g('git show --name-status --format= HEAD').split('\n').sort(), ['D\tw/frag.md', 'M\tlog.md']);
-  assert.ok(fs.existsSync(path.join(r, 'w', 'frag.md')), 'the caller deletes the file');
+  assert.strictEqual(g('git status --porcelain'), 'A  stray.js', 'the stray staged file stays out');
   assert.strictEqual(g('git log -1 --format=%s'), 'rel');
   fs.rmSync(r, { recursive: true, force: true });
 }

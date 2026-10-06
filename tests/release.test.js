@@ -224,6 +224,68 @@ function project(prefix, version = '1.4.2') {
   assert.ok(fs.existsSync(fragment));
   assert.strictEqual(h.git(root, 'rev-parse', 'HEAD'), head);
   assert.strictEqual(h.git(root, 'ls-files', '--', `.work/changelog/${id}.md`), `.work/changelog/${id}.md`, 'the removal is unstaged again');
+  assert.strictEqual(h.git(root, 'status', '--porcelain', '--', '.work/changelog'), '', 'the fragment is as in HEAD');
+  const st = h.git(root, 'status', '--porcelain').split('\n').sort();
+  assert.deepStrictEqual(st, ['A  CHANGELOG.md', 'M  .work/gps-config.json', 'M  package.json'].sort(), 'the release files stay staged');
+}
+
+// A failed commit's hint is runnable: tracked fragments get git rm, the
+// command names no pseudo-command.
+{
+  const root = project('gps-rel21-');
+  const id = finishSession(root, 'only', 'feat', 'minor');
+  const hook = path.join(root, '.git', 'hooks', 'pre-commit');
+  fs.writeFileSync(hook, '#!/bin/sh\nexit 1\n', { mode: 0o755 });
+  const res = h.run(root, 'release.js', ['--version', '1.5.0']);
+  h.assertFails(res, 1, /written but not committed/);
+  assert.doesNotMatch(res.err, /&& delete /);
+  assert.match(res.err, new RegExp(`git rm -q -- "\\.work/changelog/${id}\\.md" && git commit `));
+  assert.match(res.err, /&& git tag -a v1\.5\.0 -m 1\.5\.0\n/);
+}
+
+// A non-normalized changelog.path ("./CHANGELOG.md") with tracked fragments releases.
+{
+  const root = project('gps-rel19-');
+  const id = finishSession(root, 'only', 'feat', 'minor');
+  const cfgFile = path.join(root, '.work', 'gps-config.json');
+  const cfg = JSON.parse(fs.readFileSync(cfgFile, 'utf-8'));
+  fs.writeFileSync(cfgFile, JSON.stringify({ ...cfg, changelog: { path: './CHANGELOG.md' }, release: { versionFiles: ['./package.json'] } }, null, 2) + '\n');
+  h.git(root, 'commit', '-q', '-m', 'cfg', '--', '.work/gps-config.json');
+  h.ok(root, 'release.js', ['--version', '1.5.0']);
+  assert.deepStrictEqual(h.git(root, 'show', '--name-status', '--format=', 'HEAD').split('\n').sort(),
+    [`D\t.work/changelog/${id}.md`, 'A\tCHANGELOG.md', 'M\tpackage.json'].sort());
+  assert.strictEqual(h.git(root, 'status', '--porcelain'), '');
+  assert.ok(h.git(root, 'tag').split('\n').includes('v1.5.0'));
+}
+
+// A nested changelog (docs/CHANGELOG.md) with tracked fragments releases.
+{
+  const root = project('gps-rel20-');
+  const id = finishSession(root, 'only', 'feat', 'minor');
+  const cfgFile = path.join(root, '.work', 'gps-config.json');
+  const cfg = JSON.parse(fs.readFileSync(cfgFile, 'utf-8'));
+  fs.writeFileSync(cfgFile, JSON.stringify({ ...cfg, changelog: { path: 'docs\\CHANGELOG.md' } }, null, 2) + '\n');
+  h.git(root, 'commit', '-q', '-m', 'cfg', '--', '.work/gps-config.json');
+  h.ok(root, 'release.js', ['--version', '1.5.0']);
+  assert.ok(fs.readFileSync(path.join(root, 'docs', 'CHANGELOG.md'), 'utf-8').includes('- only done'));
+  assert.ok(h.git(root, 'show', '--name-status', '--format=', 'HEAD').split('\n').includes(`D\t.work/changelog/${id}.md`));
+  assert.strictEqual(h.git(root, 'status', '--porcelain'), '');
+}
+
+// A fragment force-added under an ignored .work/: the release commit records its deletion.
+{
+  const root = project('gps-rel22-');
+  fs.writeFileSync(path.join(root, '.gitignore'), '.work/\n');
+  h.git(root, 'add', '.gitignore');
+  h.git(root, 'commit', '-q', '-m', 'ignore .work');
+  const id = finishSession(root, 'only', 'feat', 'minor');
+  h.git(root, 'add', '-f', '--', `.work/changelog/${id}.md`);
+  h.git(root, 'commit', '-q', '-m', 'force-add fragment');
+  h.ok(root, 'release.js', ['--version', '1.5.0']);
+  assert.ok(h.git(root, 'show', '--name-status', '--format=', 'HEAD').split('\n').includes(`D\t.work/changelog/${id}.md`));
+  assert.strictEqual(h.git(root, 'ls-files', '--', '.work/changelog'), '');
+  assert.ok(!fs.existsSync(path.join(root, '.work', 'changelog', `${id}.md`)));
+  assert.strictEqual(h.git(root, 'status', '--porcelain'), '');
 }
 
 // 0.x: minor and major give the same version, listed once.

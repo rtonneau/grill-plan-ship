@@ -38,6 +38,10 @@ function insideProject(projectRoot, relPath) {
   return rel !== '' && rel !== '..' && !rel.startsWith(`..${path.sep}`) && !path.isAbsolute(rel);
 }
 
+// A config path as git and the release compare it: backslashes become "/",
+// then posix-normalized ("./CHANGELOG.md" -> "CHANGELOG.md").
+const normalizeRelPath = (relPath) => path.posix.normalize(relPath.replace(/\\/g, '/'));
+
 function validate(config, filePath) {
   if (!config || !config.github || typeof config.github.enabled !== 'boolean') {
     throw invalid('"github.enabled" must be true or false', filePath);
@@ -53,7 +57,7 @@ function validate(config, filePath) {
     if (changelog.path !== undefined && (typeof changelog.path !== 'string' || !changelog.path)) {
       throw invalid('"changelog.path" must be a file path string', filePath);
     }
-    if (changelog.path !== undefined && !insideProject(projectRoot, changelog.path)) {
+    if (changelog.path !== undefined && !insideProject(projectRoot, normalizeRelPath(changelog.path))) {
       throw invalid('"changelog.path" must be a relative path inside the project', filePath);
     }
   }
@@ -67,7 +71,7 @@ function validate(config, filePath) {
       if (!(Array.isArray(files) && files.every((f) => typeof f === 'string' && f))) {
         throw invalid('"release.versionFiles" must be a list of file paths', filePath);
       }
-      if (!files.every((f) => insideProject(projectRoot, f))) {
+      if (!files.every((f) => insideProject(projectRoot, normalizeRelPath(f)))) {
         throw invalid('"release.versionFiles" must hold relative paths inside the project', filePath);
       }
     }
@@ -135,19 +139,20 @@ function rescanProjectConfig(projectRoot, { apply = false, check = false } = {})
 }
 
 // Changelog and release settings, defaults applied on read (a read never
-// writes the file). versionFiles is null until saved: callers detect them.
+// writes the file), paths normalized. versionFiles is null until saved:
+// callers detect them.
 function changelogSettings(projectRoot) {
   const changelog = (readConfig(projectRoot) || {}).changelog || {};
   return {
     enabled: changelog.enabled === undefined ? true : changelog.enabled,
-    path: changelog.path || 'CHANGELOG.md',
+    path: changelog.path ? normalizeRelPath(changelog.path) : 'CHANGELOG.md',
   };
 }
 
 function releaseSettings(projectRoot) {
   const release = (readConfig(projectRoot) || {}).release || {};
   return {
-    versionFiles: release.versionFiles || null,
+    versionFiles: release.versionFiles ? release.versionFiles.map(normalizeRelPath) : null,
     githubRelease: release.githubRelease || 'minor+',
   };
 }

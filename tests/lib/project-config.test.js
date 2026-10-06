@@ -146,6 +146,8 @@ const invalidCases = [
   // Paths stay inside the project.
   [{ changelog: { path: '../CHANGELOG.md' } }, /changelog.path.*inside the project/],
   [{ changelog: { path: 'docs/../../x.md' } }, /changelog.path.*inside the project/],
+  [{ changelog: { path: '..\\CHANGELOG.md' } }, /changelog.path.*inside the project/],
+  [{ release: { versionFiles: ['sub\\..\\..\\package.json'] } }, /release.versionFiles.*inside the project/],
   [{ changelog: { path: path.resolve(tmp, 'abs.md') } }, /changelog.path.*inside the project/],
   [{ changelog: { path: '/etc/x.md' } }, /changelog.path.*inside the project/],
   [{ release: { versionFiles: ['package.json', '../other/package.json'] } }, /release.versionFiles.*inside the project/],
@@ -156,8 +158,15 @@ for (const [bad, re] of invalidCases) {
   assert.throws(() => changelogSettings(cfgDir), (e) => e instanceof GpsError && re.test(e.message), JSON.stringify(bad));
 }
 fs.writeFileSync(configFile(cfgDir), JSON.stringify({ github: { enabled: false }, changelog: { path: 'docs/./CL.md' }, release: { versionFiles: ['sub/package.json'] } }));
-assert.strictEqual(changelogSettings(cfgDir).path, 'docs/./CL.md');
+// Paths come back normalized, with "/" separators (git pathspecs and the
+// release commit's file list compare them as text).
+assert.strictEqual(changelogSettings(cfgDir).path, 'docs/CL.md');
 assert.deepStrictEqual(releaseSettings(cfgDir).versionFiles, ['sub/package.json']);
+fs.writeFileSync(configFile(cfgDir), JSON.stringify({ github: { enabled: false }, changelog: { path: './CHANGELOG.md' }, release: { versionFiles: ['.\\sub\\package.json', 'a//b/../c.json'] } }));
+assert.strictEqual(changelogSettings(cfgDir).path, 'CHANGELOG.md');
+assert.deepStrictEqual(releaseSettings(cfgDir).versionFiles, ['sub/package.json', 'a/c.json']);
+fs.writeFileSync(configFile(cfgDir), JSON.stringify({ github: { enabled: false }, changelog: { path: 'docs\\CHANGELOG.md' } }));
+assert.strictEqual(changelogSettings(cfgDir).path, 'docs/CHANGELOG.md');
 
 delete process.env.GPS_GH_BIN;
 fs.rmSync(tmp, { recursive: true, force: true });

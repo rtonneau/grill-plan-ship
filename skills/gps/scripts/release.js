@@ -35,7 +35,7 @@ const { releaseExists, createRelease } = require('./lib/github');
 const { LEVELS, parseVersion, formatVersion, compareVersions, bumpVersion, maxLevel, levelBetween, levelRank } = require('./lib/semver');
 const { detectVersionFiles, readVersions, writeVersion } = require('./lib/version-files');
 const {
-  defaultBranch, currentBranch, isCleanTree, isIgnored, isTracked, tagExists, createTag, commitFiles, headCommit,
+  defaultBranch, currentBranch, isCleanTree, isIgnored, isTracked, tagExists, createTag, commitFiles, restoreFromHead, headCommit,
   pushWithTags, remoteHasTag, remoteBranchAt, headSha, fetchBehind,
 } = require('./lib/git');
 const { sessionsDirOf, listSessionDirs, readConfigOrNull } = require('./lib/session-store');
@@ -259,25 +259,30 @@ function release({ options, projectRoot, warn }) {
   fs.mkdirSync(path.dirname(changelogPath), { recursive: true });
   fs.writeFileSync(changelogPath, updated);
   for (const file of writable) writeVersion(projectRoot, file, target);
-  // The released fragments go, but only once the release commit exists (a
-  // failed commit keeps them). The commit removes those git tracks, unless
-  // .work/ is ignored (git refuses to stage an ignored path).
+  // The released fragments go. Tracked ones (even force-added under an
+  // ignored .work/) are deleted now and committed as deletions, and put back
+  // from HEAD if the commit fails; the others are deleted only once the
+  // release commit exists, so a failed commit keeps them.
   const files = fragments.map((f) => f.file);
-  const removed = isIgnored(projectRoot, '.work/') ? [] : files.filter((f) => isTracked(projectRoot, f));
+  const tracked = files.filter((f) => isTracked(projectRoot, f));
+  const untracked = files.filter((f) => !tracked.includes(f));
   // First release: remember which files carry the version, in the same commit.
   // A git-ignored (and untracked) config is saved but stays out of the commit.
   const configFile = '.work/gps-config.json';
   const saveConfig = !storedFiles;
   if (saveConfig) saveVersionFiles(projectRoot, versionFiles);
   const commitConfig = saveConfig && (isTracked(projectRoot, configFile) || !isIgnored(projectRoot, configFile));
-  const record = commitFiles(projectRoot, [settings.path, ...writable, ...(commitConfig ? [configFile] : [])],
-    `chore(release): ${target}\n\nBump: ${chosen}`, { remove: removed });
+  deleteFragments(projectRoot, tracked);
+  const record = commitFiles(projectRoot, [settings.path, ...writable, ...(commitConfig ? [configFile] : []), ...tracked],
+    `chore(release): ${target}\n\nBump: ${chosen}`);
   if (!record.ok) {
-    const del = files.length ? ` && delete ${files.join(' ')}` : '';
-    throw new GpsError(`Release ${target} written but not committed (${record.reason}); the changelog fragments are kept.`,
+    const restored = restoreFromHead(projectRoot, tracked);
+    const lost = restored.ok ? '' : ` Restoring the fragments failed (${restored.reason}): run ${restored.commands.join(' && ')} first.`;
+    const del = untracked.length ? `; then delete ${untracked.join(', ')} (git does not track them)` : '';
+    throw new GpsError(`Release ${target} written but not committed (${record.reason}); the changelog fragments are kept.${lost}`,
       `Run by hand: ${record.commands.join(' && ')} && git tag -a v${target} -m ${target}${del}`);
   }
-  deleteFragments(projectRoot, files);
+  deleteFragments(projectRoot, untracked);
   const tag = createTag(projectRoot, `v${target}`, target);
   if (!tag.ok) throw tagFailure(`v${target}`, tag);
   return {
