@@ -238,9 +238,12 @@ function commitWorkDir(projectRoot, message) {
 }
 
 // Stages exactly `files` (paths relative to projectRoot) and commits them
-// with `message`; nothing else that is staged goes in. Never throws:
+// with `message`; nothing else that is staged goes in. `remove` (tracked
+// paths) are deleted in the same commit while staying on disk, so the caller
+// deletes them only once the commit exists. Never throws:
 // { ok: true, sha, files } or { ok: false, reason, commands }.
-function commitFiles(projectRoot, files, message) {
+function commitFiles(projectRoot, files, message, { remove = [] } = {}) {
+  if (remove.length > 0) return commitWithRemovals(projectRoot, files, remove, message);
   const commands = [`git add -- ${files.map(quote).join(' ')}`, `git commit -m ${quote(message)} -- ${files.map(quote).join(' ')}`];
   if (!isWorkTree(projectRoot)) return { ok: false, reason: 'not a git repository', commands };
   try {
@@ -252,6 +255,43 @@ function commitFiles(projectRoot, files, message) {
   } catch (err) {
     return { ok: false, reason: failureReason(err), commands };
   }
+}
+
+// commitFiles with removals. A pathspec commit (`git commit -- <paths>`)
+// re-reads each path from the working tree, which would undo a
+// `git rm --cached`; so this commits the index, after checking it holds
+// nothing but `files` and `remove`. On failure the removals are unstaged again.
+function commitWithRemovals(projectRoot, files, remove, message) {
+  const commands = [
+    ...(files.length ? [`git add -- ${files.map(quote).join(' ')}`] : []),
+    `git rm -q --cached -- ${remove.map(quote).join(' ')}`,
+    `git commit -m ${quote(message)}`,
+  ];
+  if (!isWorkTree(projectRoot)) return { ok: false, reason: 'not a git repository', commands };
+  try {
+    if (files.length) git(projectRoot, ['add', '--', ...files]);
+    git(projectRoot, ['rm', '-q', '--cached', '--', ...remove]);
+  } catch (err) {
+    tryGit(projectRoot, ['reset', '-q', '--', ...remove]);
+    return { ok: false, reason: failureReason(err), commands };
+  }
+  const prefix = tryGit(projectRoot, ['rev-parse', '--show-prefix']) || '';
+  const expected = [...files, ...remove].map((f) => `${prefix}${f}`);
+  const staged = nulList(tryGit(projectRoot, ['diff', '--cached', '--name-only', '-z']));
+  const others = staged.filter((f) => !expected.includes(f));
+  let reason = null;
+  if (others.length > 0) reason = `other staged changes would go in too: ${others.join(', ')}`;
+  else if (staged.length === 0) reason = 'none of the given files has changes to commit';
+  else {
+    try {
+      git(projectRoot, ['commit', '-q', '-m', message]);
+      return { ok: true, sha: git(projectRoot, ['rev-parse', '--short', 'HEAD']), files: staged };
+    } catch (err) {
+      reason = failureReason(err);
+    }
+  }
+  tryGit(projectRoot, ['reset', '-q', '--', ...remove]);
+  return { ok: false, reason, commands };
 }
 
 // What a commitWorkDir result means for the user: { line, warning }, either

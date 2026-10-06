@@ -97,6 +97,32 @@ assert.match(commitFiles(projectRoot, ['code.js'], 'again').reason, /has changes
 assert.strictEqual(commitFiles(projectRoot, ['nope.js'], 'x').ok, false);
 assert.strictEqual(commitExists(projectRoot, 'deadbeef'), false);
 assert.strictEqual(describeCommit(projectRoot, 'deadbeef'), null);
+// commitFiles { remove }: the removal is in the same commit, the file stays on disk.
+{
+  const r = fs.mkdtempSync(path.join(os.tmpdir(), 'gps-rm-'));
+  const g = (cmd) => execSync(cmd, { cwd: r, encoding: 'utf-8' }).trim();
+  g('git init -q -b main && git config user.email t@e && git config user.name T');
+  fs.mkdirSync(path.join(r, 'w'));
+  fs.writeFileSync(path.join(r, 'w', 'frag.md'), 'f\n');
+  fs.writeFileSync(path.join(r, 'log.md'), 'a\n');
+  g('git add -A && git commit -q -m init');
+  // Something else staged: refused, the index is as before.
+  fs.writeFileSync(path.join(r, 'log.md'), 'b\n');
+  fs.writeFileSync(path.join(r, 'stray.js'), 's\n');
+  g('git add stray.js');
+  const refused = commitFiles(r, ['log.md'], 'rel', { remove: ['w/frag.md'] });
+  assert.strictEqual(refused.ok, false);
+  assert.match(refused.reason, /other staged changes would go in too: stray\.js/);
+  assert.strictEqual(g('git ls-files w'), 'w/frag.md', 'the removal is unstaged again');
+  g('git reset -q stray.js');
+  const res = commitFiles(r, ['log.md'], 'rel', { remove: ['w/frag.md'] });
+  assert.strictEqual(res.ok, true, res.reason);
+  assert.deepStrictEqual(g('git show --name-status --format= HEAD').split('\n').sort(), ['D\tw/frag.md', 'M\tlog.md']);
+  assert.ok(fs.existsSync(path.join(r, 'w', 'frag.md')), 'the caller deletes the file');
+  assert.strictEqual(g('git log -1 --format=%s'), 'rel');
+  fs.rmSync(r, { recursive: true, force: true });
+}
+
 const notRepo = fs.mkdtempSync(path.join(os.tmpdir(), 'gps-norepo-'));
 assert.strictEqual(commitFiles(notRepo, ['a'], 'x').reason, 'not a git repository');
 fs.rmSync(notRepo, { recursive: true, force: true });

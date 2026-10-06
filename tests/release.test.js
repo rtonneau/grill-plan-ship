@@ -171,6 +171,61 @@ function project(prefix, version = '1.4.2') {
   assert.strictEqual(h.git(root, 'tag'), '');
 }
 
+// A fragment whose body is not a changelog entry: refused like any invalid fragment.
+{
+  const root = project('gps-rel16-');
+  finishSession(root, 'only', 'fix', 'patch');
+  fs.writeFileSync(path.join(root, '.work', 'changelog', 'zz-prose.md'), '---\nbump: patch\nfloor: patch\n---\njust prose\n');
+  h.git(root, 'add', '.work/changelog/zz-prose.md');
+  h.git(root, 'commit', '-q', '-m', 'hand fragment');
+  const head = h.git(root, 'rev-parse', 'HEAD');
+  h.assertFails(h.run(root, 'release.js'), 1, /\.work\/changelog\/zz-prose\.md: unparsable body/);
+  h.assertFails(h.run(root, 'release.js', ['--version', '1.4.3']), 1, /\.work\/changelog\/zz-prose\.md: unparsable body/);
+  assert.strictEqual(h.git(root, 'rev-parse', 'HEAD'), head);
+  assert.strictEqual(h.git(root, 'status', '--porcelain'), '');
+  assert.strictEqual(h.git(root, 'tag'), '');
+}
+
+// A release commit that fails keeps the fragments on disk (here .work/ is
+// ignored, so they exist nowhere else); a later run releases them.
+{
+  const root = project('gps-rel17-');
+  fs.writeFileSync(path.join(root, '.gitignore'), '.work/\n');
+  h.git(root, 'add', '.gitignore');
+  h.git(root, 'commit', '-q', '-m', 'ignore .work');
+  const id = finishSession(root, 'only', 'feat', 'minor');
+  const fragment = path.join(root, '.work', 'changelog', `${id}.md`);
+  const hook = path.join(root, '.git', 'hooks', 'pre-commit');
+  fs.writeFileSync(hook, '#!/bin/sh\nexit 1\n', { mode: 0o755 });
+  const head = h.git(root, 'rev-parse', 'HEAD');
+  h.assertFails(h.run(root, 'release.js', ['--version', '1.5.0']), 1, /written but not committed/);
+  assert.ok(fs.existsSync(fragment), 'the fragment survives the failed commit');
+  assert.strictEqual(h.git(root, 'rev-parse', 'HEAD'), head);
+  fs.unlinkSync(hook);
+  // Undo the uncommitted release by hand, then run it again.
+  h.git(root, 'reset', '-q');
+  h.git(root, 'checkout', '-q', '--', '.');
+  fs.rmSync(path.join(root, 'CHANGELOG.md'));
+  assert.strictEqual(h.git(root, 'status', '--porcelain'), '');
+  h.ok(root, 'release.js', ['--version', '1.5.0']);
+  assert.ok(!fs.existsSync(fragment));
+  assert.ok(fs.readFileSync(path.join(root, 'CHANGELOG.md'), 'utf-8').includes('- only done'));
+}
+
+// Tracked fragments and a failed commit: still on disk, nothing committed.
+{
+  const root = project('gps-rel18-');
+  const id = finishSession(root, 'only', 'feat', 'minor');
+  const fragment = path.join(root, '.work', 'changelog', `${id}.md`);
+  const hook = path.join(root, '.git', 'hooks', 'pre-commit');
+  fs.writeFileSync(hook, '#!/bin/sh\nexit 1\n', { mode: 0o755 });
+  const head = h.git(root, 'rev-parse', 'HEAD');
+  h.assertFails(h.run(root, 'release.js', ['--version', '1.5.0']), 1, /written but not committed/);
+  assert.ok(fs.existsSync(fragment));
+  assert.strictEqual(h.git(root, 'rev-parse', 'HEAD'), head);
+  assert.strictEqual(h.git(root, 'ls-files', '--', `.work/changelog/${id}.md`), `.work/changelog/${id}.md`, 'the removal is unstaged again');
+}
+
 // 0.x: minor and major give the same version, listed once.
 {
   const root = project('gps-rel14-', '0.4.2');

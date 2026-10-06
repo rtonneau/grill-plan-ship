@@ -259,23 +259,25 @@ function release({ options, projectRoot, warn }) {
   fs.mkdirSync(path.dirname(changelogPath), { recursive: true });
   fs.writeFileSync(changelogPath, updated);
   for (const file of writable) writeVersion(projectRoot, file, target);
-  // The released fragments go; their deletion is staged only when git tracks
-  // them (git add of a deleted tracked path stages the removal) and .work/ is
-  // not ignored (git add refuses an ignored path).
+  // The released fragments go, but only once the release commit exists (a
+  // failed commit keeps them). The commit removes those git tracks, unless
+  // .work/ is ignored (git refuses to stage an ignored path).
   const files = fragments.map((f) => f.file);
-  const deleted = isIgnored(projectRoot, '.work/') ? [] : files.filter((f) => isTracked(projectRoot, f));
-  deleteFragments(projectRoot, files);
+  const removed = isIgnored(projectRoot, '.work/') ? [] : files.filter((f) => isTracked(projectRoot, f));
   // First release: remember which files carry the version, in the same commit.
   // A git-ignored (and untracked) config is saved but stays out of the commit.
   const configFile = '.work/gps-config.json';
   const saveConfig = !storedFiles;
   if (saveConfig) saveVersionFiles(projectRoot, versionFiles);
   const commitConfig = saveConfig && (isTracked(projectRoot, configFile) || !isIgnored(projectRoot, configFile));
-  const record = commitFiles(projectRoot, [settings.path, ...writable, ...deleted, ...(commitConfig ? [configFile] : [])], `chore(release): ${target}\n\nBump: ${chosen}`);
+  const record = commitFiles(projectRoot, [settings.path, ...writable, ...(commitConfig ? [configFile] : [])],
+    `chore(release): ${target}\n\nBump: ${chosen}`, { remove: removed });
   if (!record.ok) {
-    throw new GpsError(`Release ${target} written but not committed (${record.reason}).`,
-      `Run by hand: ${record.commands.join(' && ')} && git tag -a v${target} -m ${target}`);
+    const del = files.length ? ` && delete ${files.join(' ')}` : '';
+    throw new GpsError(`Release ${target} written but not committed (${record.reason}); the changelog fragments are kept.`,
+      `Run by hand: ${record.commands.join(' && ')} && git tag -a v${target} -m ${target}${del}`);
   }
+  deleteFragments(projectRoot, files);
   const tag = createTag(projectRoot, `v${target}`, target);
   if (!tag.ok) throw tagFailure(`v${target}`, tag);
   return {
