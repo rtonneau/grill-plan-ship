@@ -197,10 +197,10 @@ function commitRemainingChanges(projectRoot, message) {
 
 // The paths in .work/ that gps owns; other skills keep out of them and gps
 // keeps out of the rest (docs/WORK-DIR.md).
-const GPS_WORK_PATHS = ['.work/gps-config.json', '.work/GLOSSARY.md', '.work/adr', '.work/sessions'];
+const GPS_WORK_PATHS = ['.work/gps-config.json', '.work/GLOSSARY.md', '.work/adr', '.work/sessions', '.work/changelog'];
 
 // Commits gps's record (GPS_WORK_PATHS: sessions, glossary, ADRs, project
-// config) as its own commit; anything else that is staged stays staged, and
+// config, changelog fragments) as its own commit; anything else that is staged stays staged, and
 // other skills' files in .work/ stay out. Files git ignores (.current-session,
 // .pending-seeds.json, a write payload) stay out too.
 // Never throws: { ok: true, sha, files, skipped } (sha null: nothing to

@@ -86,20 +86,25 @@ const h = require('./helpers');
 }
 
 {
-  // A session that wrote its changelog entry: INDEX.md and the output name the bump.
+  // A session that wrote its changelog fragment: finish commits it with the
+  // session record; INDEX.md and the output name the bump.
   const root = h.gitProject('gps-fin-cl-');
   h.shipReady(root, 'Add thing', ['a']);
   h.completeTicket(root, 1, 'a');
+  const id = h.currentSession(root);
   const prep = h.json(root, 'changelog-prepare.js');
-  // A configured path: the output names it, with the bullet count.
-  fs.writeFileSync(path.join(root, '.work', 'gps-config.json'), JSON.stringify({ github: { enabled: false }, changelog: { path: 'docs/HISTORY.md' } }));
   fs.writeFileSync(prep.payloadPath, '- Thing added\n- Other thing\n');
   h.ok(root, 'changelog-apply.js', ['--bump', 'major', '--reason', 'removes x']);
   const res = h.ok(root, 'finish.js');
-  assert.match(res.out, /📝 docs\/HISTORY\.md: major \(2 bullet\(s\)\)/);
+  assert.match(res.out, /📝 Changelog: major \(2 bullet\(s\)\)/);
   assert.doesNotMatch(res.out, /CHANGELOG\.md/);
-  const index = fs.readFileSync(path.join(h.sessionsDir(root), fs.readdirSync(h.sessionsDir(root)).find((n) => /__add-thing$/.test(n)), 'INDEX.md'), 'utf-8');
-  assert.match(index, /## Changelog\n\n- \*\*Bump:\*\* major\n- \*\*Reason:\*\* removes x/);
+  assert.strictEqual(h.git(root, 'log', '-1', '--format=%s'), `chore(gps): finish ${id}`);
+  assert.match(h.git(root, 'show', '--name-only', '--format=', 'HEAD'), new RegExp(`^\\.work/changelog/${id}\\.md$`, 'm'));
+  assert.ok(!fs.existsSync(path.join(root, 'CHANGELOG.md')));
+  const sessionDir = path.join(h.sessionsDir(root), id);
+  const index = fs.readFileSync(path.join(sessionDir, 'INDEX.md'), 'utf-8');
+  assert.match(index, new RegExp(`## Changelog\\n\\n- \\*\\*Bump:\\*\\* major\\n- \\*\\*Reason:\\*\\* removes x\\n- \\*\\*Fragment:\\*\\* \\[${id}\\.md\\]\\(\\.\\./\\.\\./changelog/${id}\\.md\\)`));
+  for (const [, link] of index.matchAll(/\]\(([^)]+)\)/g)) assert.ok(fs.existsSync(path.join(sessionDir, link)), link);
 
   // Without a changelog entry: no section, no line.
   const plain = h.gitProject('gps-fin-nocl-');

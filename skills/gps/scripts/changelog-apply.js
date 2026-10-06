@@ -6,11 +6,12 @@
  * /gps finish, step 2 (after changelog-prepare.js and Claude's payload).
  * Validates the bump (not below the floor the session's commits set; above it
  * only with --reason) and the payload (default: the session's
- * .changelog-payload.md), writes the session's entry into the CHANGELOG's
- * Unreleased block, commits that file alone as `docs(changelog): <feature>`,
- * records the bump in .session-config.json and deletes the payload. Writes
- * nothing unless every check passes. A failed commit only warns: the file
- * stays written.
+ * .changelog-payload.md) against the CHANGELOG's format, then writes the
+ * session's fragment, .work/changelog/<session-id>.md (replacing an earlier
+ * one), records the bump in .session-config.json and deletes the payload.
+ * CHANGELOG.md is never touched: release.js merges the fragments. Nothing is
+ * committed here: finish.js commits the fragment with the session record.
+ * Writes nothing unless every check passes.
  */
 
 const fs = require('fs');
@@ -18,15 +19,12 @@ const path = require('path');
 const { main } = require('./lib/cli');
 const { resolveSession } = require('./lib/session-store');
 const { changelogSettings } = require('./lib/project-config');
-const { detectFormat, parsePayload, upsertSessionEntry } = require('./lib/changelog');
+const { detectFormat, parsePayload } = require('./lib/changelog');
+const { writeFragment } = require('./lib/changelog-fragments');
 const { checkChangelogable, sessionCommits } = require('./lib/changelog-session');
 const { LEVELS, levelRank } = require('./lib/semver');
-const { commitFiles } = require('./lib/git');
 const { recordEvent } = require('./lib/history');
 const { GpsError, UsageError, writeJsonAtomic } = require('./lib/guard');
-
-// commitFiles' reason when the file matches HEAD.
-const NOTHING_TO_COMMIT = 'none of the given files has changes to commit';
 
 function apply({ options, projectRoot, warn }) {
   if (!options.bump) throw new UsageError('--bump <patch|minor|major> is required.');
@@ -52,6 +50,7 @@ function apply({ options, projectRoot, warn }) {
     throw new GpsError(`Bump "${bump}" is above the floor "${floor}" set by the session's commits: say why.`,
       `Run changelog-apply.js --bump ${bump} --reason "<why>".`);
   }
+  if (reason && /[\r\n]/.test(reason)) throw new UsageError('--reason must be a single line.');
 
   const defaultPayload = path.join(sessionDir, '.changelog-payload.md');
   const payloadPath = options.file ? path.resolve(projectRoot, options.file) : defaultPayload;
@@ -61,32 +60,21 @@ function apply({ options, projectRoot, warn }) {
   }
 
   const file = path.join(projectRoot, settings.path);
-  const existing = fs.existsSync(file) ? fs.readFileSync(file, 'utf-8') : null;
-  const format = detectFormat(existing);
-  const entry = parsePayload(fs.readFileSync(payloadPath, 'utf-8'), format);
-  const updated = upsertSessionEntry(existing, { sessionId, bump, entry });
+  const format = detectFormat(fs.existsSync(file) ? fs.readFileSync(file, 'utf-8') : null);
+  const payload = fs.readFileSync(payloadPath, 'utf-8');
+  const entry = parsePayload(payload, format);
   const count = entry.bullets ? entry.bullets.length : Object.values(entry.sections).reduce((n, b) => n + b.length, 0);
+  if (format === 'unknown') warn(`Unrecognised ${settings.path} structure: check the release section /gps release writes.`);
 
-  fs.mkdirSync(path.dirname(file), { recursive: true });
-  fs.writeFileSync(file, updated);
-  if (format === 'unknown') warn('Unrecognised CHANGELOG.md structure: check the result.');
-
-  const record = commitFiles(projectRoot, [settings.path], `docs(changelog): ${config.feature_name}`);
-  // An identical re-run leaves nothing to commit: the entry is already there.
-  const unchanged = !record.ok && record.reason === NOTHING_TO_COMMIT;
-  if (!record.ok && !unchanged) {
-    warn(`${settings.path} written but not committed (${record.reason}). Run by hand: ${record.commands.join(' && ')}`);
-  }
-
-  config.changelog = { bump, floor, reason, path: settings.path, bullets: count, written_at: new Date().toISOString() };
+  const fragment = writeFragment(projectRoot, sessionId, { bump, floor, reason, body: payload });
+  config.changelog = { bump, floor, reason, bullets: count, path: fragment, written_at: new Date().toISOString() };
   writeJsonAtomic(configPath, config);
   recordEvent(configPath, config, sessionDir, { event: 'changelog_written', detail: { bump } });
   if (payloadPath === defaultPayload) fs.unlinkSync(payloadPath);
 
-  const committed = record.ok ? `committed (${record.sha})` : unchanged ? 'unchanged, already committed' : 'not committed';
   return {
-    text: `📝 ${settings.path}: ${bump} (${count} bullet(s)) ${committed}\nNext: finish.js`,
-    data: { sessionId, path: settings.path, bump, floor, reason, bullets: count, record },
+    text: `📝 Changelog fragment: ${bump} (${count} bullet(s)) → ${fragment}\nNext: finish.js`,
+    data: { sessionId, path: fragment, bump, floor, reason, bullets: count },
   };
 }
 

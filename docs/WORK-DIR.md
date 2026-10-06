@@ -11,6 +11,7 @@ Your skill may read these, but never write, move or delete them.
 | `.work/gps-config.json` | project-wide gps settings |
 | `.work/GLOSSARY.md`, `.work/adr/` | gps's fallback glossary and ADRs, used only when the project has none of its own (a root `GLOSSARY.md`, `docs/adr/`) |
 | `.work/sessions/` | the whole tree: session directories, `.current-session`, `.pending-seeds.json*`, `scout-reports/` and every file inside a session |
+| `.work/changelog/` | one changelog fragment per finished session (`<session-id>.md`), written by `/gps finish` and merged into the CHANGELOG, then deleted, by `/gps release` |
 
 ## Your skill's space
 

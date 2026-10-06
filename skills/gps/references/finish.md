@@ -7,6 +7,6 @@
 3. Relay its output, `⚠️` lines included. When it lists commands to run by hand, relay them; don't run or retry them yourself.
 4. If it lists unfinished sessions, ask whether to switch to one; only on yes, `set-current.js <session-id>`.
 
-It commits leftover changes to tracked files, pushes the branch and opens (or reuses) the pull request for a GitHub session, writes INDEX.md, commits `.work/` (the session record) and pushes it, then switches back to the base branch. Running `/gps finish` is the go-ahead: ask nothing else, except the issue question of step 2 and the switch of step 4.
+It commits leftover changes to tracked files, pushes the branch and opens (or reuses) the pull request for a GitHub session, writes INDEX.md, commits `.work/` (the session record and its changelog fragment; CHANGELOG.md is left for `/gps release`) and pushes it, then switches back to the base branch. Running `/gps finish` is the go-ahead: ask nothing else, except the issue question of step 2 and the switch of step 4.
 
 **Example:** `/gps finish`

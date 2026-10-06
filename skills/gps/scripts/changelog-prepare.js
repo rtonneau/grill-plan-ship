@@ -6,8 +6,10 @@
  * /gps finish, step 1: gathers what Claude needs to draft the session's
  * CHANGELOG entry: the session's commits (gps's own left out), the bump floor
  * they imply, the CHANGELOG's format and its current Unreleased block, and
- * the payload path to write the bullets to. changelog-apply.js writes them.
- * Changes nothing.
+ * the payload path to write the bullets to. changelog-apply.js writes them
+ * to the session's fragment (.work/changelog/<session-id>.md). Warns when
+ * .work/ is git-ignored (the fragment would stay on this machine). Changes
+ * nothing.
  */
 
 const fs = require('fs');
@@ -17,12 +19,14 @@ const { resolveSession } = require('./lib/session-store');
 const { changelogSettings } = require('./lib/project-config');
 const { detectFormat, readUnreleased } = require('./lib/changelog');
 const { checkChangelogable, sessionCommits } = require('./lib/changelog-session');
+const { fragmentPath } = require('./lib/changelog-fragments');
+const { isIgnored } = require('./lib/git');
 
 const PAYLOAD_FILENAME = '.changelog-payload.md';
 
 main({
   usage: 'changelog-prepare.js [--json]',
-  run({ projectRoot }) {
+  run({ projectRoot, warn }) {
     const { sessionId, sessionDir, config } = resolveSession(projectRoot);
     checkChangelogable(sessionId, sessionDir, config);
     const settings = changelogSettings(projectRoot);
@@ -39,10 +43,13 @@ main({
     const format = detectFormat(existing);
     const unreleased = readUnreleased(existing || '');
     const { subjects, floor } = sessionCommits(projectRoot, config);
-    const rerun = unreleased.sessions.includes(sessionId);
+    const rerun = fs.existsSync(fragmentPath(projectRoot, sessionId));
+    if (isIgnored(projectRoot, '.work/')) {
+      warn(".work/ is git-ignored: the changelog fragment stays on this machine; other clones won't see it until it is committed.");
+    }
 
     const lines = [
-      `${settings.path}: format ${format}, bump floor ${floor}${rerun ? '; this session already has an entry (it is replaced)' : ''}.`,
+      `${settings.path}: format ${format}, bump floor ${floor}${rerun ? '; this session already has a fragment (it is replaced)' : ''}.`,
       'Commits:',
       ...(subjects.length > 0 ? subjects.map((s) => `- ${s}`) : ['- (none found)']),
       'Unreleased now:',
