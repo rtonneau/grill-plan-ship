@@ -389,7 +389,7 @@ function project(prefix, version = '1.4.2') {
   const os = require('os');
   const root = project('gps-rel10-');
   const bare = fs.mkdtempSync(path.join(os.tmpdir(), 'gps-rel10-origin-'));
-  execFileSync('git', ['init', '-q', '--bare', bare], { stdio: 'ignore' });
+  execFileSync('git', ['init', '-q', '--bare', '--initial-branch=main', bare], { stdio: 'ignore' });
   h.git(root, 'remote', 'add', 'origin', bare);
   h.git(root, 'push', '-q', 'origin', 'main');
   const other = fs.mkdtempSync(path.join(os.tmpdir(), 'gps-rel10-other-'));
