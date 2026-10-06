@@ -27,6 +27,7 @@ const WORKFLOW = [
   '3. **Plan**: `/gps plan` saves the design and drafts small tickets for you to approve.',
   '4. **Ship**: `/gps ship` implements the tickets, one commit each.',
   '5. **Finish**: `/gps finish` writes the summary (and opens the PR on GitHub projects).',
+  '6. **Release** (when you choose): `/gps release` turns the finished sessions\' changelog entries into a version, a tag and, if you say so, a push.',
   '',
   '`/gps auto` runs from the current phase to the end without stopping. `/gps status`, `/gps handoff` and `/gps help` work at any time.',
 ];

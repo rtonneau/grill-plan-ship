@@ -5,8 +5,9 @@ const os = require('os');
 const path = require('path');
 const { execSync } = require('child_process');
 const {
-  readRecentCommits, readGitStatus, commitFiles, commitExists, describeCommit,
+  readRecentCommits, readGitStatus, commitFiles, restoreFromHead, commitExists, describeCommit,
   commitWorkDir, describeWorkCommit, branchesHolding, isIgnored, GPS_WORK_PATHS,
+  commitMessages, defaultBranch, isCleanTree, tagExists, createTag, headCommit, pushWithTags, remoteHasTag, remoteBranchAt, headSha, fetchBehind,
 } = require('../../skills/gps/scripts/lib/git');
 
 const readGitStatusSummary = (root, dir) => readGitStatus(root, dir).session;
@@ -96,6 +97,43 @@ assert.match(commitFiles(projectRoot, ['code.js'], 'again').reason, /has changes
 assert.strictEqual(commitFiles(projectRoot, ['nope.js'], 'x').ok, false);
 assert.strictEqual(commitExists(projectRoot, 'deadbeef'), false);
 assert.strictEqual(describeCommit(projectRoot, 'deadbeef'), null);
+// commitFiles with a tracked file deleted from disk: committed as a deletion
+// with a pathspec (nothing else staged goes in), even under an ignored
+// directory; restoreFromHead puts files back after a failed commit.
+{
+  const r = fs.mkdtempSync(path.join(os.tmpdir(), 'gps-rm-'));
+  const g = (cmd) => execSync(cmd, { cwd: r, encoding: 'utf-8' }).trim();
+  g('git init -q -b main && git config user.email t@e && git config user.name T && git config core.autocrlf false');
+  fs.mkdirSync(path.join(r, 'w'));
+  fs.writeFileSync(path.join(r, '.gitignore'), 'w/\n');
+  fs.writeFileSync(path.join(r, 'w', 'frag.md'), 'f\n');
+  fs.writeFileSync(path.join(r, 'log.md'), 'a\n');
+  g('git add .gitignore log.md && git add -f w/frag.md && git commit -q -m init');
+  fs.writeFileSync(path.join(r, 'log.md'), 'b\n');
+  fs.writeFileSync(path.join(r, 'stray.js'), 's\n');
+  g('git add stray.js');
+  fs.rmSync(path.join(r, 'w', 'frag.md'));
+  // A failing hook: nothing committed; the by-hand commands git rm the deleted file.
+  const hook = path.join(r, '.git', 'hooks', 'pre-commit');
+  fs.writeFileSync(hook, '#!/bin/sh\nexit 1\n', { mode: 0o755 });
+  const failed = commitFiles(r, ['log.md', 'w/frag.md'], 'rel');
+  assert.strictEqual(failed.ok, false);
+  assert.deepStrictEqual(failed.commands, ['git add -- "log.md"', 'git rm -q -- "w/frag.md"', 'git commit -m "rel" -- "log.md" "w/frag.md"']);
+  assert.deepStrictEqual(restoreFromHead(r, ['w/frag.md']), { ok: true });
+  assert.ok(fs.existsSync(path.join(r, 'w', 'frag.md')), 'back on disk');
+  assert.strictEqual(g('git status --porcelain -- w'), '', 'and in the index as in HEAD');
+  assert.strictEqual(restoreFromHead(r, ['nope.md']).ok, false);
+  assert.deepStrictEqual(restoreFromHead(r, []), { ok: true });
+  fs.unlinkSync(hook);
+  fs.rmSync(path.join(r, 'w', 'frag.md'));
+  const res = commitFiles(r, ['log.md', 'w/frag.md'], 'rel');
+  assert.strictEqual(res.ok, true, res.reason);
+  assert.deepStrictEqual(g('git show --name-status --format= HEAD').split('\n').sort(), ['D\tw/frag.md', 'M\tlog.md']);
+  assert.strictEqual(g('git status --porcelain'), 'A  stray.js', 'the stray staged file stays out');
+  assert.strictEqual(g('git log -1 --format=%s'), 'rel');
+  fs.rmSync(r, { recursive: true, force: true });
+}
+
 const notRepo = fs.mkdtempSync(path.join(os.tmpdir(), 'gps-norepo-'));
 assert.strictEqual(commitFiles(notRepo, ['a'], 'x').reason, 'not a git repository');
 fs.rmSync(notRepo, { recursive: true, force: true });
@@ -163,7 +201,7 @@ fs.rmSync(projectRoot, { recursive: true, force: true });
   fs.writeFileSync(path.join(root, '.gitignore'), '.work/sessions/.current-session\n');
   sh('git add app.js .gitignore');
   sh('git commit -q -m initial');
-  assert.deepStrictEqual(GPS_WORK_PATHS, ['.work/gps-config.json', '.work/GLOSSARY.md', '.work/adr', '.work/sessions']);
+  assert.deepStrictEqual(GPS_WORK_PATHS, ['.work/gps-config.json', '.work/GLOSSARY.md', '.work/adr', '.work/sessions', '.work/changelog']);
 
   // sessions/ holds only an ignored file: the config alone is committed.
   fs.mkdirSync(path.join(root, '.work', 'sessions'), { recursive: true });
@@ -244,6 +282,87 @@ fs.rmSync(projectRoot, { recursive: true, force: true });
   assert.strictEqual(sh('git show --name-only --format= HEAD'), 'sub/.work/sessions/s1/plan.md');
   assert.strictEqual(sh('git diff --cached --name-only'), 'sub/app.js', 'the user\'s staged code stays staged');
   fs.rmSync(repoRoot, { recursive: true, force: true });
+}
+
+// Release helpers: messages, default branch, tags and push with tags.
+{
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'gps-rel-'));
+  const bare = path.join(root, 'origin.git');
+  const repo = path.join(root, 'repo');
+  fs.mkdirSync(repo);
+  const sh = (cwd, cmd) => execSync(cmd, { cwd, encoding: 'utf-8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
+  sh(root, `git init -q --bare "${bare}"`);
+  sh(repo, 'git init -q -b main');
+  sh(repo, 'git config user.email "test@example.com"');
+  sh(repo, 'git config user.name "Test"');
+  assert.deepStrictEqual(commitMessages(repo, { since: 0 }), [], 'no commit yet');
+  assert.strictEqual(headCommit(repo), null);
+  fs.writeFileSync(path.join(repo, 'a.txt'), '1\n');
+  sh(repo, 'git add a.txt');
+  sh(repo, 'git commit -q -m initial');
+  assert.strictEqual(defaultBranch(repo), 'main', 'local main, no origin/HEAD');
+  assert.strictEqual(defaultBranch(root), null, 'not a repo');
+  sh(repo, 'git switch -q -c feat/x');
+  fs.writeFileSync(path.join(repo, 'a.txt'), '2\n');
+  sh(repo, 'git add a.txt');
+  execSync('git commit -q -F -', { cwd: repo, input: 'feat!: drop v1\n\nBREAKING CHANGE: v1 is gone\n', stdio: ['pipe', 'ignore', 'ignore'] });
+  fs.writeFileSync(path.join(repo, 'a.txt'), '3\n');
+  sh(repo, 'git commit -q -am "fix: typo"');
+  const msgs = commitMessages(repo, { base: 'main', branch: 'feat/x' });
+  assert.strictEqual(msgs.length, 2);
+  assert.strictEqual(msgs[0], 'fix: typo', 'newest first, trimmed');
+  assert.match(msgs[1], /BREAKING CHANGE: v1 is gone$/);
+  assert.strictEqual(commitMessages(repo, { since: Math.floor(Date.now() / 1000) - 3600 }).length, 3);
+  assert.deepStrictEqual(commitMessages(repo, { since: Math.floor(Date.now() / 1000) + 3600 }), []);
+  assert.deepStrictEqual(commitMessages(repo, { base: 'nope', branch: 'feat/x' }), []);
+
+  assert.strictEqual(isCleanTree(repo), true);
+  fs.writeFileSync(path.join(repo, 'new.txt'), 'x\n');
+  assert.strictEqual(isCleanTree(repo), false, 'untracked counts');
+  fs.rmSync(path.join(repo, 'new.txt'));
+  assert.strictEqual(isCleanTree(root), false, 'not a repo');
+
+  sh(repo, `git remote add origin "${bare}"`);
+  assert.strictEqual(tagExists(repo, 'v1.0.0'), false);
+  assert.strictEqual(remoteHasTag(repo, 'v1.0.0'), false);
+  assert.deepStrictEqual(headCommit(repo).tags, []);
+  assert.deepStrictEqual(createTag(repo, 'v1.0.0', 'Release 1.0.0'), { ok: true });
+  assert.strictEqual(tagExists(repo, 'v1.0.0'), true);
+  assert.strictEqual(sh(repo, 'git cat-file -t v1.0.0'), 'tag', 'annotated');
+  const dup = createTag(repo, 'v1.0.0', 'again');
+  assert.strictEqual(dup.ok, false);
+  assert.match(dup.commands[0], /^git tag -a v1\.0\.0 -m /);
+  const head = headCommit(repo);
+  assert.strictEqual(head.subject, 'fix: typo');
+  assert.strictEqual(head.body, '');
+  assert.deepStrictEqual(head.tags, ['v1.0.0']);
+
+  const pushed = pushWithTags(repo, 'feat/x');
+  assert.strictEqual(pushed.ok, true, JSON.stringify(pushed));
+  assert.deepStrictEqual(pushed.commands, ['git push --atomic --follow-tags origin feat/x']);
+  assert.strictEqual(remoteHasTag(repo, 'v1.0.0'), true);
+  assert.strictEqual(remoteHasTag(repo, 'v1.0'), false, 'exact tag name only');
+  assert.strictEqual(remoteBranchAt(repo, 'feat/x'), headSha(repo));
+  assert.strictEqual(remoteBranchAt(repo, 'nope'), null);
+  // fetchBehind: fetches origin's branch, counts the commits HEAD lacks.
+  assert.deepStrictEqual(fetchBehind(repo, 'feat/x'), { ok: true, behind: 0 });
+  fs.writeFileSync(path.join(repo, 'ahead.txt'), 'x\n');
+  sh(repo, 'git add ahead.txt');
+  sh(repo, 'git commit -q -m "chore: ahead"');
+  sh(repo, 'git push -q origin feat/x');
+  sh(repo, 'git reset -q --hard HEAD~1');
+  sh(repo, 'git update-ref -d refs/remotes/origin/feat/x');
+  assert.deepStrictEqual(fetchBehind(repo, 'feat/x'), { ok: true, behind: 1 }, 'the fetch brings the new commit');
+  sh(repo, 'git merge -q --ff-only origin/feat/x');
+  const missing = fetchBehind(repo, 'no-such-branch');
+  assert.strictEqual(missing.ok, false);
+  assert.ok(missing.reason);
+  assert.deepStrictEqual(fetchBehind(root, 'main'), { ok: false, reason: 'no origin remote' });
+  const badPush = pushWithTags(repo, 'missing-branch');
+  assert.strictEqual(badPush.ok, false);
+  assert.ok(badPush.reason && badPush.commands.length === 1);
+  assert.strictEqual(createTag(root, 'v2', 'x').ok, false, 'not a repo');
+  fs.rmSync(root, { recursive: true, force: true });
 }
 
 console.log('git.test.js: all assertions passed');

@@ -1,9 +1,11 @@
 ---
 name: gps
-description: "grill-plan-ship: workflow plugin (grill → plan → ship → finish). Use for /gps init, /gps scout, /gps start, /gps status, /gps clean, /gps config, /gps write, /gps plan, /gps ship, /gps finish, /gps auto, /gps handoff, /gps help."
-argument-hint: "<init|scout|start|status|clean|config|write|plan|ship|finish|auto|handoff|help> [args]"
+description: "grill-plan-ship: workflow plugin (grill → plan → ship → finish). Use for /gps init, /gps scout, /gps start, /gps status, /gps clean, /gps config, /gps write, /gps plan, /gps ship, /gps finish, /gps auto, /gps handoff, /gps release, /gps help."
+argument-hint: "<init|scout|start|status|clean|config|write|plan|ship|finish|auto|handoff|release|help> [args]"
 allowed-tools:
   - Bash(node ${CLAUDE_SKILL_DIR}/scripts/auto-route.js *)
+  - Bash(node ${CLAUDE_SKILL_DIR}/scripts/changelog-apply.js *)
+  - Bash(node ${CLAUDE_SKILL_DIR}/scripts/changelog-prepare.js *)
   - Bash(node ${CLAUDE_SKILL_DIR}/scripts/clean.js *)
   - Bash(node ${CLAUDE_SKILL_DIR}/scripts/config.js *)
   - Bash(node ${CLAUDE_SKILL_DIR}/scripts/dispatch-prompt.js *)
@@ -13,6 +15,7 @@ allowed-tools:
   - Bash(node ${CLAUDE_SKILL_DIR}/scripts/help.js *)
   - Bash(node ${CLAUDE_SKILL_DIR}/scripts/init.js *)
   - Bash(node ${CLAUDE_SKILL_DIR}/scripts/plan.js *)
+  - Bash(node ${CLAUDE_SKILL_DIR}/scripts/release.js *)
   - Bash(node ${CLAUDE_SKILL_DIR}/scripts/scout-merge.js *)
   - Bash(node ${CLAUDE_SKILL_DIR}/scripts/set-current.js *)
   - Bash(node ${CLAUDE_SKILL_DIR}/scripts/start.js *)
@@ -46,6 +49,7 @@ Grill (spec the work) → Plan (atomic tickets) → Ship (one commit per ticket)
 | `/gps finish` | Close the session: leftovers committed, INDEX.md, PR | `references/finish.md` |
 | `/gps auto [--delegate] [plan\|ship\|finish]` | Run from the current phase to the target without stopping | `references/auto.md` |
 | `/gps handoff` | Save an in-flight checkpoint (HANDOFF.md) | `references/handoff.md` |
+| `/gps release` | Merge the changelog fragments (and Unreleased bullets) into a version: suggest, bump, tag, push | `references/release.md` |
 | `/gps help [command\|question]` | What to do next, what a command does, how the workflow fits together | `references/help.md` |
 
 ## How to run a command

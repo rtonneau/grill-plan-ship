@@ -162,6 +162,35 @@ function closeIssue(projectRoot, number) {
   }
 }
 
+// True when `gh release view <tag>` succeeds (any failure counts as none).
+function releaseExists(projectRoot, tag) {
+  try {
+    runGh(projectRoot, ['release', 'view', tag]);
+    return true;
+  } catch (_err) {
+    return false;
+  }
+}
+
+// Never throws: { ok: true, url } (url null when gh prints none) or
+// { ok: false, reason, commands, notesFile }. On failure the notes file (in
+// the OS temp dir) is kept, so the by-hand command publishes the real notes.
+function createRelease(projectRoot, { tag, title, notes }) {
+  const notesFile = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'gps-release-')), 'notes.md');
+  try {
+    fs.writeFileSync(notesFile, notes);
+    const url = lastUrl(runGh(projectRoot, ['release', 'create', tag, '--title', title, '--notes-file', notesFile]));
+    fs.rmSync(path.dirname(notesFile), { recursive: true, force: true });
+    return { ok: true, url };
+  } catch (err) {
+    const quoted = (text) => `"${String(text).replace(/"/g, '\\"')}"`;
+    return {
+      ok: false, reason: failureReason(err), notesFile,
+      commands: [`gh release create ${tag} --title ${quoted(title)} --notes-file ${quoted(notesFile)}`],
+    };
+  }
+}
+
 module.exports = {
   PR_ATTRIBUTION,
   isGithubUrl,
@@ -172,4 +201,6 @@ module.exports = {
   createIssue,
   commentOnIssue,
   closeIssue,
+  releaseExists,
+  createRelease,
 };

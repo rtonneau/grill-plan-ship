@@ -61,8 +61,8 @@ const expected = {
   scout: ['scout-merge.js'], start: ['start.js', 'domain-doc.js'], status: ['status.js', 'set-current.js'], clean: ['clean.js'],
   config: ['config.js'], write: ['write-prepare.js', 'write-apply.js'], plan: ['write-prepare.js', 'plan.js'],
   ship: ['write-prepare.js', 'ticket-queue.js', 'ticket-start.js', 'dispatch-prompt.js', 'ticket-check.js', 'ticket-complete.js', 'ticket-block.js'],
-  finish: ['finish.js', 'set-current.js'], auto: ['auto-route.js', 'ticket-check.js'], handoff: ['handoff.js'],
-  help: ['help.js', 'status.js'], init: ['init.js'],
+  finish: ['changelog-prepare.js', 'changelog-apply.js', 'finish.js', 'set-current.js'], auto: ['auto-route.js', 'ticket-check.js'], handoff: ['handoff.js'],
+  help: ['help.js', 'status.js'], init: ['init.js'], release: ['release.js'],
 };
 assert.deepStrictEqual(Object.keys(expected).sort(), listed);
 for (const [command, names] of Object.entries(expected)) {
@@ -148,6 +148,6 @@ const { GPS_WORK_PATHS } = require('../skills/gps/scripts/lib/git');
 const workDirDoc = fs.readFileSync(path.join(repo, 'docs', 'WORK-DIR.md'), 'utf-8');
 for (const p of GPS_WORK_PATHS) assert.ok(workDirDoc.includes(`\`${p}`), `docs/WORK-DIR.md names ${p}`);
 assert.ok(readmeWords >= 40, 'README has at least 40 words outside code blocks');
-assert.match(fs.readFileSync(path.join(repo, 'CHANGELOG.md'), 'utf-8'), new RegExp(`^## ${version.replace(/\./g, '\\.')}$`, 'm'), 'CHANGELOG has an entry for the current version');
+assert.match(fs.readFileSync(path.join(repo, 'CHANGELOG.md'), 'utf-8'), new RegExp(`^## ${version.replace(/\./g, '\\.')}( \\(\\d{4}-\\d{2}-\\d{2}\\))?$`, 'm'), 'CHANGELOG has an entry for the current version');
 
 console.log('skill.test.js: all assertions passed');

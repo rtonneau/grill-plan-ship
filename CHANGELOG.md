@@ -2,6 +2,19 @@
 
 All notable changes to grill-plan-ship. Versions follow [semantic versioning](https://semver.org/).
 
+## Unreleased
+
+## 2.6.0
+
+- **Automatic CHANGELOG.** `/gps finish` now starts by writing the session's changelog entry as a fragment, `.work/changelog/<session-id>.md`.
+  - Claude drafts the user-facing bullets and picks the bump; it can't go below the floor the commit types imply, and going higher needs a reason.
+  - The fragment is its own file and `CHANGELOG.md` is left alone, so parallel sessions never claim the same version and never conflict. It travels in the `chore(gps): finish` record commit, so the pull request shows it.
+  - INDEX.md and the finish output record the bump.
+  - `changelog.enabled` and `changelog.path` in `.work/gps-config.json` turn it off or move it.
+- **`/gps release`.** Turns the fragments (and any hand-written `## Unreleased` bullets) into a version: it suggests one from the fragments' bumps, writes `## X.Y.Z (date)`, bumps the version files, commits the CHANGELOG, the version files and the fragment deletions as one `chore(release)` commit and tags. An invalid fragment is refused by name. A second question pushes the commit and tag and creates the GitHub Release (`release.githubRelease`: `none`, `minor+`, `all`). It never runs under `/gps auto`.
+- **`/gps config` and `/gps help`** show the new settings and the new command.
+- **Decision 0003.** Why sessions write changelog fragments and only `/gps release` sets the version: see [docs/decisions/0003-changelog-unreleased-then-release.md](docs/decisions/0003-changelog-unreleased-then-release.md).
+
 ## 2.5.1
 
 - **`/gps auto` recommends subagent + inline follow-up.** When it asks the ship mode, it puts subagent + inline follow-up first as "(Recommended)", whatever the last ship mode was: each ticket's diff is reviewed and the Verification Step re-run in the session before it is committed. `/gps ship` still recommends the last mode used.

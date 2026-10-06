@@ -15,12 +15,13 @@ const { isWorkTree, currentBranch, isIgnored, isTracked, pathHasChanges, commitF
 
 // Files under .work/ (and .scratch/) that must never be shared: the
 // current session pointer, scouted ideas not started yet (and their
-// corrupt backups) and a /gps write payload in progress.
+// corrupt backups) and the /gps write and changelog payloads in progress.
 const LOCAL_ONLY = [
   '.scratch/',
   '.work/sessions/.current-session',
   '.work/sessions/.pending-seeds.json*',
   '.work/sessions/*/.write-payload.md',
+  '.work/sessions/*/.changelog-payload.md',
 ];
 const CONFIG_REL = `.work/${CONFIG_FILENAME}`;
 const SETUP_MESSAGE = 'chore(gps): set up gps';

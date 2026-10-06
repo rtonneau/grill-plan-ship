@@ -5,7 +5,7 @@ const os = require('os');
 const path = require('path');
 const { execFileSync } = require('child_process');
 const { GpsError } = require('../../skills/gps/scripts/lib/guard');
-const { CONFIG_FILENAME, ensureProjectConfig, githubEnabled, rescanProjectConfig } = require('../../skills/gps/scripts/lib/project-config');
+const { CONFIG_FILENAME, ensureProjectConfig, githubEnabled, rescanProjectConfig, changelogSettings, releaseSettings, saveVersionFiles } = require('../../skills/gps/scripts/lib/project-config');
 
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'gps-projcfg-'));
 const marker = path.join(tmp, 'gh-called');
@@ -120,6 +120,53 @@ assert.strictEqual(readFile(fresh).github.enabled, false);
 fs.writeFileSync(configFile(fresh), '{ not json');
 assert.throws(() => rescanProjectConfig(fresh, { apply: true }), GpsError);
 assert.strictEqual(fs.readFileSync(configFile(fresh), 'utf-8'), '{ not json');
+
+// changelog / release settings: defaults on read, never written by a read.
+const cfgDir = makeProject('settings');
+assert.deepStrictEqual(changelogSettings(cfgDir), { enabled: true, path: 'CHANGELOG.md' });
+assert.deepStrictEqual(releaseSettings(cfgDir), { versionFiles: null, githubRelease: 'minor+' });
+assert.ok(!fs.existsSync(configFile(cfgDir)));
+ensureProjectConfig(cfgDir);
+const cfgBefore = fs.readFileSync(configFile(cfgDir), 'utf-8');
+assert.deepStrictEqual(releaseSettings(cfgDir), { versionFiles: null, githubRelease: 'minor+' });
+assert.strictEqual(fs.readFileSync(configFile(cfgDir), 'utf-8'), cfgBefore);
+saveVersionFiles(cfgDir, ['package.json']);
+assert.deepStrictEqual(releaseSettings(cfgDir).versionFiles, ['package.json']);
+assert.strictEqual(readFile(cfgDir).github.enabled, false);
+fs.writeFileSync(configFile(cfgDir), JSON.stringify({ github: { enabled: false }, changelog: { enabled: false, path: 'docs/CL.md' }, release: { githubRelease: 'all' } }));
+assert.deepStrictEqual(changelogSettings(cfgDir), { enabled: false, path: 'docs/CL.md' });
+assert.deepStrictEqual(releaseSettings(cfgDir), { versionFiles: null, githubRelease: 'all' });
+const invalidCases = [
+  [{ changelog: { enabled: 'yes' } }, /changelog.enabled/], [{ changelog: { path: 3 } }, /changelog.path/],
+  [{ release: { githubRelease: 'sometimes' } }, /githubRelease/],
+  // Not an object: a GpsError, never a TypeError.
+  [{ changelog: null }, /"changelog" must be an object/], [{ changelog: 'yes' }, /"changelog" must be an object/],
+  [{ release: null }, /"release" must be an object/], [{ release: [] }, /"release" must be an object/],
+  [{ release: { versionFiles: 'package.json' } }, /release.versionFiles/], [{ release: { versionFiles: [3] } }, /release.versionFiles/],
+  // Paths stay inside the project.
+  [{ changelog: { path: '../CHANGELOG.md' } }, /changelog.path.*inside the project/],
+  [{ changelog: { path: 'docs/../../x.md' } }, /changelog.path.*inside the project/],
+  [{ changelog: { path: '..\\CHANGELOG.md' } }, /changelog.path.*inside the project/],
+  [{ release: { versionFiles: ['sub\\..\\..\\package.json'] } }, /release.versionFiles.*inside the project/],
+  [{ changelog: { path: path.resolve(tmp, 'abs.md') } }, /changelog.path.*inside the project/],
+  [{ changelog: { path: '/etc/x.md' } }, /changelog.path.*inside the project/],
+  [{ release: { versionFiles: ['package.json', '../other/package.json'] } }, /release.versionFiles.*inside the project/],
+  [{ release: { versionFiles: [path.resolve(tmp, 'package.json')] } }, /release.versionFiles.*inside the project/],
+];
+for (const [bad, re] of invalidCases) {
+  fs.writeFileSync(configFile(cfgDir), JSON.stringify({ github: { enabled: false }, ...bad }));
+  assert.throws(() => changelogSettings(cfgDir), (e) => e instanceof GpsError && re.test(e.message), JSON.stringify(bad));
+}
+fs.writeFileSync(configFile(cfgDir), JSON.stringify({ github: { enabled: false }, changelog: { path: 'docs/./CL.md' }, release: { versionFiles: ['sub/package.json'] } }));
+// Paths come back normalized, with "/" separators (git pathspecs and the
+// release commit's file list compare them as text).
+assert.strictEqual(changelogSettings(cfgDir).path, 'docs/CL.md');
+assert.deepStrictEqual(releaseSettings(cfgDir).versionFiles, ['sub/package.json']);
+fs.writeFileSync(configFile(cfgDir), JSON.stringify({ github: { enabled: false }, changelog: { path: './CHANGELOG.md' }, release: { versionFiles: ['.\\sub\\package.json', 'a//b/../c.json'] } }));
+assert.strictEqual(changelogSettings(cfgDir).path, 'CHANGELOG.md');
+assert.deepStrictEqual(releaseSettings(cfgDir).versionFiles, ['sub/package.json', 'a/c.json']);
+fs.writeFileSync(configFile(cfgDir), JSON.stringify({ github: { enabled: false }, changelog: { path: 'docs\\CHANGELOG.md' } }));
+assert.strictEqual(changelogSettings(cfgDir).path, 'docs/CHANGELOG.md');
 
 delete process.env.GPS_GH_BIN;
 fs.rmSync(tmp, { recursive: true, force: true });

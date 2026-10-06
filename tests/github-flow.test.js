@@ -31,9 +31,18 @@ if (args[0] === 'auth') process.exit(0);
 if (args[0] === 'pr' && args[1] === 'list') process.exit(0);
 if (process.env.GH_STUB_FAIL_ISSUE && args[0] === 'issue' && args[1] === 'create') { console.error('gh: HTTP 502'); process.exit(1); }
 if (process.env.GH_STUB_FAIL_COMMENT && args[0] === 'issue' && args[1] === 'comment') { console.error('gh: HTTP 403'); process.exit(1); }
-const bodyAt = args.indexOf('--body-file');
+if (process.env.GH_STUB_FAIL_RELEASE && args[0] === 'release' && args[1] === 'create') { console.error('gh: HTTP 500'); process.exit(1); }
+const bodyAt = Math.max(args.indexOf('--body-file'), args.indexOf('--notes-file'));
 const body = bodyAt >= 0 ? fs.readFileSync(args[bodyAt + 1], 'utf-8') : null;
+const logged = fs.existsSync(${JSON.stringify(ghLog)}) ? fs.readFileSync(${JSON.stringify(ghLog)}, 'utf-8') : '';
 fs.appendFileSync(${JSON.stringify(ghLog)}, JSON.stringify({ args, body }) + '\\n');
+if (args[0] === 'release' && args[1] === 'view') {
+  process.exit(logged.includes('"release","create","' + args[2] + '"') ? 0 : 1);
+}
+if (args[0] === 'release' && args[1] === 'create') {
+  console.log('https://github.com/acme/app/releases/tag/' + args[2]);
+  process.exit(0);
+}
 if (args[0] === 'issue' && args[1] === 'create') {
   const created = fs.readFileSync(${JSON.stringify(ghLog)}, 'utf-8').split('\\n').filter((l) => l.includes('"issue","create"')).length;
   console.log('https://github.com/acme/app/issues/' + (33 + created));
@@ -505,6 +514,141 @@ assert.doesNotMatch(fs.readFileSync(path.join(sessionDir, '01-grill', 'resume.md
 config = readConfig(configPath);
 assert.strictEqual(config.history.filter((e) => e.event === 'issue_created').length, 1);
 assert.strictEqual(config.history.filter((e) => e.event === 'grill_written').length, 1);
+
+// ---------------------------- J. releases: push, then a GitHub Release by policy
+{
+  const rroot = path.join(tmp, 'relrepo');
+  const rbare = path.join(tmp, 'relorigin.git');
+  fs.mkdirSync(rroot);
+  const rgit = (...args) => execFileSync('git', args, { cwd: rroot, encoding: 'utf-8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
+  const rrun = (...args) => {
+    const r = spawnSync(process.execPath, [path.join(SCRIPTS, 'release.js'), ...args], {
+      cwd: rroot, encoding: 'utf-8', env: { ...process.env, CLAUDE_CODE_SESSION_ID: '', GPS_GH_BIN: ghStub },
+    });
+    return { code: r.status, out: r.stdout, err: r.stderr };
+  };
+  const rok = (...args) => {
+    const r = rrun(...args);
+    assert.strictEqual(r.code, 0, `release.js ${args.join(' ')} failed:\n${r.err}`);
+    return r;
+  };
+  const writeProjectConfig = (githubRelease) => {
+    fs.mkdirSync(path.join(rroot, '.work'), { recursive: true });
+    fs.writeFileSync(path.join(rroot, '.work', 'gps-config.json'), JSON.stringify({
+      version: 1, github: { enabled: true }, release: githubRelease ? { githubRelease } : {},
+    }, null, 2));
+  };
+  // A finished session's changelog fragment, as changelog-apply.js writes it.
+  let fragments = 0;
+  const addUnreleased = (bullet, level) => {
+    fragments += 1;
+    const dir = path.join(rroot, '.work', 'changelog');
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(path.join(dir, `s-${fragments}.md`), `---\nbump: ${level}\nfloor: ${level}\n---\n- ${bullet}\n`);
+  };
+  const releaseCalls = (verb) => ghCalls().filter((c) => c.args[0] === 'release' && c.args[1] === verb);
+  const remoteTags = () => execFileSync('git', ['--git-dir', rbare, 'tag'], { encoding: 'utf-8' }).trim().split('\n');
+  const cutAndPush = (version, bullet, level) => {
+    addUnreleased(bullet, level);
+    rgit('add', '-A');
+    rgit('commit', '-q', '-m', `feat: ${bullet}`);
+    rok('--version', version);
+    return JSON.parse(rok('--push', '--json').out);
+  };
+
+  rgit('init', '-q', '-b', 'main');
+  rgit('config', 'user.email', 'e2e@example.com');
+  rgit('config', 'user.name', 'E2E');
+  rgit('remote', 'add', 'origin', 'https://github.com/acme/app.git');
+  execFileSync('git', ['init', '-q', '--bare', rbare], { stdio: 'ignore' });
+  rgit('config', `url.${rbare.replace(/\\/g, '/')}.insteadOf`, 'https://github.com/acme/app.git');
+  fs.writeFileSync(path.join(rroot, 'package.json'), JSON.stringify({ name: 'app', version: '1.4.2' }, null, 2) + '\n');
+  writeProjectConfig(null);
+  rgit('add', '-A');
+  rgit('commit', '-q', '-m', 'initial');
+
+  // Default policy minor+: a minor release gets a GitHub Release.
+  let data = cutAndPush('1.5.0', 'Add export', 'minor');
+  assert.strictEqual(data.version, '1.5.0');
+  assert.strictEqual(data.pushed, true);
+  assert.deepStrictEqual(data.release, { ok: true, url: 'https://github.com/acme/app/releases/tag/v1.5.0' });
+  assert.ok(remoteTags().includes('v1.5.0'));
+  assert.strictEqual(releaseCalls('create').length, 1);
+  const created = releaseCalls('create')[0];
+  assert.deepStrictEqual(created.args.slice(0, 5), ['release', 'create', 'v1.5.0', '--title', '1.5.0']);
+  assert.match(created.body, /Add export/);
+  assert.doesNotMatch(created.body, /gps:/);
+  assert.strictEqual(rgit('status', '--porcelain'), '');
+  assert.match(rgit('show', '--name-only', '--format=', 'v1.5.0'), /^\.work\/changelog\/s-1\.md$/m, 'the release commit deletes the fragment');
+
+  // Second --push: no second push, no second release.
+  data = JSON.parse(rok('--push', '--json').out);
+  assert.strictEqual(data.pushed, false);
+  assert.strictEqual(data.release.ok, true);
+  assert.strictEqual(releaseCalls('create').length, 1, 'no second release create');
+
+  // A patch release under minor+: pushed, no GitHub Release.
+  data = cutAndPush('1.5.1', 'Fix export', 'patch');
+  assert.strictEqual(data.pushed, true);
+  assert.deepStrictEqual(data.release, { skipped: 'policy' });
+  assert.strictEqual(releaseCalls('create').length, 1);
+
+  // Patch fragments, but the user chose a minor version: the release is minor,
+  // so minor+ publishes it.
+  addUnreleased('Polish export', 'patch');
+  rgit('add', '-A');
+  rgit('commit', '-q', '-m', 'fix: polish export');
+  assert.strictEqual(JSON.parse(rok('--json').out).suggested, '1.5.2');
+  rok('--version', '1.6.0');
+  assert.match(rgit('log', '-1', '--format=%B'), /Bump: minor/);
+  data = JSON.parse(rok('--push', '--json').out);
+  assert.strictEqual(data.release.ok, true);
+  assert.strictEqual(releaseCalls('create').length, 2);
+  assert.strictEqual(releaseCalls('create')[1].args[2], 'v1.6.0');
+
+  // githubRelease "all": the patch release is published too.
+  writeProjectConfig('all');
+  rgit('add', '-A');
+  rgit('commit', '-q', '-m', 'chore: release policy all');
+  data = cutAndPush('1.6.1', 'Fix import', 'patch');
+  assert.strictEqual(data.release.ok, true);
+  assert.strictEqual(releaseCalls('create').length, 3);
+
+  // "none": never.
+  writeProjectConfig('none');
+  rgit('add', '-A');
+  rgit('commit', '-q', '-m', 'chore: release policy none');
+  data = cutAndPush('1.7.0', 'Add sharing', 'minor');
+  assert.deepStrictEqual(data.release, { skipped: 'policy' });
+  assert.strictEqual(releaseCalls('create').length, 3);
+
+  // gh fails after a good push: exit 0, a warning with the manual command.
+  writeProjectConfig('all');
+  rgit('add', '-A');
+  rgit('commit', '-q', '-m', 'chore: release policy all again');
+  addUnreleased('Fix sharing', 'patch');
+  rgit('add', '-A');
+  rgit('commit', '-q', '-m', 'fix: sharing');
+  rok('--version', '1.7.1');
+  const failed = spawnSync(process.execPath, [path.join(SCRIPTS, 'release.js'), '--push', '--json'], {
+    cwd: rroot, encoding: 'utf-8',
+    env: { ...process.env, CLAUDE_CODE_SESSION_ID: '', GPS_GH_BIN: ghStub, GH_STUB_FAIL_RELEASE: '1' },
+  });
+  assert.strictEqual(failed.status, 0);
+  assert.match(failed.stderr, /gh release create v1\.7\.1/);
+  const keptNotes = /--notes-file "([^"]+)"/.exec(failed.stderr);
+  assert.ok(keptNotes, 'the by-hand command names a notes file');
+  assert.match(fs.readFileSync(keptNotes[1], 'utf-8'), /Fix sharing/);
+  fs.rmSync(path.dirname(keptNotes[1]), { recursive: true, force: true });
+  const failedData = JSON.parse(failed.stdout);
+  assert.strictEqual(failedData.pushed, true);
+  assert.strictEqual(failedData.release.ok, false);
+  assert.ok(remoteTags().includes('v1.7.1'));
+  // Re-run: the push is skipped, the release is retried and now created.
+  data = JSON.parse(rok('--push', '--json').out);
+  assert.strictEqual(data.pushed, false);
+  assert.strictEqual(data.release.ok, true);
+}
 
 fs.rmSync(tmp, { recursive: true, force: true });
 console.log('# github-flow.test.js: all assertions passed');

@@ -197,10 +197,10 @@ function commitRemainingChanges(projectRoot, message) {
 
 // The paths in .work/ that gps owns; other skills keep out of them and gps
 // keeps out of the rest (docs/WORK-DIR.md).
-const GPS_WORK_PATHS = ['.work/gps-config.json', '.work/GLOSSARY.md', '.work/adr', '.work/sessions'];
+const GPS_WORK_PATHS = ['.work/gps-config.json', '.work/GLOSSARY.md', '.work/adr', '.work/sessions', '.work/changelog'];
 
 // Commits gps's record (GPS_WORK_PATHS: sessions, glossary, ADRs, project
-// config) as its own commit; anything else that is staged stays staged, and
+// config, changelog fragments) as its own commit; anything else that is staged stays staged, and
 // other skills' files in .work/ stay out. Files git ignores (.current-session,
 // .pending-seeds.json, a write payload) stay out too.
 // Never throws: { ok: true, sha, files, skipped } (sha null: nothing to
@@ -238,17 +238,43 @@ function commitWorkDir(projectRoot, message) {
 }
 
 // Stages exactly `files` (paths relative to projectRoot) and commits them
-// with `message`; nothing else that is staged goes in. Never throws:
+// with `message`; nothing else that is staged goes in. A tracked file
+// deleted from disk is committed as a deletion (the by-hand commands then
+// `git rm` it). Never throws:
 // { ok: true, sha, files } or { ok: false, reason, commands }.
 function commitFiles(projectRoot, files, message) {
-  const commands = [`git add -- ${files.map(quote).join(' ')}`, `git commit -m ${quote(message)} -- ${files.map(quote).join(' ')}`];
+  const present = files.filter((f) => fs.existsSync(path.join(projectRoot, f)));
+  const gone = files.filter((f) => !present.includes(f));
+  const commands = [
+    ...(present.length ? [`git add -- ${present.map(quote).join(' ')}`] : []),
+    ...(gone.length ? [`git rm -q -- ${gone.map(quote).join(' ')}`] : []),
+    `git commit -m ${quote(message)} -- ${files.map(quote).join(' ')}`,
+  ];
   if (!isWorkTree(projectRoot)) return { ok: false, reason: 'not a git repository', commands };
   try {
-    git(projectRoot, ['add', '--', ...files]);
+    // `git add` of a deleted path under an ignored directory fails (even when
+    // tracked), `git rm --cached` does not; the pathspec commit then takes
+    // each path as it is on disk.
+    if (present.length) git(projectRoot, ['add', '--', ...present]);
+    if (gone.length) git(projectRoot, ['rm', '-q', '--cached', '--', ...gone]);
     const staged = nulList(git(projectRoot, ['diff', '--cached', '--name-only', '-z', '--', ...files]));
     if (staged.length === 0) return { ok: false, reason: 'none of the given files has changes to commit', commands };
     git(projectRoot, ['commit', '-q', '-m', message, '--', ...files]);
     return { ok: true, sha: git(projectRoot, ['rev-parse', '--short', 'HEAD']), files: staged };
+  } catch (err) {
+    return { ok: false, reason: failureReason(err), commands };
+  }
+}
+
+// Puts `files` back as they are in HEAD, on disk and in the index (e.g.
+// files deleted for a commit that failed). Never throws:
+// { ok: true } or { ok: false, reason, commands }.
+function restoreFromHead(projectRoot, files) {
+  const commands = [`git checkout HEAD -- ${files.map(quote).join(' ')}`];
+  if (files.length === 0) return { ok: true };
+  try {
+    git(projectRoot, ['checkout', 'HEAD', '--', ...files]);
+    return { ok: true };
   } catch (err) {
     return { ok: false, reason: failureReason(err), commands };
   }
@@ -274,6 +300,95 @@ function pushBranch(projectRoot, branch) {
   } catch (err) {
     return { ok: false, reason: failureReason(err) };
   }
+}
+
+// Full commit messages (subject and body, trailing whitespace trimmed),
+// newest first: of `base..branch`, or made since `since` (unix seconds).
+// [] on any error.
+function commitMessages(projectRoot, { base, branch, since }) {
+  const args = ['log', '--format=%B%x00'];
+  if (since !== undefined) args.push(`--since=@${Math.floor(since)}`);
+  else args.push(`${base}..${branch}`);
+  return nulList(tryGit(projectRoot, args)).map((m) => m.trim()).filter(Boolean);
+}
+
+// The branch releases come from: origin's default (origin/HEAD), else a
+// local main or master. null when none is found.
+function defaultBranch(projectRoot) {
+  const remote = tryGit(projectRoot, ['symbolic-ref', '--short', 'refs/remotes/origin/HEAD']);
+  if (remote) return remote.replace(/^origin\//, '');
+  return ['main', 'master'].find((b) => tryGit(projectRoot, ['rev-parse', '--verify', '--quiet', `refs/heads/${b}`]) !== null) || null;
+}
+
+// True when nothing is modified, staged or untracked (false outside a repo).
+function isCleanTree(projectRoot) {
+  return tryGit(projectRoot, ['status', '--porcelain', '--untracked-files=all']) === '';
+}
+
+function tagExists(projectRoot, tag) {
+  return tryGit(projectRoot, ['rev-parse', '--verify', '--quiet', `refs/tags/${tag}`]) !== null;
+}
+
+// Annotated tag on HEAD. Never throws: { ok: true } or { ok: false, reason, commands }.
+function createTag(projectRoot, tag, message) {
+  try {
+    git(projectRoot, ['tag', '-a', tag, '-m', message]);
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, reason: failureReason(err), commands: [`git tag -a ${tag} -m ${quote(message)}`] };
+  }
+}
+
+// Subject, body and tags (those pointing at it) of HEAD; null without a commit.
+function headCommit(projectRoot) {
+  const subject = tryGit(projectRoot, ['log', '-1', '--format=%s']);
+  if (subject === null) return null;
+  return {
+    subject,
+    body: tryGit(projectRoot, ['log', '-1', '--format=%b']) || '',
+    tags: lines(tryGit(projectRoot, ['tag', '--points-at', 'HEAD'])),
+  };
+}
+
+// Pushes `branch` and the annotated tags on it. Never throws:
+// { ok: true, commands } or { ok: false, reason, commands }.
+function pushWithTags(projectRoot, branch) {
+  const commands = [`git push --atomic --follow-tags origin ${branch}`];
+  try {
+    git(projectRoot, ['push', '--atomic', '--follow-tags', 'origin', branch]);
+    return { ok: true, commands };
+  } catch (err) {
+    return { ok: false, reason: failureReason(err), commands };
+  }
+}
+
+// True when origin has `tag` (false on any error, including no origin).
+function remoteHasTag(projectRoot, tag) {
+  return Boolean(tryGit(projectRoot, ['ls-remote', '--tags', 'origin', `refs/tags/${tag}`]));
+}
+
+// The sha origin holds for `branch`, or null (no origin, no such branch).
+function remoteBranchAt(projectRoot, branch) {
+  const out = tryGit(projectRoot, ['ls-remote', 'origin', `refs/heads/${branch}`]);
+  return out ? out.split(/\s+/)[0] : null;
+}
+
+// Fetches origin's `branch` (updating origin/<branch>) and counts the
+// commits it has that HEAD lacks. Changes no tracked file. Never throws:
+// { ok: true, behind } or { ok: false, reason } (no origin, fetch failed).
+function fetchBehind(projectRoot, branch) {
+  if (!originUrl(projectRoot)) return { ok: false, reason: 'no origin remote' };
+  try {
+    git(projectRoot, ['fetch', '-q', 'origin', `+refs/heads/${branch}:refs/remotes/origin/${branch}`]);
+    return { ok: true, behind: Number(git(projectRoot, ['rev-list', '--count', `HEAD..refs/remotes/origin/${branch}`])) };
+  } catch (err) {
+    return { ok: false, reason: failureReason(err) };
+  }
+}
+
+// Full sha of HEAD, or null without a commit.
+function headSha(projectRoot) {
+  return tryGit(projectRoot, ['rev-parse', 'HEAD']);
 }
 
 module.exports = {
@@ -302,5 +417,17 @@ module.exports = {
   commitWorkDir,
   describeWorkCommit,
   commitFiles,
+  restoreFromHead,
   pushBranch,
+  commitMessages,
+  defaultBranch,
+  isCleanTree,
+  tagExists,
+  createTag,
+  headCommit,
+  pushWithTags,
+  remoteHasTag,
+  remoteBranchAt,
+  headSha,
+  fetchBehind,
 };

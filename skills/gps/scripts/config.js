@@ -5,6 +5,9 @@
  * config.js --rescan [--json]         detect GitHub again; writes only when the value is unchanged
  * config.js --rescan --apply [--json] write the newly detected value
  *
+ * Also shows (read-only) changelog.enabled, release.versionFiles and
+ * release.githubRelease.
+ *
  * /gps config. Bare config.js is read-only (it only creates a missing
  * file). Claude runs --rescan --apply only after the user confirmed the
  * change.
@@ -12,7 +15,7 @@
 
 const path = require('path');
 const { main } = require('./lib/cli');
-const { CONFIG_FILENAME, rescanProjectConfig } = require('./lib/project-config');
+const { CONFIG_FILENAME, rescanProjectConfig, changelogSettings, releaseSettings } = require('./lib/project-config');
 const { UsageError } = require('./lib/guard');
 
 const SCOPE_NOTE = 'The flag applies to sessions whose plan is not saved yet; sessions already planned keep their current mode.';
@@ -27,10 +30,17 @@ main({
     const result = rescanProjectConfig(projectRoot, { apply: options.apply, check: !options.rescan });
     const { status, stored, storedAt, detected } = result;
     const now = `GitHub detected now: ${onOff(detected.enabled)} (${detected.reason})`;
-    const data = { status, stored, storedAt, detected, file };
+    const changelog = changelogSettings(projectRoot);
+    const release = releaseSettings(projectRoot);
+    const data = { status, stored, storedAt, detected, file, changelog, release };
+    const settings = [
+      `changelog.enabled = ${changelog.enabled} (path ${changelog.path})`,
+      `release.versionFiles = ${release.versionFiles ? release.versionFiles.join(', ') : 'not saved yet'}`,
+      `release.githubRelease = ${release.githubRelease}`,
+    ];
 
     if (status === 'created') {
-      return { text: `✅ Created ${file}: github.enabled = ${detected.enabled}\n${now}`, data };
+      return { text: `✅ Created ${file}: github.enabled = ${detected.enabled}\n${now}\n${settings.join('\n')}`, data };
     }
     const lines = [`${file}: github.enabled = ${stored} (detected_at ${storedAt || 'unknown'})`, now];
     if (status === 'unchanged') {
@@ -44,6 +54,7 @@ main({
     } else {
       lines.push(`✅ Updated: github.enabled ${stored} → ${detected.enabled}.`, SCOPE_NOTE);
     }
+    lines.push(...settings);
     return { text: lines.join('\n'), data };
   },
 });

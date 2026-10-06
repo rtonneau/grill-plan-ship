@@ -78,6 +78,11 @@ report = expectStatus('finish-pending', '/gps finish');
 assert.strictEqual(report.current.handoff.drift, null);
 fs.rmSync(path.join(root, 'wip.js'));
 
+// changelog: drafted bullets and the bump, before finish
+const clPrep = h.json(root, 'changelog-prepare.js');
+fs.writeFileSync(clPrep.payloadPath, '- Dark mode toggle, remembered between visits\n');
+h.ok(root, 'changelog-apply.js', ['--bump', clPrep.floor]);
+
 // finish
 const finish = h.json(root, 'finish.js');
 assert.deepStrictEqual(finish.unfinished, []);
@@ -94,7 +99,7 @@ const config = JSON.parse(fs.readFileSync(path.join(sessionDir, '.session-config
 assert.deepStrictEqual(config.history.map((e) => [e.event, e.phase]), [
   ['session_started', 'grill'], ['grill_written', 'plan-not-started'], ['plan_started', 'plan'], ['plan_written', 'ship'],
   ['ticket_started', 'ship'], ['ticket_done', 'ship'], ['ticket_started', 'ship'], ['ticket_done', 'finish-pending'],
-  ['handoff_saved', 'finish-pending'], ['session_finished', 'finished'],
+  ['handoff_saved', 'finish-pending'], ['changelog_written', 'finish-pending'], ['session_finished', 'finished'],
 ]);
 const stamps = config.history.map((e) => e.at);
 assert.deepStrictEqual(stamps, [...stamps].sort(), 'events are in chronological order');
@@ -102,6 +107,30 @@ assert.ok(config.history.every((e) => !e.backfilled));
 const after = h.json(root, 'status.js');
 assert.strictEqual(after.current, null);
 assert.strictEqual(after.sessions[0].phase, 'finished');
+
+// changelog and release: the entry was written before finish; release cuts the version
+{
+  const d = new Date();
+  const pad = (n) => String(n).padStart(2, '0');
+  const today = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  fs.writeFileSync(path.join(root, 'package.json'), JSON.stringify({ name: 'x', version: '1.0.0' }, null, 2) + '\n');
+  h.git(root, 'add', '-A');
+  h.git(root, 'commit', '-q', '-m', 'chore: setup');
+  assert.ok(!fs.existsSync(path.join(root, 'CHANGELOG.md')), 'finish leaves CHANGELOG.md to the release');
+  assert.strictEqual(fs.readdirSync(path.join(root, '.work', 'changelog')).length, 1, 'one fragment per session');
+  const sug = h.json(root, 'release.js');
+  assert.strictEqual(sug.current, '1.0.0');
+  assert.strictEqual(sug.sessions, 1);
+  h.ok(root, 'release.js', ['--version', sug.suggested]);
+  const log = fs.readFileSync(path.join(root, 'CHANGELOG.md'), 'utf-8');
+  const escaped = sug.suggested.replace(/\./g, '\\.');
+  assert.match(log, new RegExp(`^## ${escaped} \\(${today}\\)$`, 'm'));
+  assert.ok(!log.includes('<!--'), 'no gps marker is left in the CHANGELOG');
+  assert.ok(!log.includes('Unreleased'));
+  assert.ok(log.includes('- Dark mode toggle, remembered between visits\n'));
+  assert.deepStrictEqual(fs.readdirSync(path.join(root, '.work', 'changelog')), [], 'the release deletes the fragment');
+  assert.ok(h.git(root, 'tag', '-l').split('\n').includes(`v${sug.suggested}`), 'the version is tagged');
+}
 
 // scout --from -> start: the seed is consumed and printed
 fs.mkdirSync(path.join(root, 'docs'));
