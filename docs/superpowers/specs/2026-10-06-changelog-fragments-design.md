@@ -50,7 +50,7 @@ reason: removes the --legacy flag
   1. Build the release section: hand-written Unreleased bullets first, then fragments ordered by filename (the session id starts with its date, `YYYY-MM-DD__`, so this is chronological by session start). In `sections` format, bullets merge into matching `###` subsections in Keep-a-Changelog order.
   2. Rename `## Unreleased` to `## X.Y.Z (date)`, or insert the new section above the first version heading (or after the title) when there is no Unreleased.
   3. Bump version files; delete the fragment files.
-  4. One commit `chore(release): X.Y.Z` (body `Bump: <level of chosen version>`) holding CHANGELOG + version files + fragment deletions (+ `.work/gps-config.json` on the first release, unless ignored). Ignored `.work/`: fragments deleted from disk, nothing staged for them. Tag `vX.Y.Z`; tag resume unchanged.
+  4. One commit `chore(release): X.Y.Z` (body `Bump: <level of chosen version>`) holding CHANGELOG + version files + fragment deletions (+ `.work/gps-config.json` on the first release, unless ignored). Ignored `.work/`: fragments deleted from disk, nothing staged for them. Tracked fragments (also one force-added under an ignored `.work/`) are deleted before the commit and named in its pathspec; a failed commit restores them from HEAD; untracked ones are deleted only after the commit succeeds (final review ruling). Tag `vX.Y.Z`; tag resume unchanged.
 - **`--push`**: unchanged.
 
 ## Code changes
