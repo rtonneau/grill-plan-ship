@@ -4,6 +4,8 @@ All notable changes to grill-plan-ship. Versions follow [semantic versioning](ht
 
 ## Unreleased
 
+## 2.6.0
+
 - **Automatic CHANGELOG.** `/gps finish` now starts by writing the session's changelog entry as a fragment, `.work/changelog/<session-id>.md`.
   - Claude drafts the user-facing bullets and picks the bump; it can't go below the floor the commit types imply, and going higher needs a reason.
   - The fragment is its own file and `CHANGELOG.md` is left alone, so parallel sessions never claim the same version and never conflict. It travels in the `chore(gps): finish` record commit, so the pull request shows it.
