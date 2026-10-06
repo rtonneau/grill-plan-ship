@@ -43,7 +43,7 @@
 const fs = require('fs');
 const path = require('path');
 const { main } = require('./lib/cli');
-const { resolveSession, clearCurrentSession, listUnfinishedSessions, SET_CURRENT } = require('./lib/session-store');
+const { resolveSession, clearCurrentSession, listUnfinishedSessions, sessionsDirOf, SET_CURRENT } = require('./lib/session-store');
 const { isFinished } = require('./lib/phase');
 const { resolveWriteTarget } = require('./lib/write-target');
 const { listTickets } = require('./lib/ticket-queue');
@@ -57,8 +57,8 @@ const { GpsError, UsageError, writeJsonAtomic } = require('./lib/guard');
 const { getHistory, hasEvent, renderTimeline, recordEvent } = require('./lib/history');
 const { FRAGMENTS_DIR } = require('./lib/changelog-fragments');
 
-// Where session directories live, relative to the project root.
-const SESSIONS_REL = '.work/sessions';
+// Where session directories live, relative to the project root, with '/' separators.
+const SESSIONS_REL = path.relative('.', sessionsDirOf('.')).split(path.sep).join('/');
 
 function buildIndex(config, finishedAt, tickets, bounded, pr, events, issueResult, leftover) {
   const lines = [
@@ -114,7 +114,7 @@ function changelogSection(sessionId, changelog) {
   // The fragment's path is project-relative; INDEX.md sits in the session dir.
   if (changelog.path && changelog.path.startsWith(`${FRAGMENTS_DIR}/`)) {
     const link = path.posix.relative(`${SESSIONS_REL}/${sessionId}`, changelog.path);
-    lines.push(`- **Fragment:** [${path.posix.basename(changelog.path)}](${link})`);
+    lines.push(`- **Fragment:** [${path.posix.basename(changelog.path)}](${link}) (merged into the CHANGELOG at release)`);
   }
   lines.push('');
   return lines;

@@ -27,6 +27,9 @@ assert.throws(() => serializeFragment({ bump: 'patch', floor: 'patch', reason: '
 // CRLF
 const lf = serializeFragment({ bump: 'major', floor: 'minor', reason: 'r', body: '- a\n  - b' });
 assert.deepStrictEqual(parseFragment(lf.replace(/\n/g, '\r\n')), parseFragment(lf));
+// A leading UTF-8 BOM (a Windows editor) is not part of the front matter.
+assert.deepStrictEqual(parseFragment(`﻿${lf}`), parseFragment(lf));
+assert.deepStrictEqual(parseFragment(`﻿${lf.replace(/\n/g, '\r\n')}`), parseFragment(lf));
 
 // errors
 assert.throws(() => parseFragment('- x\n'), /missing front matter/);

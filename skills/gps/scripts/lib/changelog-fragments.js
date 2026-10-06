@@ -25,7 +25,8 @@ function serializeFragment({ bump, floor, reason, body }) {
 }
 
 function parseFragment(text) {
-  const match = /^---\n([\s\S]*?)\n---(?:\n|$)([\s\S]*)$/.exec(text.replace(/\r\n/g, '\n'));
+  // A leading UTF-8 BOM (some Windows editors write one) is dropped.
+  const match = /^---\n([\s\S]*?)\n---(?:\n|$)([\s\S]*)$/.exec(text.replace(/^﻿/, '').replace(/\r\n/g, '\n'));
   if (!match) throw new GpsError('missing front matter');
   const keys = {};
   for (const line of match[1].split('\n')) {

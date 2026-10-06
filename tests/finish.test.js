@@ -103,7 +103,7 @@ const h = require('./helpers');
   assert.ok(!fs.existsSync(path.join(root, 'CHANGELOG.md')));
   const sessionDir = path.join(h.sessionsDir(root), id);
   const index = fs.readFileSync(path.join(sessionDir, 'INDEX.md'), 'utf-8');
-  assert.match(index, new RegExp(`## Changelog\\n\\n- \\*\\*Bump:\\*\\* major\\n- \\*\\*Reason:\\*\\* removes x\\n- \\*\\*Fragment:\\*\\* \\[${id}\\.md\\]\\(\\.\\./\\.\\./changelog/${id}\\.md\\)`));
+  assert.match(index, new RegExp(`## Changelog\\n\\n- \\*\\*Bump:\\*\\* major\\n- \\*\\*Reason:\\*\\* removes x\\n- \\*\\*Fragment:\\*\\* \\[${id}\\.md\\]\\(\\.\\./\\.\\./changelog/${id}\\.md\\) \\(merged into the CHANGELOG at release\\)\\n`));
   for (const [, link] of index.matchAll(/\]\(([^)]+)\)/g)) assert.ok(fs.existsSync(path.join(sessionDir, link)), link);
 
   // Without a changelog entry: no section, no line.
