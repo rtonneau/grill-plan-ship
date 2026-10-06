@@ -33,6 +33,12 @@ assert.throws(() => parseFragment('- x\n'), /missing front matter/);
 assert.throws(() => parseFragment('---\nbump: huge\nfloor: patch\n---\n- x\n'), /bump "huge" is not patch, minor or major/);
 assert.throws(() => parseFragment('---\nbump: patch\n---\n- x\n'), /missing floor/);
 assert.throws(() => parseFragment('---\nbump: patch\nfloor: patch\n---\n\n'), /empty body/);
+// An unparsable body (prose, an unknown section, a bullet outside a section) is a GpsError (exit 1).
+const { GpsError, UsageError } = require('../../skills/gps/scripts/lib/guard');
+for (const body of ['just prose', '### Fixes\n- y', '- y\n### Fixed\n- z']) {
+  assert.throws(() => parseFragment(`---\nbump: patch\nfloor: patch\n---\n${body}\n`),
+    (e) => e instanceof GpsError && !(e instanceof UsageError) && /^unparsable body: /.test(e.message), body);
+}
 
 // files
 const root = fs.mkdtempSync(path.join(os.tmpdir(), 'gps-frag-'));
@@ -56,6 +62,9 @@ assert.strictEqual(listFragments(root)[0].bump, 'major');
 
 fs.writeFileSync(path.join(dir, '2026-10-05__bad.md'), 'nope');
 assert.throws(() => listFragments(root), (e) => e.message.startsWith('.work/changelog/2026-10-05__bad.md'));
+
+fs.writeFileSync(path.join(dir, '2026-10-05__bad.md'), '---\nbump: patch\nfloor: patch\n---\njust prose\n');
+assert.throws(() => listFragments(root), (e) => e instanceof GpsError && /^\.work\/changelog\/2026-10-05__bad\.md: unparsable body: /.test(e.message));
 
 deleteFragments(root, ['.work/changelog/2026-10-05__bad.md', '.work/changelog/missing.md']);
 assert.ok(!fs.existsSync(path.join(dir, '2026-10-05__bad.md')));

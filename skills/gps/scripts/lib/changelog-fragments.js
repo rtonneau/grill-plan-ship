@@ -8,6 +8,7 @@ const fs = require('fs');
 const path = require('path');
 const { GpsError } = require('./guard');
 const { LEVELS } = require('./semver');
+const { parsePayload } = require('./changelog');
 
 const FRAGMENTS_DIR = '.work/changelog';
 
@@ -37,6 +38,13 @@ function parseFragment(text) {
   }
   const body = match[2].replace(/^\n+/, '').replace(/\s+$/, '');
   if (!body) throw new GpsError('empty body');
+  // The body must be a changelog entry: "### <Section>" headings with bullets, or plain bullets.
+  try {
+    parsePayload(body, /^### /m.test(body) ? 'sections' : 'plain');
+  } catch (err) {
+    if (!(err instanceof GpsError)) throw err;
+    throw new GpsError(`unparsable body: ${err.message}`);
+  }
   return { bump: keys.bump, floor: keys.floor, reason: keys.reason || null, body };
 }
 
