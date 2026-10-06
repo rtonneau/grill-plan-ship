@@ -593,7 +593,7 @@ assert.strictEqual(config.history.filter((e) => e.event === 'grill_written').len
   assert.deepStrictEqual(data.release, { skipped: 'policy' });
   assert.strictEqual(releaseCalls('create').length, 1);
 
-  // Patch markers, but the user chose a minor version: the release is minor,
+  // Patch fragments, but the user chose a minor version: the release is minor,
   // so minor+ publishes it.
   addUnreleased('Polish export', 'patch');
   rgit('add', '-A');

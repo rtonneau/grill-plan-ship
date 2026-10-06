@@ -102,7 +102,7 @@ function project(prefix, version = '1.4.2') {
   assert.strictEqual(h.git(root, 'status', '--porcelain'), '');
 }
 
-// Level written is the one of the version chosen (current → target), not the markers'.
+// Level written is the one of the version chosen (current → target), not the fragments'.
 {
   const root = project('gps-rel2-');
   finishSession(root, 'only', 'feat', 'minor');

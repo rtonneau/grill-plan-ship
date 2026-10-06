@@ -49,7 +49,7 @@ Grill (spec the work) → Plan (atomic tickets) → Ship (one commit per ticket)
 | `/gps finish` | Close the session: leftovers committed, INDEX.md, PR | `references/finish.md` |
 | `/gps auto [--delegate] [plan\|ship\|finish]` | Run from the current phase to the target without stopping | `references/auto.md` |
 | `/gps handoff` | Save an in-flight checkpoint (HANDOFF.md) | `references/handoff.md` |
-| `/gps release` | Turn Unreleased changelog entries into a version: suggest, bump, tag, push | `references/release.md` |
+| `/gps release` | Merge the changelog fragments (and Unreleased bullets) into a version: suggest, bump, tag, push | `references/release.md` |
 | `/gps help [command\|question]` | What to do next, what a command does, how the workflow fits together | `references/help.md` |
 
 ## How to run a command

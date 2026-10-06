@@ -97,7 +97,7 @@ Settings live in `.work/gps-config.json`; `/gps config` shows them, read-only:
 | Key | Default | Meaning |
 |---|---|---|
 | `changelog.enabled` | `true` | `false` skips the changelog step of `/gps finish` |
-| `changelog.path` | `CHANGELOG.md` | where the entries are written |
+| `changelog.path` | `CHANGELOG.md` | where `/gps release` writes the release section (the sessions' fragments wait in `.work/changelog/` until then) |
 | `release.versionFiles` | detected at the first release, then saved | the files that hold the version (e.g. `package.json`) |
 | `release.githubRelease` | `minor+` | GitHub Release at the push: `none`, `minor+` (minor and major) or `all` |
 
