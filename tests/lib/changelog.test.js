@@ -2,7 +2,7 @@
 const assert = require('assert');
 const {
   readBumpMarkers, unknownBumpLevels, unreleasedHasEntries, latestVersion, cutRelease, sectionNotes,
-  SECTIONS, NEW_FILE_HEADER, VERSION_HEADING_RE, detectFormat, readUnreleased, parsePayload, upsertSessionEntry,
+  SECTIONS, NEW_FILE_HEADER, VERSION_HEADING_RE, detectFormat, readUnreleased, parsePayload, upsertSessionEntry, renderRelease,
 } = require('../../skills/gps/scripts/lib/changelog');
 const { UsageError } = require('../../skills/gps/scripts/lib/guard');
 
@@ -182,5 +182,31 @@ assert.ok(cutRelease('# C\n\n## [Unreleased]\n\n- x <!-- gps:s -->\n', '1.0.0', 
 const crlfCut = cutRelease(rel.replace(/\n/g, '\r\n'), '2.6.0', '2026-10-05');
 assert.ok(crlfCut.includes('## 2.6.0 (2026-10-05)\r\n') && !/[^\r]\n/.test(crlfCut) && !crlfCut.includes('<!--'));
 assert.throws(() => cutRelease(GPS_HEAD, '2.6.0', 'd'), UsageError);
+
+// renderRelease: hand bullets plus fragment bodies into the version section
+const RD = '2026-10-06';
+const plainFile = '# Changelog\n\n## Unreleased\n\n- hand\n\n## [1.0.0] - 2026-01-01\n\n- first\n';
+const r1 = renderRelease(plainFile, '1.1.0', RD, ['- a', '- b\n  more']);
+assert.ok(r1.includes('## 1.1.0 (2026-10-06)\n\n- hand\n- a\n- b\n  more\n\n## [1.0.0] - 2026-01-01\n\n- first\n'));
+assert.ok(!/Unreleased/.test(r1));
+const secFile = '# Changelog\n\n## [Unreleased]\n\n### Fixed\n\n- x\n\n## [1.0.0] - 2026-01-01\n\n### Added\n\n- first\n';
+const r2 = renderRelease(secFile, '1.0.1', RD, ['### Fixed\n- y']);
+assert.ok(r2.includes('## 1.0.1 (2026-10-06)\n\n### Fixed\n\n- x\n- y\n\n## [1.0.0]'));
+assert.ok(!/Unreleased/.test(r2));
+const r3 = renderRelease(KEEP, '1.1.0', RD, ['- plain']);
+assert.ok(r3.includes('## 1.1.0 (2026-10-06)\n\n### Changed\n\n- plain\n\n## [1.0.0] - 2026-01-01\n\n### Added\n\n- first\n'));
+const r4 = renderRelease(plainFile, '1.1.0', RD, ['### Fixed\n- f\n### Added\n- ad']);
+assert.ok(r4.includes('- hand\n- ad\n- f\n'));
+assert.ok(!r4.includes('###'));
+const r5 = renderRelease(KEEP, '2.0.0', RD, ['### Added\n- n']);
+assert.ok(r5.startsWith('# Changelog\n\n## 2.0.0 (2026-10-06)\n\n### Added\n\n- n\n\n## [1.0.0]'));
+const r6 = renderRelease(null, '0.1.0', RD, ['- first']);
+assert.ok(r6.startsWith(NEW_FILE_HEADER) && r6.includes('## 0.1.0 (2026-10-06)\n\n- first\n'));
+const noVer = renderRelease('# Changelog\n\nIntro text.\n', '0.1.0', RD, ['- a']);
+assert.ok(noVer.includes('Intro text.\n\n## 0.1.0 (2026-10-06)\n\n- a\n'));
+const r7 = renderRelease(plainFile.replace(/\n/g, '\r\n'), '1.1.0', RD, ['- a']);
+assert.ok(r7.includes('## 1.1.0 (2026-10-06)\r\n') && !/[^\r]\n/.test(r7));
+assert.ok(r7.endsWith('## [1.0.0] - 2026-01-01\r\n\r\n- first\r\n'));
+assert.ok(renderRelease(plainFile, '1.1.0', RD, ['- a <!-- gps:s1 -->']).includes('- a <!-- gps:s1 -->'));
 
 console.log('changelog.test.js: all assertions passed');

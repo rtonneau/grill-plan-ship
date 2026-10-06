@@ -281,6 +281,64 @@ function cutRelease(text, version, date) {
   return crlf ? joined.replace(/\n/g, '\r\n') : joined;
 }
 
+// Section for a release: the hand-written Unreleased bullets first, then each
+// fragment body in order, under "## <version> (<date>)". The Unreleased block
+// is replaced; without one the section goes above the first version heading,
+// else after the title. A body is merged into the file's format: a plain body
+// under "### Changed" in a sections file, a sections body flattened (in
+// SECTIONS order) into a plain file.
+function renderRelease(text, version, date, bodies) {
+  const isNew = text === null || text.trim() === '';
+  const crlf = !isNew && text.includes('\r\n');
+  const source = isNew ? NEW_FILE_HEADER : toLf(text);
+  const trailingNewline = source.endsWith('\n');
+  const hasSections = (body) => toLf(body).split('\n').some((line) => H3_RE.test(line));
+  let format = detectFormat(text);
+  if (format === 'new') format = bodies.some(hasSections) ? 'sections' : 'plain';
+
+  const lines = source.split('\n');
+  if (trailingNewline) lines.pop();
+  const block = findUnreleased(lines);
+  const parts = splitBody(block ? lines.slice(block.start + 1, block.end) : []);
+  const lift = (bullet) => bullet.split('\n');
+
+  for (const body of bodies) {
+    const entry = parsePayload(body, hasSections(body) ? 'sections' : 'plain');
+    if (format === 'sections') {
+      addSections(parts, entry.sections || { Changed: entry.bullets }, lift);
+    } else if (entry.sections) {
+      parts.preamble.push(...SECTIONS.flatMap((name) => (entry.sections[name] || []).flatMap(lift)));
+    } else {
+      parts.preamble.push(...entry.bullets.flatMap(lift));
+    }
+  }
+
+  let before;
+  let rest;
+  if (block) {
+    before = lines.slice(0, block.start);
+    rest = lines.slice(block.end);
+  } else {
+    const firstVersion = lines.findIndex((line) => VERSION_HEADING_RE.test(line));
+    let at = lines.length;
+    if (firstVersion !== -1) at = firstVersion;
+    else if (!lines.some((line) => /^# /.test(line))) at = Math.min(1, lines.length);
+    before = trimTrailingBlanks(lines.slice(0, at));
+    if (before.length) before.push('');
+    rest = trimBlanks(lines.slice(at));
+  }
+  const out = [
+    ...before,
+    `## ${version} (${date})`,
+    '',
+    ...renderBody(parts),
+    ...(rest.length ? [''] : []),
+    ...rest,
+  ];
+  const joined = out.join('\n') + (trailingNewline ? '\n' : '');
+  return crlf ? joined.replace(/\n/g, '\r\n') : joined;
+}
+
 // Body of the "## <version> ..." section, up to the next "## ", trimmed.
 function sectionNotes(text, version) {
   const lines = toLf(text || '').split('\n');
@@ -300,6 +358,7 @@ module.exports = {
   unreleasedHasEntries,
   latestVersion,
   cutRelease,
+  renderRelease,
   sectionNotes,
   SECTIONS,
   NEW_FILE_HEADER,
