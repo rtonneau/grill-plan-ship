@@ -4,7 +4,7 @@
 
 1. `start.js [--issue] "<name>"`. Relay its output. A seed block means `/gps scout` proposed this work: open the grill with it instead of asking the user to restate it.
 2. Start the grill at once; don't wait for the user to call a skill. Use the first one available, and say in one line which one runs:
-   - `grill-with-docs` (mattpocock-skills). It is flagged `disable-model-invocation`: if the Skill tool refuses it but `grilling` and `domain-modeling` exist, call those two yourself, `grilling` first.
+   - `mattpocock-skills:grilling`, with `mattpocock-skills:domain-modeling` for the glossary and ADRs. Call them yourself, `grilling` first. Never `grill-with-docs`: it is flagged `disable-model-invocation`, so an agent cannot start it.
    - `brainstorming` (superpowers).
    - Neither: the built-in grill below.
 
@@ -26,6 +26,6 @@ Interview the user until you both hold the same design, with nothing silently as
 
 Say once that `mattpocock-skills` or `superpowers` provide their own grill skills.
 
-**Bounded work** (a short in-chat design for one small change): answering a design question is not approval, because the user may still be thinking aloud. Ask a standalone "Ready for me to implement this?" and wait for yes. Then save the grill (`references/write.md`) before touching code, implement on the checked-out branch (no plan, tickets, branch or PR; for an issue, put `(#N)` in commit messages), and run `/gps finish`.
+**Bounded work** (a short in-chat design for one small change): answering a design question is not approval, because the user may still be thinking aloud. Ask a standalone "Ready for me to implement this?" with `AskUserQuestion` and wait for yes. Then save the grill (`references/write.md`) before touching code, implement on the checked-out branch (no plan, tickets, branch or PR; for an issue, put `(#N)` in commit messages), and run `/gps finish`.
 
 **Examples:** `/gps start add-dark-mode` · `/gps start --issue crash when saving a large file`

@@ -7,7 +7,7 @@
 1. **Save the plan if pending:** `write-prepare.js`. Plan phase pending: finish `references/write.md` steps 2–3 (only for tickets approved in this conversation) and relay its `✅`/`🌿` lines, not its `Next:`. Grill pending, or no plan started: stop and suggest `/gps plan`.
 2. **Queue:** `ticket-queue.js`. Relay it.
 3. **Mode:** ask "inline, subagent, or subagent + inline follow-up?" with `AskUserQuestion`, putting the `Last ship mode` it printed first as "(Recommended)". Ask on every `/gps ship`, never mid-run. With `N`: inline, no question. Under `/gps auto`: the run gives it.
-4. **Model and effort hints** (subagent modes only): show the queue's hint lines (`<N>: <model>/<effort>`) and ask once to accept them or override as `<N>=<model>/<effort>`, with model `haiku|sonnet|opus|inherit` and effort `low|medium|high|xhigh|inherit` (either part alone works). Inline: say once that hints are ignored (a running session can't switch its model or effort). Under `/gps auto`: take them as drafted.
+4. **Model and effort hints** (subagent modes only): show the queue's hint lines (`<N>: <model>/<effort>`) and ask once with `AskUserQuestion`: accept them (Recommended) or override (Other, as `<N>=<model>/<effort>`), with model `haiku|sonnet|opus|inherit` and effort `low|medium|high|xhigh|inherit` (either part alone works). Inline: say once that hints are ignored (a running session can't switch its model or effort). Under `/gps auto`: take them as drafted.
 
 ## The loop, one ticket at a time
 

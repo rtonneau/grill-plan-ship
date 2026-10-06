@@ -4,6 +4,11 @@ All notable changes to grill-plan-ship. Versions follow [semantic versioning](ht
 
 ## Unreleased
 
+## 2.6.1
+
+- **The grill starts `grilling`.** `/gps start` calls `mattpocock-skills:grilling` and `domain-modeling` itself instead of `grill-with-docs`, which an agent cannot start.
+- **Every question is a click.** Ticket approval, bounded-work approval, model and effort hints, and the session pickers in `/gps status` and `/gps finish` now go through `AskUserQuestion`.
+
 ## 2.6.0
 
 - **Automatic CHANGELOG.** `/gps finish` now starts by writing the session's changelog entry as a fragment, `.work/changelog/<session-id>.md`.
