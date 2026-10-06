@@ -164,7 +164,7 @@ fs.rmSync(projectRoot, { recursive: true, force: true });
   fs.writeFileSync(path.join(root, '.gitignore'), '.work/sessions/.current-session\n');
   sh('git add app.js .gitignore');
   sh('git commit -q -m initial');
-  assert.deepStrictEqual(GPS_WORK_PATHS, ['.work/gps-config.json', '.work/GLOSSARY.md', '.work/adr', '.work/sessions']);
+  assert.deepStrictEqual(GPS_WORK_PATHS, ['.work/gps-config.json', '.work/GLOSSARY.md', '.work/adr', '.work/sessions', '.work/changelog']);
 
   // sessions/ holds only an ignored file: the config alone is committed.
   fs.mkdirSync(path.join(root, '.work', 'sessions'), { recursive: true });
