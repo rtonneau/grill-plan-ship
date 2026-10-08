@@ -11,6 +11,7 @@ const fs = require('fs');
 const path = require('path');
 const { GpsError, readJson, writeJsonAtomic } = require('./guard');
 const { diagnoseGithub } = require('./github');
+const { diagnoseJev } = require('./jev');
 
 const CONFIG_FILENAME = 'gps-config.json';
 const CONFIG_VERSION = 1;
@@ -45,6 +46,9 @@ const normalizeRelPath = (relPath) => path.posix.normalize(relPath.replace(/\\/g
 function validate(config, filePath) {
   if (!config || !config.github || typeof config.github.enabled !== 'boolean') {
     throw invalid('"github.enabled" must be true or false', filePath);
+  }
+  if (config.jev !== undefined && !(isObject(config.jev) && typeof config.jev.enabled === 'boolean')) {
+    throw invalid('"jev.enabled" must be true or false', filePath);
   }
   // The file is <projectRoot>/.work/gps-config.json.
   const projectRoot = path.dirname(path.dirname(filePath));
@@ -90,22 +94,28 @@ function writeConfig(projectRoot, config) {
   writeJsonAtomic(filePath, config);
 }
 
-function createConfig(projectRoot, detected) {
+function createConfig(projectRoot, detectedGithub, detectedJev) {
   const config = {
     version: CONFIG_VERSION,
-    github: { enabled: detected.enabled, detected_at: new Date().toISOString() },
+    github: { enabled: detectedGithub.enabled, detected_at: new Date().toISOString() },
+    jev: { enabled: detectedJev.enabled, detected_at: new Date().toISOString() },
   };
   writeConfig(projectRoot, config);
   return config;
 }
 
-// The parsed config; creates the file (detecting GitHub) when it is missing.
+// The parsed config; creates the file (detecting GitHub and Jev) when it is missing.
 function ensureProjectConfig(projectRoot) {
-  return readConfig(projectRoot) || createConfig(projectRoot, diagnoseGithub(projectRoot));
+  return readConfig(projectRoot) || createConfig(projectRoot, diagnoseGithub(projectRoot), diagnoseJev());
 }
 
 function githubEnabled(projectRoot) {
   return ensureProjectConfig(projectRoot).github.enabled;
+}
+
+function jevEnabled(projectRoot) {
+  const config = ensureProjectConfig(projectRoot);
+  return Boolean(config.jev && config.jev.enabled);
 }
 
 // Detects GitHub again and compares with the stored flag. Returns
@@ -120,7 +130,7 @@ function rescanProjectConfig(projectRoot, { apply = false, check = false } = {})
   const existing = readConfig(projectRoot);
   const detected = diagnoseGithub(projectRoot);
   if (!existing) {
-    return { status: 'created', stored: null, storedAt: null, detected, config: createConfig(projectRoot, detected) };
+    return { status: 'created', stored: null, storedAt: null, detected, config: createConfig(projectRoot, detected, diagnoseJev()) };
   }
 
   const stored = existing.github.enabled;
@@ -133,6 +143,30 @@ function rescanProjectConfig(projectRoot, { apply = false, check = false } = {})
   const config = {
     ...existing,
     github: { ...existing.github, enabled: detected.enabled, detected_at: new Date().toISOString() },
+  };
+  writeConfig(projectRoot, config);
+  return { status: same ? 'unchanged' : 'updated', stored, storedAt, detected, config };
+}
+
+// Same as rescanProjectConfig, but for the jev section (TYPESAFE_API_KEY
+// presence instead of GitHub detection).
+function rescanJevConfig(projectRoot, { apply = false, check = false } = {}) {
+  const existing = readConfig(projectRoot);
+  const detected = diagnoseJev();
+  if (!existing) {
+    return { status: 'created', stored: null, storedAt: null, detected, config: createConfig(projectRoot, diagnoseGithub(projectRoot), detected) };
+  }
+
+  const stored = existing.jev ? existing.jev.enabled : false;
+  const storedAt = existing.jev ? existing.jev.detected_at || null : null;
+  const same = stored === detected.enabled;
+  if (check || (!same && !apply)) {
+    return { status: same ? 'unchanged' : 'differs', stored, storedAt, detected, config: existing };
+  }
+
+  const config = {
+    ...existing,
+    jev: { ...(existing.jev || {}), enabled: detected.enabled, detected_at: new Date().toISOString() },
   };
   writeConfig(projectRoot, config);
   return { status: same ? 'unchanged' : 'updated', stored, storedAt, detected, config };
@@ -164,5 +198,5 @@ function saveVersionFiles(projectRoot, files) {
 
 module.exports = {
   CONFIG_FILENAME, readConfig, ensureProjectConfig, githubEnabled, rescanProjectConfig,
-  changelogSettings, releaseSettings, saveVersionFiles,
+  jevEnabled, rescanJevConfig, changelogSettings, releaseSettings, saveVersionFiles,
 };

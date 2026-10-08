@@ -14,6 +14,7 @@ allowed-tools:
   - Bash(node ${CLAUDE_SKILL_DIR}/scripts/handoff.js *)
   - Bash(node ${CLAUDE_SKILL_DIR}/scripts/help.js *)
   - Bash(node ${CLAUDE_SKILL_DIR}/scripts/init.js *)
+  - Bash(node ${CLAUDE_SKILL_DIR}/scripts/jev-hints.js *)
   - Bash(node ${CLAUDE_SKILL_DIR}/scripts/plan.js *)
   - Bash(node ${CLAUDE_SKILL_DIR}/scripts/release.js *)
   - Bash(node ${CLAUDE_SKILL_DIR}/scripts/scout-merge.js *)

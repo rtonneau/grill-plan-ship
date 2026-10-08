@@ -17,24 +17,25 @@ function tempProject(prefix = 'gps-test-') {
   return fs.mkdtempSync(path.join(os.tmpdir(), prefix));
 }
 
-// Runs scripts/<script> in `cwd`: { code, out, err }.
-function run(cwd, script, args = [], env = {}) {
+// Runs scripts/<script> in `cwd`: { code, out, err }. `stdin` is piped in
+// (for scripts that read ticket blocks or other input from fd 0).
+function run(cwd, script, args = [], env = {}, stdin = '') {
   const result = spawnSync(process.execPath, [path.join(SCRIPTS, script), ...args], {
-    cwd, encoding: 'utf-8', env: { ...process.env, CLAUDE_CODE_SESSION_ID: '', ...env },
+    cwd, encoding: 'utf-8', env: { ...process.env, CLAUDE_CODE_SESSION_ID: '', ...env }, input: stdin,
   });
   return { code: result.status, out: result.stdout, err: result.stderr };
 }
 
 // Runs a script that must succeed; returns its result.
-function ok(cwd, script, args = [], env = {}) {
-  const res = run(cwd, script, args, env);
+function ok(cwd, script, args = [], env = {}, stdin = '') {
+  const res = run(cwd, script, args, env, stdin);
   assert.strictEqual(res.code, 0, `${script} ${args.join(' ')} failed (exit ${res.code}):\n${res.err}`);
   return res;
 }
 
 // Runs a script with --json that must succeed; returns its parsed data.
-function json(cwd, script, args = [], env = {}) {
-  return JSON.parse(ok(cwd, script, [...args, '--json'], env).out);
+function json(cwd, script, args = [], env = {}, stdin = '') {
+  return JSON.parse(ok(cwd, script, [...args, '--json'], env, stdin).out);
 }
 
 // A failure must be a clean "❌" message, never a stack trace.

@@ -102,4 +102,30 @@ function main(spec) {
   process.exitCode = runScript(spec);
 }
 
-module.exports = { EXIT_OK, EXIT_FAILURE, EXIT_USAGE, parseArgs, runScript, main, warn };
+// Async counterpart to runScript/main: for scripts whose run() returns a
+// Promise (e.g. ones that call fetch). Scripts that don't need this keep
+// using the synchronous runScript/main.
+async function runScriptAsync(spec, argv = process.argv.slice(2)) {
+  let parsed;
+  try {
+    parsed = parseArgs(argv, spec);
+    if (parsed.options.help) {
+      console.log(`Usage: ${spec.usage}`);
+      return EXIT_OK;
+    }
+    const { text, data } = (await spec.run({ ...parsed, projectRoot: process.cwd(), warn })) || {};
+    if (parsed.options.json) console.log(JSON.stringify(data === undefined ? {} : data, null, 2));
+    else if (text) console.log(text);
+    return EXIT_OK;
+  } catch (err) {
+    return printFailure(err, spec.usage);
+  }
+}
+
+function mainAsync(spec) {
+  runScriptAsync(spec).then((code) => { process.exitCode = code; });
+}
+
+module.exports = {
+  EXIT_OK, EXIT_FAILURE, EXIT_USAGE, parseArgs, runScript, main, runScriptAsync, mainAsync, warn,
+};
