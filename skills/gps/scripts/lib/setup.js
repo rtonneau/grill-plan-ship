@@ -1,7 +1,8 @@
 // skills/gps/scripts/lib/setup.js
 //
 // A project's gps setup (/gps init): the per-machine files git must ignore,
-// .work/gps-config.json, and one setup commit holding both. /gps start does
+// .work/gps-config.json, the CHANGELOG when missing (changelog enabled), and
+// one setup commit holding them. /gps start does
 // the file part on its own, so setup stays optional; /gps init adds the
 // checks up front and commits the setup on its own, before any session
 // branch exists.
@@ -9,7 +10,8 @@
 const fs = require('fs');
 const path = require('path');
 const { ensureGitignoreEntry, gitignoreCovers, removeGitignoreEntry } = require('./scratch-dir');
-const { CONFIG_FILENAME, readConfig, ensureProjectConfig } = require('./project-config');
+const { CONFIG_FILENAME, readConfig, ensureProjectConfig, changelogSettings } = require('./project-config');
+const { NEW_FILE_HEADER } = require('./changelog');
 const { diagnoseGithub } = require('./github');
 const { isWorkTree, currentBranch, isIgnored, isTracked, pathHasChanges, commitFiles } = require('./git');
 
@@ -31,6 +33,13 @@ function ensureLocalIgnores(projectRoot) {
   return LOCAL_ONLY.filter((entry) => ensureGitignoreEntry(projectRoot, entry));
 }
 
+// The CHANGELOG path init must create (changelog enabled, file missing), else null.
+function missingChangelog(projectRoot) {
+  const settings = changelogSettings(projectRoot);
+  if (!settings.enabled || fs.existsSync(path.join(projectRoot, settings.path))) return null;
+  return settings.path;
+}
+
 // Cheap check (no gh call) for hints: a git repo whose gps config is not
 // committed yet.
 function needsSetup(projectRoot) {
@@ -48,17 +57,18 @@ function inspectSetup(projectRoot) {
     storedGithub: stored ? stored.github.enabled : null,
     configTracked: gitRepo && isTracked(projectRoot, CONFIG_REL),
     workIgnored: gitRepo && isIgnored(projectRoot, '.work/'),
+    missingChangelog: missingChangelog(projectRoot),
     missingIgnores: LOCAL_ONLY.filter((entry) => !gitignoreCovers(projectRoot, entry)),
     gitignoreDirty: gitRepo && pathHasChanges(projectRoot, '.gitignore'),
   };
-  state.ready = stored !== null && state.missingIgnores.length === 0 && !state.workIgnored
+  state.ready = stored !== null && state.missingIgnores.length === 0 && state.missingChangelog === null && !state.workIgnored
     && (!gitRepo || (state.configTracked && !state.gitignoreDirty));
   return state;
 }
 
 // Writes the setup and commits it on the checked-out branch. Never commits
 // changes to .gitignore the user made before (they are left for the user).
-// Returns { configCreated, unignored, added, commit } where commit is null
+// Returns { configCreated, changelogCreated, unignored, added, commit } where commit is null
 // outside a git repo, else { ok, sha, files, skipped } or a failed
 // commitFiles result.
 function applySetup(projectRoot, { unignoreWork = false } = {}) {
@@ -68,10 +78,15 @@ function applySetup(projectRoot, { unignoreWork = false } = {}) {
   const configCreated = !fs.existsSync(path.join(projectRoot, CONFIG_REL));
   ensureProjectConfig(projectRoot);
   const added = ensureLocalIgnores(projectRoot);
+  const changelogCreated = missingChangelog(projectRoot);
+  if (changelogCreated) {
+    fs.mkdirSync(path.dirname(path.join(projectRoot, changelogCreated)), { recursive: true });
+    fs.writeFileSync(path.join(projectRoot, changelogCreated), NEW_FILE_HEADER);
+  }
 
   let commit = null;
   if (gitRepo) {
-    const candidates = userEdits ? [CONFIG_REL] : ['.gitignore', CONFIG_REL];
+    const candidates = [...(userEdits ? [] : ['.gitignore']), CONFIG_REL, ...(changelogCreated ? [changelogCreated] : [])];
     const files = candidates
       .filter((file) => !isIgnored(projectRoot, file))
       .filter((file) => pathHasChanges(projectRoot, file));
@@ -80,7 +95,7 @@ function applySetup(projectRoot, { unignoreWork = false } = {}) {
       : commitFiles(projectRoot, files, SETUP_MESSAGE);
     if (userEdits) commit.skipped = '.gitignore has changes of your own: commit it yourself';
   }
-  return { configCreated, unignored, added, commit };
+  return { configCreated, changelogCreated, unignored, added, commit };
 }
 
 module.exports = { LOCAL_ONLY, SETUP_MESSAGE, ensureLocalIgnores, needsSetup, inspectSetup, applySetup };

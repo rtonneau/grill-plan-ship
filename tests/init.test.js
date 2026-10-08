@@ -3,6 +3,7 @@ const assert = require('assert');
 const fs = require('fs');
 const path = require('path');
 const h = require('./helpers');
+const { NEW_FILE_HEADER } = require('../skills/gps/scripts/lib/changelog');
 
 {
   // A fresh repo: the check reports what is missing and changes nothing.
@@ -12,20 +13,23 @@ const h = require('./helpers');
   assert.match(res.out, /- \*\*Git:\*\* repository, on branch main/);
   assert.match(res.out, /- \*\*GitHub:\*\* detected off \(no "origin" remote\); not stored yet/);
   assert.match(res.out, /- \*\*\.gitignore:\*\* missing \.scratch\/, \.work\/sessions\/\.current-session/);
+  assert.match(res.out, /- \*\*Changelog:\*\* CHANGELOG\.md missing/);
   assert.match(res.out, /- \*\*Setup commit:\*\* not made yet/);
   assert.match(res.out, /Next: confirm with the user, then run init\.js --apply\.$/m);
   assert.ok(!fs.existsSync(path.join(root, '.work')), 'the check writes nothing');
   assert.strictEqual(h.git(root, 'status', '--porcelain'), before);
   assert.strictEqual(h.json(root, 'init.js').ready, false);
 
-  // --apply: config + .gitignore entries, one setup commit holding only those.
+  // --apply: config + .gitignore entries + CHANGELOG, one setup commit holding only those.
   fs.writeFileSync(path.join(root, 'wip.js'), 'not gps\n');
   const applied = h.ok(root, 'init.js', ['--apply']);
   assert.match(applied.out, /✅ Created \.work\/gps-config\.json: GitHub off/);
-  assert.match(applied.out, /📦 Committed the setup \([0-9a-f]+\) on main: \.gitignore, \.work\/gps-config\.json/);
+  assert.match(applied.out, /✅ Created CHANGELOG\.md/);
+  assert.match(applied.out, /📦 Committed the setup \([0-9a-f]+\) on main: \.gitignore, \.work\/gps-config\.json, CHANGELOG\.md/);
   assert.match(applied.out, /Next: \/gps start <feature-name>/);
+  assert.strictEqual(fs.readFileSync(path.join(root, 'CHANGELOG.md'), 'utf-8'), NEW_FILE_HEADER);
   assert.strictEqual(h.git(root, 'log', '-1', '--format=%s'), 'chore(gps): set up gps');
-  assert.strictEqual(h.git(root, 'show', '--name-only', '--format=', 'HEAD'), '.gitignore\n.work/gps-config.json');
+  assert.strictEqual(h.git(root, 'show', '--name-only', '--format=', 'HEAD'), '.gitignore\n.work/gps-config.json\nCHANGELOG.md');
   assert.strictEqual(h.git(root, 'status', '--porcelain'), '?? wip.js', 'other changes are left alone');
 
   // Idempotent: the check says ready, a second --apply changes and commits nothing.
@@ -47,7 +51,7 @@ const h = require('./helpers');
 
   res = h.ok(root, 'init.js', ['--apply']);
   assert.match(res.err, /\.work\/ is still git-ignored/);
-  assert.strictEqual(h.git(root, 'show', '--name-only', '--format=', 'HEAD'), '.gitignore', 'the ignored config stays out');
+  assert.strictEqual(h.git(root, 'show', '--name-only', '--format=', 'HEAD'), '.gitignore\nCHANGELOG.md', 'the ignored config stays out');
 
   res = h.ok(root, 'init.js', ['--apply', '--unignore-work']);
   assert.match(res.out, /Removed "\.work\/" from \.gitignore/);
@@ -65,9 +69,27 @@ const h = require('./helpers');
   fs.appendFileSync(path.join(root, '.gitignore'), 'coverage/\n');
   const res = h.ok(root, 'init.js', ['--apply']);
   assert.match(res.err, /\.gitignore has changes of your own: commit it yourself/);
-  assert.strictEqual(h.git(root, 'show', '--name-only', '--format=', 'HEAD'), '.work/gps-config.json');
+  assert.strictEqual(h.git(root, 'show', '--name-only', '--format=', 'HEAD'), '.work/gps-config.json\nCHANGELOG.md');
   assert.strictEqual(h.git(root, 'diff', '--name-only'), '.gitignore', 'the user\'s edit is still there');
   assert.strictEqual(h.git(root, 'diff', '--cached', '--name-only'), '', 'and not staged');
+}
+
+{
+  // An existing CHANGELOG is never touched; a disabled changelog gets none.
+  const root = h.gitProject();
+  fs.writeFileSync(path.join(root, 'CHANGELOG.md'), '# Mine\n');
+  h.git(root, 'add', 'CHANGELOG.md');
+  h.git(root, 'commit', '-q', '-m', 'changelog');
+  assert.doesNotMatch(h.ok(root, 'init.js').out, /Changelog:/);
+  assert.doesNotMatch(h.ok(root, 'init.js', ['--apply']).out, /Created CHANGELOG/);
+  assert.strictEqual(fs.readFileSync(path.join(root, 'CHANGELOG.md'), 'utf-8'), '# Mine\n');
+
+  const off = h.gitProject();
+  fs.mkdirSync(path.join(off, '.work'));
+  fs.writeFileSync(path.join(off, '.work', 'gps-config.json'), JSON.stringify({ github: { enabled: false }, changelog: { enabled: false } }));
+  h.ok(off, 'init.js', ['--apply']);
+  assert.ok(!fs.existsSync(path.join(off, 'CHANGELOG.md')));
+  assert.strictEqual(h.json(off, 'init.js').ready, true);
 }
 
 {

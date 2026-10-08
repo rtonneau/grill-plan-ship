@@ -1,6 +1,6 @@
 # /gps init
 
-**When:** first use in a project (optional: `/gps start` works without it), or `/gps start` warned that `.work/` is git-ignored. It checks the project before the first session and commits gps's setup on its own.
+**When:** first use in a project (optional: `/gps start` works without it), or `/gps start` warned that `.work/` is git-ignored. It checks the project before the first session and commits gps's setup on its own (config, `.gitignore` entries, and a title-only CHANGELOG when there is none).
 
 1. `init.js`. Relay its checks. If it says gps is set up, stop there.
 2. Add one line on the grill and plan helpers, from the skills you can see installed: `grilling` (mattpocock-skills) or `brainstorming` for the grill and `writing-plans` for the plan, else the built-in grill and Claude-drafted tickets. Nothing to install: the fallbacks work.

@@ -4,6 +4,11 @@ All notable changes to grill-plan-ship. Versions follow [semantic versioning](ht
 
 ## Unreleased
 
+## 2.6.2
+
+- **`/gps init` creates the CHANGELOG.** When the project has none (at `changelog.path`, default `CHANGELOG.md`) and the changelog is enabled, `/gps init --apply` writes one with just a title and commits it in the `chore(gps): set up gps` commit. An existing CHANGELOG is never touched.
+- **A title-only CHANGELOG keeps its format open.** A CHANGELOG with no entry yet still counts as new: the first release takes plain bullets or `### Added`-style sections from the fragments, as it does for a missing file.
+
 ## 2.6.1
 
 - **The grill starts `grilling`.** `/gps start` calls `mattpocock-skills:grilling` and `domain-modeling` itself instead of `grill-with-docs`, which an agent cannot start.

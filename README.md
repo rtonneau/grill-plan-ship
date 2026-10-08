@@ -36,7 +36,7 @@ Or, once the direction is clear, `/gps auto` runs from wherever the session is t
 
 | Command | What it does |
 |---|---|
-| `/gps init` | Optional first-run setup: check the project (git, GitHub, helper skills) and commit gps's `.gitignore` entries and config on their own |
+| `/gps init` | Optional first-run setup: check the project (git, GitHub, helper skills) and commit gps's `.gitignore` entries, config and (when missing) CHANGELOG.md on their own |
 | `/gps scout [--from <review-file>] [direction]` | Turn an architecture review, or an existing review file, into ideas for `/gps start` |
 | `/gps start [--issue] <name>` | New session, then the grill (`--issue`: a bug report, filed as a GitHub issue) |
 | `/gps status` | Every session, scouted ideas, the current phase, a saved handoff, the next command |
