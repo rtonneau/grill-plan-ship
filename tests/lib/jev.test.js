@@ -72,6 +72,23 @@ assert.deepStrictEqual(diagnoseJev(), { enabled: true, reason: 'TYPESAFE_API_KEY
   await assert.rejects(classifyTickets([{ name: '01-a', body: 'x' }]), (err) => err instanceof JevError && /unknown model "gpt-5"/.test(err.message));
   server.close();
 
+  // A prototype-chain name (e.g. "constructor") is not a known model or
+  // effort just because property lookup finds it on Object.prototype.
+  server = stubServer((_b, _req, res) => res.end(JSON.stringify({
+    model: 'jev-1',
+    answers: { 'model_01-a': { type: 'choice', choice: 'constructor', confidence: 0.5 }, 'effort_01-a': { type: 'choice', choice: 'low', confidence: 0.5 } },
+  })));
+  process.env.GPS_JEV_BASE_URL = `http://127.0.0.1:${server.address().port}`;
+  await assert.rejects(classifyTickets([{ name: '01-a', body: 'x' }]), (err) => err instanceof JevError && /unknown model "constructor"/.test(err.message));
+  server.close();
+  server = stubServer((_b, _req, res) => res.end(JSON.stringify({
+    model: 'jev-1',
+    answers: { 'model_01-a': { type: 'choice', choice: 'haiku-5.5', confidence: 0.5 }, 'effort_01-a': { type: 'choice', choice: 'toString', confidence: 0.5 } },
+  })));
+  process.env.GPS_JEV_BASE_URL = `http://127.0.0.1:${server.address().port}`;
+  await assert.rejects(classifyTickets([{ name: '01-a', body: 'x' }]), (err) => err instanceof JevError && /unknown effort "toString"/.test(err.message));
+  server.close();
+
   // Timeout -> JevError (GPS_JEV_TIMEOUT_MS shrunk so the test stays fast).
   process.env.GPS_JEV_TIMEOUT_MS = '100';
   server = stubServer(() => { /* never responds */ });

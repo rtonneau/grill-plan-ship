@@ -16,7 +16,7 @@ const fs = require('fs');
 const { mainAsync } = require('./lib/cli');
 const { parsePayload } = require('./lib/write-payload');
 const { jevEnabled } = require('./lib/project-config');
-const { classifyTickets } = require('./lib/jev');
+const { classifyTickets, diagnoseJev } = require('./lib/jev');
 const { UsageError } = require('./lib/guard');
 
 function readTickets() {
@@ -43,6 +43,13 @@ mainAsync({
       return {
         text: 'Jev is not enabled; use your own judgment for every ticket.',
         data: { used: false, reason: 'jev.enabled is false', tickets: {} },
+      };
+    }
+    const diagnosis = diagnoseJev();
+    if (!diagnosis.enabled) {
+      return {
+        text: 'Jev is not enabled; use your own judgment for every ticket.',
+        data: { used: false, reason: `${diagnosis.reason}.`, tickets: {} },
       };
     }
     try {

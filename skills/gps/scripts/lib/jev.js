@@ -87,11 +87,13 @@ function parseAnswers(tickets, json) {
     const modelAnswer = answers[`model_${name}`];
     const effortAnswer = answers[`effort_${name}`];
     if (!modelAnswer || !effortAnswer) throw new JevError(`Jev response is missing an answer for ticket "${name}".`);
-    const family = FAMILY_BY_MODEL[modelAnswer.choice];
-    if (!family) throw new JevError(`Jev returned an unknown model "${modelAnswer.choice}" for ticket "${name}".`);
-    if (!(effortAnswer.choice in EFFORT_CRITERIA)) {
+    if (!Object.hasOwn(FAMILY_BY_MODEL, modelAnswer.choice)) {
+      throw new JevError(`Jev returned an unknown model "${modelAnswer.choice}" for ticket "${name}".`);
+    }
+    if (!Object.hasOwn(EFFORT_CRITERIA, effortAnswer.choice)) {
       throw new JevError(`Jev returned an unknown effort "${effortAnswer.choice}" for ticket "${name}".`);
     }
+    const family = FAMILY_BY_MODEL[modelAnswer.choice];
     result[name] = {
       model: family,
       modelRaw: modelAnswer.choice,
