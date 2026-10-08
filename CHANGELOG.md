@@ -4,6 +4,12 @@ All notable changes to grill-plan-ship. Versions follow [semantic versioning](ht
 
 ## Unreleased
 
+- **Jev-judged ticket Model/Effort hints.** When `TYPESAFE_API_KEY` is set and `jev.enabled` is on in `.work/gps-config.json`, `/gps plan` pipes each drafted ticket into TypeSafe's Jev (`jev-hints.js`, `lib/jev.js`) instead of leaving the `**Model:**`/`**Effort:**` hint to Claude's own heuristic alone. Jev's version-named answer is collapsed to a family (`haiku`/`sonnet`/`opus`) before it's written, and its raw answer and confidence are kept alongside in a `**Model (Jev):**` line for audit only.
+  - Projects that never set `TYPESAFE_API_KEY` see no behavior change: `jev.enabled` stays `false` and `/gps plan` falls back to its existing heuristic.
+  - Any Jev failure (disabled, missing key, timeout, network error, bad response) is a warning, not an error; the ticket still gets Claude's own judgment.
+  - `/gps config` shows `jev.enabled`; detected and re-detected exactly like `github.enabled`.
+  - Decision 0005. Why the hint stays optional and family-level: see [docs/decisions/0005-jev-model-effort-hints-stay-optional-and-family-level.md](docs/decisions/0005-jev-model-effort-hints-stay-optional-and-family-level.md).
+
 ## 2.6.2
 
 - **`/gps init` creates the CHANGELOG.** When the project has none (at `changelog.path`, default `CHANGELOG.md`) and the changelog is enabled, `/gps init --apply` writes one with just a title and commits it in the `chore(gps): set up gps` commit. An existing CHANGELOG is never touched.
