@@ -32,8 +32,8 @@ assert.match(res.out, /Applying turns GitHub off/);
 assert.match(res.out, /Next: confirm with the user, then run config\.js --rescan --apply\./);
 assert.strictEqual(stored().github.enabled, true, '--rescan alone never changes a differing value');
 const data = h.json(root, 'config.js', ['--rescan']);
-assert.strictEqual(data.status, 'differs');
-assert.deepStrictEqual(data.detected, { enabled: false, reason: 'not a git repository' });
+assert.strictEqual(data.github.status, 'differs');
+assert.deepStrictEqual(data.github.detected, { enabled: false, reason: 'not a git repository' });
 
 res = h.ok(root, 'config.js', ['--rescan', '--apply']);
 assert.match(res.out, /✅ Updated: github\.enabled true → false\./);
@@ -52,6 +52,19 @@ assert.match(res.out, /changelog\.enabled = false/);
 assert.match(res.out, /release\.versionFiles = package\.json, x\.json/);
 assert.match(res.out, /release\.githubRelease = none/);
 assert.strictEqual(h.json(root, 'config.js').release.githubRelease, 'none');
+
+// jev.enabled shows up next to github.enabled, detected from the env var.
+delete process.env.TYPESAFE_API_KEY;
+res = h.ok(root, 'config.js', [], {});
+assert.match(res.out, /jev\.enabled = false/);
+assert.match(res.out, /Jev detected now: off \(TYPESAFE_API_KEY is not set\)/);
+
+res = h.ok(root, 'config.js', ['--rescan', '--apply'], { TYPESAFE_API_KEY: 'k' });
+assert.match(res.out, /Updated: jev\.enabled false → true/);
+assert.strictEqual(stored().jev.enabled, true);
+
+const data2 = h.json(root, 'config.js', [], { TYPESAFE_API_KEY: 'k' });
+assert.deepStrictEqual(data2.jev.detected, { enabled: true, reason: 'TYPESAFE_API_KEY is set' });
 
 // A corrupt file is an error, not silently replaced.
 fs.writeFileSync(file, '{"github": {}}');
