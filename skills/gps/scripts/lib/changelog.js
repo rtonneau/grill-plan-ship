@@ -25,6 +25,8 @@ function detectFormat(text) {
   if (text === null || text.trim() === '') return 'new';
   const lines = toLf(text).split('\n');
   if (!lines.some((line) => /^# /.test(line))) return 'unknown';
+  // A title with no entry yet (as /gps init creates it): the format is still open.
+  if (!lines.some((line) => H2_RE.test(line) || BULLET_RE.test(line))) return 'new';
   let inH2 = false;
   for (const line of lines) {
     if (H2_RE.test(line)) inH2 = true;

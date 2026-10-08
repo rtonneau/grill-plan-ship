@@ -7,8 +7,9 @@
  * /gps init (optional; /gps start works without it). The check reports the
  * git repository and branch, GitHub detection, the per-machine files git
  * must ignore, and whether .work/ is git-ignored or its config committed.
- * --apply creates .work/gps-config.json when missing, adds the missing
- * .gitignore entries and commits both as `chore(gps): set up gps` on the
+ * --apply creates .work/gps-config.json when missing, the CHANGELOG (its
+ * configured path, default CHANGELOG.md) when missing and the changelog is
+ * enabled, adds the missing .gitignore entries and commits them as `chore(gps): set up gps` on the
  * checked-out branch (changes the user already had in .gitignore are left
  * out). --unignore-work also removes a ".work/" line an older gps added;
  * Claude passes it only after the user agreed. A stored GitHub flag is
@@ -31,6 +32,7 @@ function checkLines(state) {
   lines.push(state.missingIgnores.length === 0
     ? '- **.gitignore:** per-machine files ignored'
     : `- **.gitignore:** missing ${state.missingIgnores.join(', ')}`);
+  if (state.missingChangelog) lines.push(`- **Changelog:** ${state.missingChangelog} missing (created with a title only)`);
   if (state.gitRepo) {
     lines.push(state.workIgnored
       ? '- **.work/:** ⚠️ git-ignored (an older gps added it): gps commits none of its session files'
@@ -61,6 +63,7 @@ function apply(projectRoot, options, warn) {
   const state = inspectSetup(projectRoot);
   const lines = ['## gps setup', ''];
   if (result.configCreated) lines.push(`✅ Created .work/gps-config.json: GitHub ${onOff(state.github.enabled)} (${state.github.reason})`);
+  if (result.changelogCreated) lines.push(`✅ Created ${result.changelogCreated}: /gps release fills it from the sessions' fragments`);
   if (result.unignored) lines.push('✅ Removed ".work/" from .gitignore: session files are committed from now on');
   if (result.added.length > 0) lines.push(`✅ Added to .gitignore: ${result.added.join(', ')}`);
   const { commit } = result;
@@ -68,7 +71,7 @@ function apply(projectRoot, options, warn) {
     lines.push(`📦 Committed the setup (${commit.sha}) on ${state.branch || 'a detached HEAD'}: ${commit.files.join(', ')}`);
   } else if (commit && !commit.ok) {
     warn(`Setup not committed (${commit.reason}). Run by hand: ${commit.commands.join(' && ')}`);
-  } else if (commit && !commit.skipped && !result.configCreated && result.added.length === 0 && !result.unignored) {
+  } else if (commit && !commit.skipped && !result.configCreated && !result.changelogCreated && result.added.length === 0 && !result.unignored) {
     lines.push('✅ Nothing to change: gps was already set up.');
   }
   if (commit && commit.skipped) warn(`${commit.skipped}.`);

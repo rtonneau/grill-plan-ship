@@ -4,6 +4,7 @@ const fs = require('fs');
 const path = require('path');
 const h = require('./helpers');
 const { parseFragment } = require('../skills/gps/scripts/lib/changelog-fragments');
+const { NEW_FILE_HEADER } = require('../skills/gps/scripts/lib/changelog');
 
 const root = h.gitProject('gps-cla-');
 h.shipReady(root, 'Add thing', ['a']);
@@ -114,7 +115,7 @@ h.done('changelog-apply.test.js');
 // merging both into main never conflicts, and both fragments are there.
 {
   const r = h.gitProject('gps-cla-merge-');
-  // gps's one-time setup (.gitignore, project config) lands on main first.
+  // gps's one-time setup (.gitignore, project config, CHANGELOG) lands on main first.
   h.ok(r, 'init.js', ['--apply']);
   assert.strictEqual(h.git(r, 'status', '--porcelain'), '');
   const finishOn = (branch, name) => {
@@ -139,7 +140,7 @@ h.done('changelog-apply.test.js');
   h.git(r, 'merge', '-q', '--no-edit', 'A');
   h.git(r, 'merge', '-q', '--no-edit', 'B');
   assert.deepStrictEqual(fs.readdirSync(path.join(r, '.work', 'changelog')).sort(), [`${a}.md`, `${b}.md`].sort());
-  assert.ok(!fs.existsSync(path.join(r, 'CHANGELOG.md')));
+  assert.strictEqual(fs.readFileSync(path.join(r, 'CHANGELOG.md'), 'utf-8'), NEW_FILE_HEADER, 'init created it; sessions never touch it');
   // The release holds both sessions' entries, in session order.
   h.ok(r, 'release.js', ['--version', '0.1.0']);
   const log = fs.readFileSync(path.join(r, 'CHANGELOG.md'), 'utf-8');

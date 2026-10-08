@@ -41,6 +41,7 @@ assert.strictEqual(VERSION_HEADING_RE.test('## Unreleased'), false);
 // detectFormat
 assert.strictEqual(detectFormat(null), 'new');
 assert.strictEqual(detectFormat(''), 'new');
+assert.strictEqual(detectFormat(NEW_FILE_HEADER), 'new', 'a title without entries');
 assert.strictEqual(detectFormat(GPS_HEAD), 'plain');
 assert.strictEqual(detectFormat(KEEP), 'sections');
 assert.strictEqual(detectFormat('## Notes\n\n- x\n'), 'unknown');
