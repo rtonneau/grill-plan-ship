@@ -1,6 +1,6 @@
 {
   "name": "grill-plan-ship",
-  "version": "2.6.2",
+  "version": "2.7.0",
   "description": "Grill → plan → ship → finish: a Claude Code plugin whose deterministic steps are Node.js scripts",
   "keywords": [
     "claude-code",

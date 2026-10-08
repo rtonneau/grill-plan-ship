@@ -2,7 +2,7 @@
 
 All notable changes to grill-plan-ship. Versions follow [semantic versioning](https://semver.org/).
 
-## Unreleased
+## 2.7.0 (2026-10-08)
 
 - **Jev-judged ticket Model/Effort hints.** When `TYPESAFE_API_KEY` is set and `jev.enabled` is on in `.work/gps-config.json`, `/gps plan` pipes each drafted ticket into TypeSafe's Jev (`jev-hints.js`, `lib/jev.js`) instead of leaving the `**Model:**`/`**Effort:**` hint to Claude's own heuristic alone. Jev's version-named answer is collapsed to a family (`haiku`/`sonnet`/`opus`) before it's written, and its raw answer and confidence are kept alongside in a `**Model (Jev):**` line for audit only.
   - Projects that never set `TYPESAFE_API_KEY` see no behavior change: `jev.enabled` stays `false` and `/gps plan` falls back to its existing heuristic.
