@@ -99,9 +99,33 @@
         "ticket": "02-fake-fetch-jev-hints-test",
         "commit": "0869c1e"
       }
+    },
+    {
+      "at": "2026-10-09T07:24:50.984Z",
+      "event": "ticket_started",
+      "phase": "ship",
+      "files": [
+        "02-plan/tickets/03-drop-jev-base-url.md",
+        "03-implement/03-drop-jev-base-url/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "03-drop-jev-base-url"
+      }
+    },
+    {
+      "at": "2026-10-09T07:26:43.358Z",
+      "event": "ticket_done",
+      "phase": "finish-pending",
+      "files": [
+        "03-implement/03-drop-jev-base-url/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "03-drop-jev-base-url",
+        "commit": "5eee26d"
+      }
     }
   ],
-  "current_phase": "ship",
+  "current_phase": "finish-pending",
   "git": {
     "branch": "test/jev-fake-fetch",
     "base_branch": "fix/grill-askuserquestion",
