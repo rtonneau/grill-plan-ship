@@ -10,7 +10,7 @@
       "name": "grill-plan-ship",
       "displayName": "Grill Plan Ship",
       "description": "Grill → plan → ship → finish: Claude questions you until the design is clear, splits it into small tickets, ships one commit per ticket and opens the pull request, while scripts handle session state, git and gh.",
-      "version": "2.7.0",
+      "version": "2.7.1",
       "source": "./",
       "author": {
         "name": "rtonneau",

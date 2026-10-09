@@ -2,9 +2,10 @@
 
 All notable changes to grill-plan-ship. Versions follow [semantic versioning](https://semver.org/).
 
-## Unreleased
+## 2.7.1 (2026-10-09)
 
 - **Every grill question is a click, whichever grill runs.** `/gps start` now tells Claude that all grill questions go through `AskUserQuestion`, overriding the question format of a delegated skill such as `mattpocock-skills:grilling` (which asks plain-text `❓`/`➡️` rounds). Before, that rule applied only to the built-in grill. Questions go out in calls of up to 4, recommended answer first.
+- **The Jev tests no longer open a local port**, so running `npm test` on Windows no longer triggers the firewall prompt for node.js. The `GPS_JEV_BASE_URL` override is removed: the Jev endpoint is fixed.
 
 ## 2.7.0 (2026-10-08)
 
