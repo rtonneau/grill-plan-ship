@@ -5,10 +5,11 @@
 // jev.enabled (lib/project-config.js). One POST /v1/systemone per /gps
 // plan run, judging every ticket's Model and Effort together.
 //
-// GPS_JEV_BASE_URL / GPS_JEV_TIMEOUT_MS override the endpoint/timeout for
-// tests; read fresh on every call (never cached at module load), the same
-// way lib/github.js's ghCommand() reads GPS_GH_BIN, so a test can change
-// them between calls.
+// GPS_JEV_TIMEOUT_MS overrides the timeout for tests; read fresh on every
+// call (never cached at module load), the same way lib/github.js's
+// ghCommand() reads GPS_GH_BIN, so a test can change it between calls.
+// Tests fake fetch itself (tests/fixtures/fake-fetch.js), so the endpoint
+// is fixed.
 
 const JEV_MODEL = 'jev-latest';
 
@@ -39,9 +40,7 @@ const FAMILY_BY_MODEL = {
   'opus-5.5': 'opus',
 };
 
-function endpoint() {
-  return `${process.env.GPS_JEV_BASE_URL || 'https://api.typesafe.ai'}/v1/systemone`;
-}
+const ENDPOINT = 'https://api.typesafe.ai/v1/systemone';
 
 function timeoutMs() {
   return Number(process.env.GPS_JEV_TIMEOUT_MS) || 15000;
@@ -117,7 +116,7 @@ async function classifyTickets(tickets) {
   const timer = setTimeout(() => controller.abort(), ms);
   let response;
   try {
-    response = await fetch(endpoint(), {
+    response = await fetch(ENDPOINT, {
       method: 'POST',
       headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
       body: JSON.stringify(buildRequestBody(tickets)),
