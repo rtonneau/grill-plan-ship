@@ -75,6 +75,30 @@
         "ticket": "01-fake-fetch-jev-unit-test",
         "commit": "8e6ad52"
       }
+    },
+    {
+      "at": "2026-10-09T07:22:26.025Z",
+      "event": "ticket_started",
+      "phase": "ship",
+      "files": [
+        "02-plan/tickets/02-fake-fetch-jev-hints-test.md",
+        "03-implement/02-fake-fetch-jev-hints-test/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "02-fake-fetch-jev-hints-test"
+      }
+    },
+    {
+      "at": "2026-10-09T07:24:45.153Z",
+      "event": "ticket_done",
+      "phase": "ship",
+      "files": [
+        "03-implement/02-fake-fetch-jev-hints-test/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "02-fake-fetch-jev-hints-test",
+        "commit": "0869c1e"
+      }
     }
   ],
   "current_phase": "ship",
