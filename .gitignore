@@ -4,4 +4,8 @@ node_modules/
 .DS_Store
 evals/test-output/
 .superpowers/
-.work/
+.scratch/
+.work/sessions/.current-session
+.work/sessions/.pending-seeds.json*
+.work/sessions/*/.write-payload.md
+.work/sessions/*/.changelog-payload.md
