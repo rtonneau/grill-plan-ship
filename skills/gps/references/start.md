@@ -9,6 +9,8 @@
    - Neither: the built-in grill below.
 
    With `--issue`, frame it as a report: Problem Statement is the report, "Current behavior" the reproduction, Success Metrics the expected result.
+
+   **Whichever grill runs, every question goes through `AskUserQuestion`, which overrides the skill's own question format** (no `❓`/`➡️` text rounds). The tool takes at most 4 questions per call and 2–4 options each: send the frontier in calls of up to 4, your recommended answer first as "(Recommended)", and put the skill's per-question reasoning in the option descriptions. Free text only for open-ended answers.
 3. Once the design is approved: `/gps plan` (saves the grill first) or `/gps auto`.
 
 ## Built-in grill

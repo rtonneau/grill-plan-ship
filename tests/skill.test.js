@@ -80,6 +80,8 @@ assert.match(refs.auto, /except its `Next:` line/);
 assert.match(refs.auto, /`⚠️` lines included/);
 assert.match(refs.finish, /--close-issue` \(yes\) or `--keep-issue` \(no\)/);
 assert.match(refs.start, /Ready for me to implement this\?/);
+// Whichever grill runs (external skill or built-in), questions are clicks: the rule sits above the built-in section.
+assert.match(refs.start.split('## Built-in grill')[0], /every question[^\n]*`AskUserQuestion`[^\n]*(overrides|instead of)[^\n]*format/i);
 assert.match(refs.clean, /--dry-run/);
 assert.match(refs.help, /Never run a command that changes state/);
 for (const name of ['SKILL.md', ...Object.keys(refs)]) {
