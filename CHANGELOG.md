@@ -2,6 +2,10 @@
 
 All notable changes to grill-plan-ship. Versions follow [semantic versioning](https://semver.org/).
 
+## Unreleased
+
+- **Every grill question is a click, whichever grill runs.** `/gps start` now tells Claude that all grill questions go through `AskUserQuestion`, overriding the question format of a delegated skill such as `mattpocock-skills:grilling` (which asks plain-text `❓`/`➡️` rounds). Before, that rule applied only to the built-in grill. Questions go out in calls of up to 4, recommended answer first.
+
 ## 2.7.0 (2026-10-08)
 
 - **Jev-judged ticket Model/Effort hints.** When `TYPESAFE_API_KEY` is set and `jev.enabled` is on in `.work/gps-config.json`, `/gps plan` pipes each drafted ticket into TypeSafe's Jev (`jev-hints.js`, `lib/jev.js`) instead of leaving the `**Model:**`/`**Effort:**` hint to Claude's own heuristic alone. Jev's version-named answer is collapsed to a family (`haiku`/`sonnet`/`opus`) before it's written, and its raw answer and confidence are kept alongside in a `**Model (Jev):**` line for audit only.
