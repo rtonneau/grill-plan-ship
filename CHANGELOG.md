@@ -4,6 +4,8 @@ All notable changes to grill-plan-ship. Versions follow [semantic versioning](ht
 
 ## Unreleased
 
+## 2.8.0 (2026-10-12)
+
 - Share the GPS workflow between Claude Code and Codex, with explicit delegation adapters, configured Codex model mappings and effort validation.
 - Route skill arguments without forwarding the subcommand to scripts; run scripts from the target repository root.
 - Include portable and Codex compatibility manifests in release version detection, and update this plugin's saved release file list.
