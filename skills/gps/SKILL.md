@@ -1,6 +1,6 @@
 ---
 name: gps
-description: "grill-plan-ship: workflow plugin (grill → plan → ship → finish). Use for /gps init, /gps scout, /gps start, /gps status, /gps clean, /gps config, /gps write, /gps plan, /gps ship, /gps finish, /gps auto, /gps handoff, /gps release, /gps help."
+description: "grill-plan-ship: workflow plugin. Use for /gps init, /gps scout, /gps start, /gps status, /gps clean, /gps config, /gps write, /gps plan, /gps ship, /gps finish, /gps auto, /gps handoff, /gps release, /gps help, or the matching $gps command in Codex."
 argument-hint: "<init|scout|start|status|clean|config|write|plan|ship|finish|auto|handoff|release|help> [args]"
 allowed-tools:
   - Bash(node ${CLAUDE_SKILL_DIR}/scripts/auto-route.js *)
@@ -8,6 +8,7 @@ allowed-tools:
   - Bash(node ${CLAUDE_SKILL_DIR}/scripts/changelog-prepare.js *)
   - Bash(node ${CLAUDE_SKILL_DIR}/scripts/clean.js *)
   - Bash(node ${CLAUDE_SKILL_DIR}/scripts/config.js *)
+  - Bash(node ${CLAUDE_SKILL_DIR}/scripts/dispatch-preflight.js *)
   - Bash(node ${CLAUDE_SKILL_DIR}/scripts/dispatch-prompt.js *)
   - Bash(node ${CLAUDE_SKILL_DIR}/scripts/domain-doc.js *)
   - Bash(node ${CLAUDE_SKILL_DIR}/scripts/finish.js *)
@@ -55,7 +56,9 @@ Grill (spec the work) → Plan (atomic tickets) → Ship (one commit per ticket)
 
 ## How to run a command
 
-Read the command's references file (in this skill's directory) before doing anything else, every time: the steps and script flags change between versions, so a remembered step can call something that no longer exists. In those files, `<name>.js` means `node ${CLAUDE_SKILL_DIR}/scripts/<name>.js`; run it with that exact path, unquoted, so it matches the skill's pre-approved commands. Every deterministic step is a script: run it rather than doing its work by hand, because the script also validates its input and records the step in the session history.
+Read the command's references file (in this skill's directory) before doing anything else, every time: the steps and script flags change between versions, so a remembered step can call something that no longer exists. In those files, `<name>.js` means the matching script under this skill's `scripts/` directory. In Claude Code, use `node ${CLAUDE_SKILL_DIR}/scripts/<name>.js`; in Codex, use the absolute script path resolved from the loaded gps skill directory, quoted for the host shell. Run scripts with the target repository root as the working directory. Remove `/gps` or `$gps` and the subcommand before interpreting arguments; follow the reference's script calls and flags. For example, `$gps config --rescan` runs `config.js --rescan`, while `$gps ship 3` runs the ship workflow for ticket 3, following its reference. Every deterministic step is a script: run it rather than doing its work by hand, because the script also validates its input and records the step in the session history.
+
+This skill is shared by Claude Code and Codex. Use the host's available question interface for choices and confirmations. For ticket delegation, pass `--host claude` or `--host codex` to `dispatch-prompt.js` and follow `references/ship.md` one ticket at a time. Codex mappings and supported efforts are explicit project settings; never invent a mapping or silently drop a hint. Translate `/gps` shown in shared references or script output to `$gps` when speaking to a Codex user.
 
 ## Script contract
 
@@ -66,8 +69,8 @@ Read the command's references file (in this skill's directory) before doing anyt
 
 ## Rules for every command
 
-- Never create, edit or delete session state by hand (`.session-config.json`, `.current-session`, `.pending-seeds.json`, session directories). The scripts validate that state and record each change in its history; a hand edit skips both, and `status`, `auto` and `finish` then disagree with what is on disk. Claude writes only the narrative a script points at: the write payload, a commit log's narrative sections, HANDOFF.md, the glossary and ADRs.
+- Never create, edit or delete session state by hand (`.session-config.json`, `.current-session`, `.pending-seeds.json`, session directories). The scripts validate that state and record each change in its history; a hand edit skips both, and `status`, `auto` and `finish` then disagree with what is on disk. The agent writes only the narrative a script points at: the write payload, a commit log's narrative sections, HANDOFF.md, the glossary and ADRs.
 - Scripts never overwrite work: re-running a command against existing output refuses (changing nothing) or resumes. So re-running is always safe; deleting output to force a fresh run is not.
-- Every question to the user, in every phase, goes through `AskUserQuestion`; free chat text only when no answer set can be offered (Other covers open-ended replies). Examples: grill questions, the ship mode, confirmations such as closing an issue, applying a rescan or deleting sessions. Up to 4 questions per call (the tool's limit), recommended answer first and marked "(Recommended)". A choice the user can click is faster to answer and can't be misread. Inside a grill skill (`grilling`, `domain-modeling`, `brainstorming`) this overrides the skill's own "ask in chat"; keep free text for open-ended answers.
+- **Host question rule:** In Claude Code use `AskUserQuestion`, at most 4 questions per call and 2-4 options each, recommended answer first marked "(Recommended)". In Codex inspect the available question tool, its schema and mode restrictions; never assume Claude batching or tool availability. If no suitable tool is available, ask concise numbered conversational questions. Wait for answers to required decisions; asynchronous invocation, preselected options and elapsed time are not confirmation. Preserve already authorized auto-run choices and approval gates. Question tools do not replace sandbox escalation. Apply this rule inside external grill skills too.
 - Switch the current session only after the user confirms it (`set-current.js <session-id>`): every later command acts on the current session.
 - On GitHub projects (flag in `.work/gps-config.json`), saving the plan creates the session branch and `/gps finish` opens its pull request; bounded work (no plan) gets neither.

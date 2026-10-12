@@ -268,7 +268,7 @@ assert.match(call.body, /Users want to filter results\./);
 assert.match(call.body, /feat: add filters/);
 assert.match(call.body, /chore: commit remaining changes/);
 assert.match(call.body, /- \[x\] 01 filters/);
-assert.match(call.body, /Generated with \[Claude Code\]/);
+assert.match(call.body, /Generated with \[grill-plan-ship\]/);
 assert.doesNotMatch(call.body, /Closes #/);
 assert.ok(execFileSync('git', ['--git-dir', bare, 'rev-parse', 'refs/heads/feat/search-filters'], { encoding: 'utf-8' }).trim());
 

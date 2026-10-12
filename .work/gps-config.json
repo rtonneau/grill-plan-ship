@@ -11,6 +11,7 @@
   "release": {
     "versionFiles": [
       "package.json",
+      "plugin.json",
       ".claude-plugin/plugin.json",
       ".claude-plugin/marketplace.json"
     ]

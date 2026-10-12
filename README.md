@@ -1,14 +1,20 @@
 # grill-plan-ship
 
-A Claude Code plugin that runs any code change through four phases:
+A Claude Code and Codex plugin that runs any code change through four phases:
 
 **grill** (spec the work) → **plan** (atomic tickets) → **ship** (one commit per ticket) → **finish** (changelog entry, summary, and a pull request on GitHub projects) → **release** (when you choose).
 
-Claude does the judgment work: asking questions, planning, reviewing and summarizing. Everything deterministic (session files, templates, validation, git and gh calls, report formatting) is done by small Node.js scripts with no dependencies.
+The coding agent does the judgment work: asking questions, planning, reviewing and summarizing. Everything deterministic (session files, templates, validation, git and gh calls, report formatting) is done by small Node.js scripts with no dependencies.
 
 ![Diagram of the GPS workflow: optional SCOUT, then GRILL, PLAN, SHIP and FINISH with command, activity and output columns, a /gps auto lane, the commands usable at any time, and the script contract.](docs/gps-workflow.png)
 
 ## Installation
+
+### Codex
+
+Follow the [Windows Codex setup guide](docs/CODEX-SETUP.md) to register this checkout as a marketplace and install GPS. CLI installation was verified with Codex 0.162.1; desktop and runtime verification status is recorded in [the smoke results](docs/CODEX-SMOKE-TEST.md). Then invoke the skill as `$gps <subcommand> [arguments]` (for example, `$gps config --rescan`). It runs against the current local checkout and requires Node.js 20+ and git. GitHub features also require an authenticated `gh` CLI. GPS sessions use the same `.work/` files in Codex and Claude Code and are designed to be continued in either host; live cross-host resume remains unverified. ChatGPT web does not provide the local checkout and scripts needed for the complete workflow.
+
+### Claude Code
 
 ```
 /plugin marketplace add rtonneau/grill-plan-ship
@@ -41,7 +47,7 @@ Or, once the direction is clear, `/gps auto` runs from wherever the session is t
 | `/gps start [--issue] <name>` | New session, then the grill (`--issue`: a bug report, filed as a GitHub issue) |
 | `/gps status` | Every session, scouted ideas, the current phase, a saved handoff, the next command |
 | `/gps clean [id...]` | Delete old sessions or drop ideas, after showing exactly what goes |
-| `/gps config [--rescan]` | Show, or detect again, whether the project uses GitHub |
+| `/gps config [--rescan]` | Show GitHub/Jev flags, changelog/release and declared delegation settings, or rescan flags |
 | `/gps write` | Save the approved grill or plan to disk (`plan`, `ship` and `auto` do it for you) |
 | `/gps plan` | Save the grill if pending, then draft tickets with model and effort hints |
 | `/gps ship [N]` | Save the plan if pending, then implement every remaining ticket (or only ticket N) |
@@ -76,13 +82,34 @@ Or, once the direction is clear, `/gps auto` runs from wherever the session is t
 
 `/gps ship` asks once how to implement the tickets:
 
-- **inline:** Claude implements each ticket in this session.
+- **inline:** the coding agent implements each ticket in this session.
 - **subagent:** each ticket goes to a fresh subagent on the ticket's `**Model:**` hint (`haiku`, `sonnet`, `opus` or `inherit`) and `**Effort:**` hint (`low`, `medium`, `high`, `xhigh` or `inherit`). The subagent commits through `ticket-complete.js`, and `ticket-check.js` verifies its DONE report before the next ticket starts.
 - **subagent + inline follow-up:** the subagent implements and verifies; this session reviews the diff, re-runs the Verification Step, fixes what's needed and commits. `/gps auto` recommends this mode, since every ticket gets a second look before it is committed.
 
 **No mode runs tickets in parallel.** In both subagent modes, one subagent is dispatched per ticket, and the next one starts only after the previous ticket is committed (or the run stops). Even tickets that could be done in parallel run one after the other: two live subagents would edit the same working tree, and each commit would pick up the other's changes.
 
-**Effort hints.** An Agent call can pass a model but not an effort, so the plugin ships one subagent per level, `agents/gps-ticket-<level>.md` (`low` to `xhigh`), each setting its `effort:`. `dispatch-prompt.js` picks the one matching the ticket and passes the model on the call; `inherit` uses the general-purpose subagent at the session's own effort. A level the model doesn't support falls back to the highest one it does, and inline mode ignores effort hints, since a running session can't change its own effort. Hints stop at `xhigh` on purpose: `max` is slow and costly for one small ticket, so `/gps write` refuses it and asks you to split the ticket instead, or to run it inline under `/effort max`. The reasoning is recorded in [docs/decisions/0001-effort-hints-stop-at-xhigh.md](docs/decisions/0001-effort-hints-stop-at-xhigh.md).
+**Effort hints in Claude Code.** An Agent call can pass a model but not an effort, so the plugin ships one subagent per level, `agents/gps-ticket-<level>.md` (`low` to `xhigh`), each setting its `effort:`. `dispatch-prompt.js` picks the one matching the ticket and passes the model on the call; `inherit` uses the general-purpose subagent at the session's own effort. A level the model doesn't support falls back to the highest one it does, and inline mode ignores effort hints, since a running session can't change its own effort. Hints stop at `xhigh` on purpose: `max` is slow and costly for one small ticket, so `/gps write` refuses it and asks you to split the ticket instead, or to run it inline under `/effort max`. The reasoning is recorded in [docs/decisions/0001-effort-hints-stop-at-xhigh.md](docs/decisions/0001-effort-hints-stop-at-xhigh.md).
+
+**Codex delegation.** The shared ticket aliases (`haiku`, `sonnet`, `opus`) describe implementation preferences. Configure their Codex model IDs in `.work/gps-config.json`, merging this section into the existing configuration:
+
+```json
+{
+  "delegation": {
+    "codex": {
+      "models": {
+        "haiku": { "model": "<available-model-id>", "efforts": ["low", "medium"] },
+        "sonnet": { "model": "<available-model-id>", "efforts": ["low", "medium", "high"] },
+        "opus": { "model": "<available-model-id>", "efforts": ["low", "medium", "high", "xhigh"] }
+      },
+      "inheritEfforts": ["low", "medium", "high"]
+    }
+  }
+}
+```
+
+Replace each placeholder with a model available in your client and list only the effort levels that model supports. `inheritEfforts` describes the current session model; update it when that model changes. `dispatch-prompt.js --host codex --json` emits a native spawn call containing the same ticket brief used by Claude, plus explicit model and reasoning overrides. Before ticket-start, `dispatch-preflight.js` validates every pending delegated ticket, including later tickets, without mutation. The host then verifies actual tool/account model and effort support. Missing mappings, unsupported efforts or unknown required parent effort stop before implementation; each dispatch revalidates current settings. Accepted overrides and runtime parent effort must match preflight. `/gps auto --delegate` follows the same checks and cannot run finish after failure. The agent also checks the current client's capabilities before spawning. Explicit `inherit/inherit` needs no mapping; inline mode needs no delegation configuration. See [decision 0006](docs/decisions/0006-shared-core-with-host-dispatch-adapters.md).
+
+For a mapped Codex model with effort `inherit`, GPS requires `--parent-effort <low|medium|high|xhigh>` from authoritative current runtime context, validates it and emits it explicitly. Unknown parent effort requires an explicit ticket effort choice; do not infer it from settings, transcripts, model IDs or declared support. Explicit ticket effort takes precedence. Parent effort is runtime input and is never stored in session state. Native `inherit/inherit` omits both overrides; the host resolves these fields, including any host agent defaults.
 
 Only one implementer is ever live. A ticket that can't be finished is recorded with `ticket-block.js` and stops the run; it is never retried automatically. Each ticket's `commit-log.md` gets its test result and review notes from Claude, and its commit and time spent from the script.
 
@@ -103,6 +130,7 @@ Settings live in `.work/gps-config.json`; `/gps config` shows them, read-only:
 
 ## Layout
 ```
+plugin.json               portable plugin manifest (Codex)
 .claude-plugin/            plugin.json, marketplace.json
 skills/gps/
 ├── SKILL.md               router: command table, script contract, shared rules
@@ -138,7 +166,8 @@ Every script in `skills/gps/scripts/` follows the same rules (see `scripts/lib/c
 | `plan.js` | start the plan phase |
 | `ticket-queue.js` | the tickets, their state, and model and effort hints |
 | `ticket-start.js` | prepare a ticket's workspace (next pending one by default); `--mode` records the ship mode the next `/gps ship` offers first |
-| `dispatch-prompt.js` | the Agent tool call for a ticket's subagent |
+| `dispatch-preflight.js` | read-only validation of every pending delegated ticket before ticket-start; runtime capability checks still required |
+| `dispatch-prompt.js` | the Claude or Codex delegation call for a ticket's subagent |
 | `ticket-complete.js` | commit the given files, mark the ticket Done, fill its log |
 | `ticket-block.js` | record why a ticket can't be finished |
 | `ticket-check.js` | verify a ticket really is complete |
@@ -186,13 +215,13 @@ The built-in grill uses a project's own domain docs when it has them, the way ma
 
 gps has no server and no telemetry. Everything it does runs on your machine, through the scripts in `skills/gps/scripts/` (plain, readable Node.js with no dependencies):
 
-- **Commands it runs:** `node` for its own scripts, which the skill pre-approves one by one in `allowed-tools` (`Bash(node ${CLAUDE_SKILL_DIR}/scripts/<name>.js *)` for each script in `skills/gps/scripts/`) so they run without a permission prompt; nothing else is pre-approved. The scripts call `git` and, on GitHub projects, `gh`, always with an argument list, never through a shell.
+- **Commands it runs:** `node` for its own scripts, which the skill pre-approves in Claude Code one by one in `allowed-tools` (`Bash(node ${CLAUDE_SKILL_DIR}/scripts/<name>.js *)` for each script in `skills/gps/scripts/`) so they run without a permission prompt; nothing else is pre-approved by the skill. Codex applies its own configured sandbox and approval rules. The scripts call `git` and, on GitHub projects, `gh`, always with an argument list, never through a shell.
 - **Files it writes:** session files under `.work/` and run artifacts under `.scratch/` in your project, a few lines in the project's `.gitignore`, the changelog fragment `.work/changelog/<session-id>.md` at `/gps finish`, the CHANGELOG and the version files (such as `package.json`) at `/gps release`, which also deletes the fragments, and a temporary file for each pull request, issue or GitHub Release body (deleted right after, except a release's notes file when `gh release create` fails: the by-hand command uses it).
-- **Files it reads:** the project it runs in (its files and git history), gps's own scripts and templates, and a file a command is explicitly given, such as the review for `/gps scout --from`. Nothing else: not Claude Code's transcripts, your home directory or your credentials.
+- **Files it reads:** the project it runs in (its files and git history), gps's own scripts and templates, and a file a command is explicitly given, such as the review for `/gps scout --from`. It does not read host transcripts or your home directory. Jev reads TYPESAFE_API_KEY from the environment to authenticate its optional request.
 - **Commits it makes:** one commit per ticket with only the files you name, the `chore(gps)` session-record commits described above, a commit of leftover tracked changes at `/gps finish` (the changelog fragment travels in its `chore(gps)` record commit), the `chore(release): X.Y.Z` commit (CHANGELOG, version files and fragment deletions) and its annotated tag `vX.Y.Z` at `/gps release`, and the `chore(gps): set up gps` commit of `/gps init --apply`.
 - **What leaves your machine** (with your own git and gh credentials): with any `origin`, at `/gps release` only, `git fetch` of the base branch before a cut, `git push` of the release commit and tag at `/gps release --push` (after your yes) and `git ls-remote`, which only reads. On GitHub projects only: `git push` of the session branch and `gh pr create` at `/gps finish`; `gh release create` at `/gps release --push` when `release.githubRelease` allows it; `gh issue create`, `gh issue comment` and `gh issue close` for `/gps start --issue` sessions; and `gh auth status`, `gh pr list` and `gh release view`, which only read.
 
-See [PRIVACY.md](PRIVACY.md).
+Optional **Jev** sends drafted ticket names and complete bodies plus classification instructions to TypeSafe at `https://api.typesafe.ai/v1/systemone`, authenticated by `TYPESAFE_API_KEY`. Arbitrary repository files are not uploaded by this code; ticket bodies may include project details or code. Initial configuration derives `jev.enabled` from key presence; subsequent calls require both the saved flag and key. Set `jev.enabled` to `false` in `.work/gps-config.json` to opt out. A rescan can propose changing the flag, and an applied rescan can enable it again when the key is present. We make no TypeSafe retention or training guarantees. Conversation policies belong to the selected host (Anthropic for Claude Code, OpenAI for Codex). See [PRIVACY.md](PRIVACY.md).
 
 ## Development
 

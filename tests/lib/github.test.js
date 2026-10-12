@@ -229,7 +229,7 @@ assert.match(issueBody, /^## Problem Statement\n\nIt crashes\.\n/);
 assert.ok(issueBody.indexOf('Problem Statement') < issueBody.indexOf('Success Metrics'));
 assert.doesNotMatch(issueBody, /Notes|skip me/);
 assert.match(issueBody, /gps session: `2026-09-25__crash`/);
-assert.match(issueBody, /Generated with \[Claude Code\]/);
+assert.match(issueBody, /Generated with \[grill-plan-ship\]/);
 
 // Releases.
 assert.strictEqual(releaseExists(repo, 'v1.0.0'), false);

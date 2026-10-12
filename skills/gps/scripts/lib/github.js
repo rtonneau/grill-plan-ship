@@ -14,7 +14,7 @@ const path = require('path');
 const { execFileSync } = require('child_process');
 const { failureReason, isWorkTree, originUrl, pushBranch } = require('./git');
 
-const PR_ATTRIBUTION = '🤖 Generated with [Claude Code](https://claude.com/claude-code)';
+const PR_ATTRIBUTION = '🤖 Generated with [grill-plan-ship](https://github.com/rtonneau/grill-plan-ship)';
 const ISSUE_SECTIONS = ['Problem Statement', 'Context & Constraints', 'Success Metrics'];
 const ISSUE_URL_RE = /^https:\/\/\S+\/issues\/(\d+)$/;
 

@@ -1,0 +1,28 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "grill-plan-ship",
+  "version": "2.7.1",
+  "description": "A local development workflow for exploring, planning, implementing, and shipping changes with shared session state.",
+  "author": {
+    "name": "rtonneau",
+    "url": "https://github.com/rtonneau"
+  },
+  "homepage": "https://github.com/rtonneau/grill-plan-ship",
+  "repository": "https://github.com/rtonneau/grill-plan-ship",
+  "license": "MIT",
+  "keywords": ["workflow", "planning", "tickets", "git", "github"],
+  "extensions": {
+    "com.openai": {
+      "interface": {
+        "displayName": "Grill Plan Ship",
+        "shortDescription": "Plan and ship local code changes",
+        "longDescription": "Guide a change from discovery through an approved plan, sequential ticket implementation, and project closeout. Node.js scripts manage shared session state and Git operations.",
+        "developerName": "rtonneau",
+        "category": "Productivity",
+        "websiteURL": "https://github.com/rtonneau/grill-plan-ship",
+        "privacyPolicyURL": "https://github.com/rtonneau/grill-plan-ship/blob/main/PRIVACY.md",
+        "composerIcon": "./docs/icon.png"
+      }
+    }
+  }
+}

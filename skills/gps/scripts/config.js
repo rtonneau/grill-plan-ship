@@ -15,7 +15,7 @@
 
 const path = require('path');
 const { main } = require('./lib/cli');
-const { CONFIG_FILENAME, rescanProjectConfig, rescanJevConfig, changelogSettings, releaseSettings } = require('./lib/project-config');
+const { CONFIG_FILENAME, readConfig, rescanProjectConfig, rescanJevConfig, changelogSettings, releaseSettings } = require('./lib/project-config');
 const { UsageError } = require('./lib/guard');
 
 const SCOPE_NOTE = 'The flag applies to sessions whose plan is not saved yet; sessions already planned keep their current mode.';
@@ -55,12 +55,24 @@ main({
     const jev = rescanJevConfig(projectRoot, rescanOpts);
     const changelog = changelogSettings(projectRoot);
     const release = releaseSettings(projectRoot);
-    const data = { github, jev, file, changelog, release };
+    const config = readConfig(projectRoot) || {};
+    const delegation = config.delegation || null;
+    const data = { github, jev, file, changelog, release, delegation };
     const settings = [
       `changelog.enabled = ${changelog.enabled} (path ${changelog.path})`,
       `release.versionFiles = ${release.versionFiles ? release.versionFiles.join(', ') : 'not saved yet'}`,
       `release.githubRelease = ${release.githubRelease}`,
     ];
+    const codex = delegation && delegation.codex;
+    settings.push('Codex delegation: declared settings (not live capability detection)');
+    const mappings = codex && codex.models;
+    if (!mappings || !Object.keys(mappings).length) settings.push('delegation.codex.models = not configured');
+    else {
+      for (const [alias, mapping] of Object.entries(mappings)) {
+        settings.push(`${alias}: model ${mapping && mapping.model || 'not configured'}, efforts ${mapping && Array.isArray(mapping.efforts) ? mapping.efforts.join(', ') : 'not configured'}`);
+      }
+    }
+    settings.push(`delegation.codex.inheritEfforts = ${codex && Array.isArray(codex.inheritEfforts) ? codex.inheritEfforts.join(', ') : 'not configured'}`);
     const githubExtra = github.stored && !github.detected.enabled
       ? '⚠️  Applying turns GitHub off: a hand-forced true (e.g. GitHub Enterprise) would be lost.'
       : null;

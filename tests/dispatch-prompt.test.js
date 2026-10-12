@@ -1,6 +1,7 @@
 // tests/dispatch-prompt.test.js — dispatch-prompt.js (/gps ship: the subagent's Agent call)
 const assert = require('assert');
 const path = require('path');
+const fs = require('fs');
 const h = require('./helpers');
 
 const root = h.gitProject();
@@ -51,6 +52,41 @@ const text = h.ok(root, 'dispatch-prompt.js', args(1, 'subagent')).out;
 assert.match(text, /^Agent tool call for ticket 01 \(toggle\), mode subagent, model haiku, effort inherit:/);
 assert.match(text, /On DONE run ticket-check\.js 1/);
 assert.match(h.ok(root, 'dispatch-prompt.js', args(1, 'subagent+inline')).out, /On READY review and complete it in this session/);
+
+// Codex uses the same brief with explicit, validated host overrides.
+const configPath = path.join(root, '.work', 'gps-config.json');
+const projectConfig = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
+const configBefore = fs.readFileSync(configPath, 'utf-8');
+h.assertFails(h.run(root, 'dispatch-prompt.js', args(1, 'subagent', '--host', 'unknown')), 2, /--host/);
+h.assertFails(h.run(root, 'dispatch-prompt.js', args(1, 'subagent', '--host', 'codex')), 1, /No Codex model mapping for haiku/);
+assert.strictEqual(fs.readFileSync(configPath, 'utf-8'), configBefore, 'failed dispatch leaves configuration unchanged');
+projectConfig.delegation = { codex: { models: { haiku: { model: 'available-model', efforts: ['low'] } } } };
+fs.writeFileSync(configPath, JSON.stringify(projectConfig));
+const codex = h.json(root, 'dispatch-prompt.js', args(1, 'subagent', '--host', 'codex', '--effort', 'low'));
+assert.strictEqual(codex.host, 'codex');
+assert.strictEqual(codex.call.model, 'available-model');
+assert.strictEqual(codex.call.reasoning_effort, 'low');
+assert.strictEqual(codex.call.fork_turns, 'none');
+assert.strictEqual(codex.call.message, data.call.prompt);
+assert.ok(!('subagent_type' in codex.call));
+h.assertFails(h.run(root, 'dispatch-prompt.js', args(1, 'subagent', '--host', 'codex', '--effort', 'high')), 1, /not configured as supported/);
+const inheritedCodex = h.json(root, 'dispatch-prompt.js', args(1, 'subagent+inline', '--host', 'codex', '--model', 'inherit', '--effort', 'inherit'));
+assert.ok(!('model' in inheritedCodex.call));
+assert.ok(!('reasoning_effort' in inheritedCodex.call));
+assert.match(inheritedCodex.call.message, /do not stage or commit anything/);
+assert.match(h.ok(root, 'dispatch-prompt.js', args(1, 'subagent', '--host', 'codex', '--parent-effort', 'low')).out, /Codex spawn_agent tool call/);
+
+for (const value of ['inherit', 'max', 'ultra', 'bad']) h.assertFails(h.run(root, 'dispatch-prompt.js', args(1, 'subagent', '--host', 'codex', '--parent-effort', value)), 2, /--parent-effort/);
+h.assertFails(h.run(root, 'dispatch-prompt.js', args(1, 'subagent', '--parent-effort', 'low')), 2, /only applies/);
+const historyBefore = h.history(root);
+const savedBefore = fs.readFileSync(configPath, 'utf8');
+h.assertFails(h.run(root, 'dispatch-prompt.js', args(1, 'subagent', '--host', 'codex')), 1, /Parent effort is unknown/);
+assert.deepStrictEqual(h.history(root), historyBefore);
+assert.strictEqual(fs.readFileSync(configPath, 'utf8'), savedBefore);
+const resolved = h.json(root, 'dispatch-prompt.js', args(1, 'subagent', '--host', 'codex', '--parent-effort', 'low'));
+assert.strictEqual(resolved.effort, 'inherit');
+assert.strictEqual(resolved.call.reasoning_effort, 'low');
+assert.strictEqual(h.json(root, 'dispatch-prompt.js', args(1, 'subagent', '--host', 'codex', '--parent-effort', 'high', '--effort', 'low')).call.reasoning_effort, 'low');
 
 // A Done ticket is refused.
 h.completeTicket(root, 1, 'toggle');
