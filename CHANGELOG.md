@@ -4,6 +4,11 @@ All notable changes to grill-plan-ship. Versions follow [semantic versioning](ht
 
 ## Unreleased
 
+## 2.8.1 (2026-10-13)
+
+- Support planned GPS sessions in detached linked worktrees by inferring the pull request base from the branch checked out at the same commit, including non-default branches.
+- Report Git inspection failures separately from detached HEAD and preserve prepared write payloads with an accurate recovery hint.
+
 ## 2.8.0 (2026-10-12)
 
 - Share the GPS workflow between Claude Code and Codex, with explicit delegation adapters, configured Codex model mappings and effort validation.
