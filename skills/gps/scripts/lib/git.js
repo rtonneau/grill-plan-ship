@@ -32,6 +32,14 @@ function tryGit(projectRoot, args) {
   }
 }
 
+function gitResult(projectRoot, args) {
+  try {
+    return { ok: true, output: git(projectRoot, args) };
+  } catch (err) {
+    return { ok: false, reason: failureReason(err) };
+  }
+}
+
 // Local branches whose tip holds `relPath` (e.g. a session committed on a
 // branch that is not checked out).
 function branchesHolding(projectRoot, relPath) {
@@ -60,6 +68,45 @@ function originUrl(projectRoot) {
 
 function currentBranch(projectRoot) {
   return tryGit(projectRoot, ['branch', '--show-current']) || null;
+}
+
+// A detached worktree still has enough information to create a session
+// branch. Prefer a branch checked out by another worktree at the same commit;
+// this is the normal shape of agent worktrees. Otherwise use an unambiguous
+// local branch at HEAD, preferring the repository's default branch when more
+// than one points there. Git failures are kept distinct from a detached HEAD.
+function sessionBaseBranch(projectRoot) {
+  const branch = gitResult(projectRoot, ['branch', '--show-current']);
+  if (!branch.ok) throw new Error(`git could not inspect the current branch: ${branch.reason}`);
+  if (branch.output) return branch.output;
+
+  const head = gitResult(projectRoot, ['rev-parse', 'HEAD']);
+  if (!head.ok) throw new Error(`git could not inspect detached HEAD: ${head.reason}`);
+
+  const worktrees = gitResult(projectRoot, ['worktree', 'list', '--porcelain']);
+  if (!worktrees.ok) throw new Error(`git could not inspect linked worktrees: ${worktrees.reason}`);
+  const checkedOut = worktrees.output.split(/\r?\n\r?\n/).map((block) => {
+    const sha = /^HEAD (.+)$/m.exec(block);
+    const ref = /^branch refs\/heads\/(.+)$/m.exec(block);
+    return sha && ref && sha[1] === head.output ? ref[1] : null;
+  }).filter(Boolean);
+  if (checkedOut.length === 1) return checkedOut[0];
+
+  const refs = gitResult(projectRoot, [
+    'for-each-ref', '--format=%(refname:short)', '--points-at', 'HEAD', 'refs/heads',
+  ]);
+  if (!refs.ok) throw new Error(`git could not find a base branch for detached HEAD: ${refs.reason}`);
+  const candidates = lines(refs.output);
+  if (candidates.length === 1) return candidates[0];
+  const preferred = defaultBranch(projectRoot);
+  if (preferred && candidates.includes(preferred)) return preferred;
+  if (checkedOut.length > 1) {
+    throw new Error(`HEAD is detached and multiple linked-worktree branches point at it: ${checkedOut.join(', ')}`);
+  }
+  if (candidates.length > 1) {
+    throw new Error(`HEAD is detached and multiple local branches point at it: ${candidates.join(', ')}`);
+  }
+  throw new Error('HEAD is detached and no local branch points at it; check out or create the branch that the pull request should target');
 }
 
 function commitExists(projectRoot, sha) {
@@ -126,8 +173,10 @@ function validateBranchName(projectRoot, name) {
   } else if (tryGit(projectRoot, ['rev-parse', '--verify', '--quiet', `refs/heads/${name}`]) !== null) {
     errors.push(`Branch "${name}" already exists. Pick another name.`);
   }
-  if (!currentBranch(projectRoot)) {
-    errors.push('HEAD is detached: check out the branch the session should start from, then run write-apply.js again.');
+  try {
+    sessionBaseBranch(projectRoot);
+  } catch (err) {
+    errors.push(`${err.message}.`);
   }
   return errors;
 }
@@ -139,7 +188,7 @@ function branchType(branch) {
 // Creates `name` from HEAD and switches to it (uncommitted changes carry
 // over). Returns the config's `git` record. Throws with git's reason.
 function createSessionBranch(projectRoot, name) {
-  const base = currentBranch(projectRoot);
+  const base = sessionBaseBranch(projectRoot);
   try {
     git(projectRoot, ['switch', '-c', name]);
   } catch (err) {
@@ -399,6 +448,7 @@ module.exports = {
   isWorkTree,
   originUrl,
   currentBranch,
+  sessionBaseBranch,
   branchesHolding,
   commitExists,
   describeCommit,

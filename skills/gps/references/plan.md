@@ -9,6 +9,8 @@
    - Model: default to `haiku` whenever the ticket is small, clear and of a kind that recurs often in this plan (renames, docs, config, one file with an obvious pattern) — most mechanical tickets qualify. Reach for `sonnet` only once the ticket needs ordinary multi-step implementation judgment, `opus` only for cross-file design judgment or tricky debugging, and `inherit` only when genuinely unsure. See [docs/decisions/0004-model-hints-stay-family-level.md](../../../docs/decisions/0004-model-hints-stay-family-level.md) for the full breakdown.
    - Effort `low`: the change is spelled out; `medium`: ordinary; `high`: subtle logic or several files to keep consistent; `xhigh`: hard reasoning a mistake would be costly in; `inherit`: unsure. There is no `max`: a ticket that seems to need it should be split instead (`write-apply.js` refuses it).
 5. Run `unslop` on each ticket (missing: skip it and say so), keeping every Model/Effort/Model (Jev) line through it.
-6. Ask for approval of the tickets with `AskUserQuestion`. Once approved: `/gps ship` saves and implements them (`/gps write` only saves them; `/gps auto` runs on to finish).
+6. Ask for approval of the tickets using the router's host question rule. Once approved: `/gps ship` saves and implements them (`/gps write` only saves them; `/gps auto` runs on to finish).
 
 **Example:** `/gps plan`
+
+Before delegated auto/ship, inspect `config.js` and the Codex onboarding guidance in `references/config.md` for mappings and supported efforts. Portable plans can be saved without mappings; delegated execution requires whole-queue preflight and runtime verification before ticket-start.

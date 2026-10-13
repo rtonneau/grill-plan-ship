@@ -1,17 +1,13 @@
 #!/usr/bin/env node
 
 /**
- * dispatch-prompt.js <number> --mode <subagent|subagent+inline> [--model <m>] [--effort <e>] [--json]
+ * dispatch-prompt.js <number> --mode <subagent|subagent+inline> [--host <claude|codex>] [--model <m>] [--effort <e>] [--parent-effort <low|medium|high|xhigh>] [--json]
  *
- * /gps ship, subagent modes: prints the Agent tool call for one ticket —
- * subagent_type, model (left out for inherit), description and the full
- * prompt, with every path and command already filled in. --model overrides
- * the ticket's **Model:** hint and must be haiku, sonnet, opus or inherit.
- * --effort overrides its **Effort:** hint and must be low, medium, high,
- * xhigh or inherit (no max: see TICKET_EFFORTS in lib/ticket-model.js). An
- * Agent call can pass a model but not an effort, so the effort picks the
- * subagent: grill-plan-ship:gps-ticket-<effort> (agents/gps-ticket-*.md), or
- * general-purpose at the session's effort for inherit.
+ * /gps ship, subagent modes: builds one shared ticket brief and a host call.
+ * --host defaults to claude; codex uses explicit delegation.codex mappings
+ * from the project config and passes model/effort overrides independently.
+ * --model overrides the portable ticket alias (haiku, sonnet, opus, inherit).
+ * --effort overrides low, medium, high, xhigh or inherit (no max).
  * Run ticket-start.js <number> first: the prompt points at its log.
  *
  *   subagent          the subagent implements, verifies and completes the
@@ -28,11 +24,11 @@ const { findTicketByNumber } = require('./lib/ticket-lookup');
 const { TICKET_MODELS, TICKET_EFFORTS, SHIP_MODES } = require('./lib/ticket-queue');
 const { MAX_EFFORT_REASON } = require('./lib/ticket-model');
 const { GpsError, UsageError } = require('./lib/guard');
+const { readConfig } = require('./lib/project-config');
+const { buildDispatch, validateParentEffort } = require('./lib/host-dispatch');
 
 const MODES = SHIP_MODES.filter((mode) => mode !== 'inline');
 const script = (name) => `node "${path.join(__dirname, name)}"`;
-// Plugin subagents are namespaced under the plugin's name.
-const subagentFor = (effort) => (effort === 'inherit' ? 'general-purpose' : `grill-plan-ship:gps-ticket-${effort}`);
 
 function buildPrompt(ticket, mode, scratchDir) {
   const n = Number(ticket.num);
@@ -69,11 +65,13 @@ function buildPrompt(ticket, mode, scratchDir) {
 }
 
 main({
-  usage: 'dispatch-prompt.js <number> --mode <subagent|subagent+inline> [--model <haiku|sonnet|opus|inherit>] [--effort <low|medium|high|xhigh|inherit>] [--json]',
+  usage: 'dispatch-prompt.js <number> --mode <subagent|subagent+inline> [--host <claude|codex>] [--model <haiku|sonnet|opus|inherit>] [--effort <low|medium|high|xhigh|inherit>] [--parent-effort <low|medium|high|xhigh>] [--json]',
   positionals: { min: 1, max: 1 },
-  options: { mode: 'string', model: 'string', effort: 'string' },
+  options: { mode: 'string', host: 'string', model: 'string', effort: 'string', 'parent-effort': 'string' },
   run({ positionals: [arg], options, projectRoot }) {
     if (!/^\d+$/.test(arg)) throw new UsageError(`Invalid ticket number: ${arg}`);
+    const host = options.host || 'claude';
+    if (!['claude', 'codex'].includes(host)) throw new UsageError('--host must be one of: claude, codex.');
     if (!MODES.includes(options.mode)) throw new UsageError(`--mode must be one of: ${MODES.join(', ')}.`);
     if (options.model !== null && !TICKET_MODELS.includes(options.model)) {
       throw new UsageError(`--model must be one of: ${TICKET_MODELS.join(', ')}.`);
@@ -82,6 +80,8 @@ main({
       const why = options.effort === 'max' ? ` (${MAX_EFFORT_REASON})` : '';
       throw new UsageError(`--effort must be one of: ${TICKET_EFFORTS.join(', ')}${why}.`);
     }
+
+    validateParentEffort(host, options['parent-effort']);
 
     const { sessionId, sessionDir, config } = resolveSession(projectRoot);
     const ticket = findTicketByNumber(sessionDir, Number(arg));
@@ -92,27 +92,27 @@ main({
 
     const model = options.model || ticket.model;
     const effort = options.effort || ticket.effort;
-    const call = {
-      subagent_type: subagentFor(effort),
-      ...(model !== 'inherit' && { model }),
+    const prompt = buildPrompt(ticket, options.mode, config.scratch_dir || `.scratch/tests/${sessionId}`);
+    const call = buildDispatch(host, {
+      model, effort, parentEffort: options['parent-effort'],
       description: `gps ticket ${ticket.num} ${ticket.slug}`.slice(0, 60),
-      prompt: buildPrompt(ticket, options.mode, config.scratch_dir || `.scratch/tests/${sessionId}`),
-    };
+      taskName: `gps_ticket_${ticket.num}`,
+      prompt,
+    }, host === 'codex' ? readConfig(projectRoot) || {} : {});
     const text = [
-      `Agent tool call for ticket ${ticket.num} (${ticket.slug}), mode ${options.mode}, model ${model}, effort ${effort}:`,
-      `- subagent_type: ${call.subagent_type}${effort === 'inherit' ? ' (effort: inherit, the session\'s own)' : ` (sets effort ${effort})`}`,
-      `- model: ${model === 'inherit' ? '(leave out: inherit)' : model}`,
-      `- description: ${call.description}`,
-      '- prompt:',
+      `${host === 'claude' ? 'Agent' : 'Codex spawn_agent'} tool call for ticket ${ticket.num} (${ticket.slug}), mode ${options.mode}, model ${model}, effort ${effort}:`,
+      ...Object.entries(call).filter(([key]) => !['prompt', 'message'].includes(key)).map(([key, value]) =>
+        `- ${key}: ${value}${key === 'subagent_type' ? (effort === 'inherit' ? ' (effort: inherit, the session\'s own)' : ` (sets effort ${effort})`) : ''}`),
+      host === 'claude' ? '- prompt:' : '- message:',
       '',
       '````',
-      call.prompt,
+      prompt,
       '````',
       '',
       `Wait for its last line. ${options.mode === 'subagent'
         ? `On DONE run ticket-check.js ${Number(ticket.num)}; on BLOCKED stop the run.`
         : 'On READY review and complete it in this session; on BLOCKED stop the run and leave its changes in place.'}`,
     ].join('\n');
-    return { text, data: { ticket: `${ticket.num}-${ticket.slug}`, mode: options.mode, model, effort, call } };
+    return { text, data: { ticket: `${ticket.num}-${ticket.slug}`, host, mode: options.mode, model, effort, call } };
   },
 });

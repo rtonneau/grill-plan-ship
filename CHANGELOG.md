@@ -2,6 +2,20 @@
 
 All notable changes to grill-plan-ship. Versions follow [semantic versioning](https://semver.org/).
 
+## Unreleased
+
+## 2.8.1 (2026-10-13)
+
+- Support planned GPS sessions in detached linked worktrees by inferring the pull request base from the branch checked out at the same commit, including non-default branches.
+- Report Git inspection failures separately from detached HEAD and preserve prepared write payloads with an accurate recovery hint.
+
+## 2.8.0 (2026-10-12)
+
+- Share the GPS workflow between Claude Code and Codex, with explicit delegation adapters, configured Codex model mappings and effort validation.
+- Route skill arguments without forwarding the subcommand to scripts; run scripts from the target repository root.
+- Include portable and Codex compatibility manifests in release version detection, and update this plugin's saved release file list.
+- Attribute generated GitHub pull requests and issues to grill-plan-ship for sessions that may span coding agents.
+
 ## 2.7.1 (2026-10-09)
 
 - **Every grill question is a click, whichever grill runs.** `/gps start` now tells Claude that all grill questions go through `AskUserQuestion`, overriding the question format of a delegated skill such as `mattpocock-skills:grilling` (which asks plain-text `❓`/`➡️` rounds). Before, that rule applied only to the built-in grill. Questions go out in calls of up to 4, recommended answer first.

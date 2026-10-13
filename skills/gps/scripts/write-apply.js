@@ -103,7 +103,7 @@ function apply({ projectRoot, warn }) {
   if (errors.length > 0) {
     throw new GpsError(
       `The payload is not ready (nothing was written):\n   - ${errors.join('\n   - ')}`,
-      `Fix ${payloadPath} and run write-apply.js again.`
+      `Fix the listed problem(s) and run write-apply.js again. The prepared payload remains at ${payloadPath}.`
     );
   }
 

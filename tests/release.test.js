@@ -37,6 +37,9 @@ function project(prefix, version = '1.4.2') {
 
 {
   const root = project('gps-rel-');
+  fs.writeFileSync(path.join(root, 'plugin.json'), JSON.stringify({ name: 'x', version: '1.4.2' }) + '\n');
+  h.git(root, 'add', 'plugin.json');
+  h.git(root, 'commit', '-q', '-m', 'add portable manifest');
   fs.mkdirSync(path.join(root, '.claude-plugin'));
   const sid = (() => {
     const first = finishSession(root, 'first', 'fix', 'minor', 'visible to users');
@@ -66,7 +69,7 @@ function project(prefix, version = '1.4.2') {
   assert.match(sug.out, /Candidates: patch 1\.4\.3, minor 1\.5\.0, major 2\.0\.0/);
   assert.strictEqual(data.raised.length, 1);
   assert.strictEqual(data.raised[0].sessionId, sid);
-  assert.deepStrictEqual(data.versionFiles, ['package.json']);
+  assert.deepStrictEqual(data.versionFiles, ['package.json', 'plugin.json']);
   assert.strictEqual(h.git(root, 'status', '--porcelain'), '', 'suggest leaves a clean tree');
 
   // Refusals change nothing.
@@ -87,15 +90,16 @@ function project(prefix, version = '1.4.2') {
   assert.ok(!log.includes('<!--'));
   assert.ok(!/## Unreleased/.test(log));
   assert.strictEqual(JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf-8')).version, '1.5.0');
+  assert.strictEqual(JSON.parse(fs.readFileSync(path.join(root, 'plugin.json'), 'utf-8')).version, '1.5.0');
   assert.match(h.git(root, 'log', '-1', '--format=%B'), /^chore\(release\): 1\.5\.0\n\nBump: minor/);
   assert.ok(h.git(root, 'tag').split('\n').includes('v1.5.0'));
   assert.strictEqual(h.git(root, 'status', '--porcelain'), '');
 
   const released = h.git(root, 'show', '--name-only', '--format=', 'HEAD').split('\n').sort();
-  assert.deepStrictEqual(released, ['.work/gps-config.json', 'CHANGELOG.md', ...fragments.map((n) => `.work/changelog/${n}`), 'package.json'].sort());
+  assert.deepStrictEqual(released, ['.work/gps-config.json', 'CHANGELOG.md', ...fragments.map((n) => `.work/changelog/${n}`), 'package.json', 'plugin.json'].sort());
   const left = path.join(root, '.work', 'changelog');
   assert.deepStrictEqual(fs.existsSync(left) ? fs.readdirSync(left) : [], [], 'fragments deleted');
-  assert.deepStrictEqual(JSON.parse(fs.readFileSync(path.join(root, '.work', 'gps-config.json'), 'utf-8')).release.versionFiles, ['package.json']);
+  assert.deepStrictEqual(JSON.parse(fs.readFileSync(path.join(root, '.work', 'gps-config.json'), 'utf-8')).release.versionFiles, ['package.json', 'plugin.json']);
   const head = h.git(root, 'rev-parse', 'HEAD');
   h.assertFails(h.run(root, 'release.js', ['--version', '1.5.0']), 1);
   assert.strictEqual(h.git(root, 'rev-parse', 'HEAD'), head);

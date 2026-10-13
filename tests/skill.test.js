@@ -31,7 +31,15 @@ assert.strictEqual(spawnSync(process.execPath, [path.join(__dirname, 'check-skil
 const listed = [...skill.matchAll(/^\| `\/gps (\w+)/gm)].map((m) => m[1]).sort();
 assert.deepStrictEqual(Object.keys(refs).sort(), listed);
 for (const command of listed) assert.ok(skill.includes(`\`references/${command}.md\``), `SKILL.md must route /gps ${command}`);
-assert.match(skill, /`<name>\.js` means `node \$\{CLAUDE_SKILL_DIR\}\/scripts\/<name>\.js`/);
+assert.match(skill, /In Claude Code, use `node \$\{CLAUDE_SKILL_DIR\}\/scripts\/<name>\.js`; in Codex, use the absolute script path/);
+assert.match(skill, /Remove `\/gps` or `\$gps` and the subcommand/);
+assert.match(skill, /`\$gps config --rescan` runs `config\.js --rescan`/);
+assert.match(refs.ship, /--host <claude\|codex> --json/);
+assert.match(refs.ship, /Never silently omit overrides/);
+assert.ok(refs.ship.indexOf('dispatch-preflight.js') < refs.ship.indexOf('Start each ticket with'), 'preflight precedes ticket-start loop');
+assert.match(refs.ship, /Runtime check before ticket-start/);
+assert.match(refs.auto, /whole-queue `dispatch-preflight.js`/);
+assert.match(refs.plan, /Portable plans can be saved without mappings/);
 // The scripts are pre-approved under the same path the router gives them.
 // Pre-approved: exactly one rule per script (the directory's review asks for the
 // exact commands, not a wildcard over scripts/), each matching it with or without arguments.
@@ -60,7 +68,7 @@ for (const name of scripts) assert.ok(named.has(name), `no reference uses ${name
 const expected = {
   scout: ['scout-merge.js'], start: ['start.js', 'domain-doc.js'], status: ['status.js', 'set-current.js'], clean: ['clean.js'],
   config: ['config.js'], write: ['write-prepare.js', 'write-apply.js'], plan: ['write-prepare.js', 'plan.js', 'jev-hints.js'],
-  ship: ['write-prepare.js', 'ticket-queue.js', 'ticket-start.js', 'dispatch-prompt.js', 'ticket-check.js', 'ticket-complete.js', 'ticket-block.js'],
+  ship: ['write-prepare.js', 'ticket-queue.js', 'ticket-start.js', 'dispatch-preflight.js', 'dispatch-prompt.js', 'ticket-check.js', 'ticket-complete.js', 'ticket-block.js'],
   finish: ['changelog-prepare.js', 'changelog-apply.js', 'finish.js', 'set-current.js'], auto: ['auto-route.js', 'ticket-check.js'], handoff: ['handoff.js'],
   help: ['help.js', 'status.js'], init: ['init.js'], release: ['release.js'],
 };
@@ -81,7 +89,9 @@ assert.match(refs.auto, /`⚠️` lines included/);
 assert.match(refs.finish, /--close-issue` \(yes\) or `--keep-issue` \(no\)/);
 assert.match(refs.start, /Ready for me to implement this\?/);
 // Whichever grill runs (external skill or built-in), questions are clicks: the rule sits above the built-in section.
-assert.match(refs.start.split('## Built-in grill')[0], /every question[^\n]*`AskUserQuestion`[^\n]*(overrides|instead of)[^\n]*format/i);
+assert.match(refs.start.split('## Built-in grill')[0], /every question[^\n]*host question rule[^\n]*overrides/i);
+assert.match(skill, /asynchronous invocation, preselected options and elapsed time are not confirmation/);
+for (const text of Object.values(refs)) assert.doesNotMatch(text, /AskUserQuestion/);
 assert.match(refs.clean, /--dry-run/);
 assert.match(refs.help, /Never run a command that changes state/);
 for (const name of ['SKILL.md', ...Object.keys(refs)]) {
@@ -112,6 +122,21 @@ const readJson = (rel) => JSON.parse(fs.readFileSync(path.join(repo, rel), 'utf-
 const version = readJson('package.json').version;
 assert.strictEqual(readJson('.claude-plugin/plugin.json').version, version);
 assert.ok(readJson('.claude-plugin/marketplace.json').plugins.every((p) => p.version === version));
+const codexManifest = readJson('plugin.json');
+assert.strictEqual(codexManifest.version, version);
+const releaseFiles = readJson('.work/gps-config.json').release.versionFiles;
+assert.ok(releaseFiles.includes('plugin.json'), 'GPS releases update the portable manifest');
+assert.ok(fs.existsSync(path.join(repo, 'skills', 'gps', 'SKILL.md')));
+assert.ok(fs.existsSync(path.join(repo, 'skills', 'gps', 'references', 'config.md')));
+assert.match(codexManifest.$schema, /^https:\/\/agent-plugins\.org\/schemas\//);
+assert.match(skill, /`\$gps/);
+assert.match(skill, /Translate `\/gps` shown in shared references or script output to `\$gps`/);
+for (const file of fs.readdirSync(refsDir)) {
+  const body = fs.readFileSync(path.join(refsDir, file), 'utf-8');
+  for (const match of body.matchAll(/`([a-z-]+\.js)`/g)) {
+    assert.ok(fs.existsSync(path.join(SCRIPTS, match[1])), `${file} references packaged script ${match[1]}`);
+  }
+}
 
 // Ready for the Claude plugin directory (claude.com/docs/plugins/pre-submission-checklist):
 // `claude plugin validate --strict` warns on a CLAUDE.md at the plugin root, the

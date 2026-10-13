@@ -13,10 +13,12 @@ const put = (rel, text) => {
 };
 const get = (rel) => fs.readFileSync(path.join(tmp, rel), 'utf-8');
 
-assert.deepStrictEqual(KNOWN_VERSION_FILES, ['package.json', '.claude-plugin/plugin.json',
+assert.deepStrictEqual(KNOWN_VERSION_FILES, ['package.json', 'plugin.json', '.codex-plugin/plugin.json', '.claude-plugin/plugin.json',
   '.claude-plugin/marketplace.json', 'pyproject.toml', 'Cargo.toml', 'CMakeLists.txt']);
 
 put('package.json', JSON.stringify({ name: 'x', version: '1.2.3' }, null, 2) + '\n');
+put('plugin.json', JSON.stringify({ name: 'x', version: '1.2.3' }, null, 2) + '\n');
+put('.codex-plugin/plugin.json', JSON.stringify({ name: 'x', version: '1.2.3' }, null, 2) + '\n');
 put('.claude-plugin/plugin.json', JSON.stringify({ name: 'x', version: '1.2.3' }, null, 2) + '\n');
 put('.claude-plugin/marketplace.json', JSON.stringify({ name: 'm', plugins: [{ name: 'a', version: '1.2.3' }, { name: 'b', version: '1.2.3' }] }, null, 2) + '\n');
 put('CMakeLists.txt', 'cmake_minimum_required(VERSION 3.20)\nproject(Foo VERSION 1.2.3 LANGUAGES CXX)\n');
@@ -24,13 +26,15 @@ put('pyproject.toml', '[project]\nname = "x"\n\n[tool.other]\nversion = "9"\n');
 fs.rmSync(path.join(tmp, 'pyproject.toml'));
 
 assert.deepStrictEqual(detectVersionFiles(tmp),
-  ['package.json', '.claude-plugin/plugin.json', '.claude-plugin/marketplace.json', 'CMakeLists.txt']);
+  ['package.json', 'plugin.json', '.codex-plugin/plugin.json', '.claude-plugin/plugin.json', '.claude-plugin/marketplace.json', 'CMakeLists.txt']);
 assert.deepStrictEqual(readVersions(tmp, ['package.json', '.claude-plugin/marketplace.json', 'CMakeLists.txt']).map((r) => r.version),
   ['1.2.3', '1.2.3', '1.2.3']);
 
-for (const f of ['package.json', '.claude-plugin/plugin.json', '.claude-plugin/marketplace.json', 'CMakeLists.txt']) {
+for (const f of ['package.json', 'plugin.json', '.codex-plugin/plugin.json', '.claude-plugin/plugin.json', '.claude-plugin/marketplace.json', 'CMakeLists.txt']) {
   writeVersion(tmp, f, '1.3.0');
 }
+assert.strictEqual(JSON.parse(get('plugin.json')).version, '1.3.0');
+assert.strictEqual(JSON.parse(get('.codex-plugin/plugin.json')).version, '1.3.0');
 assert.strictEqual(get('package.json'), JSON.stringify({ name: 'x', version: '1.3.0' }, null, 2) + '\n');
 const market = JSON.parse(get('.claude-plugin/marketplace.json'));
 assert.deepStrictEqual(market.plugins.map((p) => p.version), ['1.3.0', '1.3.0']);

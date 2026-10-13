@@ -12,6 +12,8 @@ const { parseVersion } = require('./semver');
 
 const KNOWN_VERSION_FILES = [
   'package.json',
+  'plugin.json',
+  '.codex-plugin/plugin.json',
   '.claude-plugin/plugin.json',
   '.claude-plugin/marketplace.json',
   'pyproject.toml',

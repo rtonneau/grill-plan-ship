@@ -1,6 +1,6 @@
 # grill-plan-ship
 
-**Universal workflow plugin for Claude Code:** grill → plan → ship → finish. User docs: `README.md`.
+**Shared workflow plugin for Claude Code and Codex:** grill → plan → ship → finish. User docs: `README.md`.
 
 ## Principle
 
@@ -9,6 +9,7 @@ The LLM does judgment only: questioning (grill), planning, reviewing and summari
 ## Layout
 
 ```
+plugin.json               portable manifest (keep its version equal to package.json)
 .claude-plugin/            plugin.json, marketplace.json (keep their versions equal to package.json)
 skills/gps/
 ├── SKILL.md               router only: command table, script contract, shared rules (< 100 lines; CI fails > 200)
@@ -40,7 +41,7 @@ Commands: init, scout, start (`--issue`), status, clean, config, write, plan, sh
 ## Rules for SKILL.md and references
 
 - SKILL.md has no procedures (no numbered steps); it routes to `references/<command>.md`.
-- In references, `<name>.js` means `node ${CLAUDE_SKILL_DIR}/scripts/<name>.js` (Claude Code substitutes the braced variable in SKILL.md and in `allowed-tools`, which pre-approves each script by name: a new script needs its own `allowed-tools` line, checked by `tests/skill.test.js`). Keep each file short (≤ 40 lines, checked by `tests/skill.test.js`) and leave procedure that can be scripted to a script.
+- In references, `<name>.js` means `node ${CLAUDE_SKILL_DIR}/scripts/<name>.js` (Claude Code substitutes the braced variable in SKILL.md and in `allowed-tools`, which pre-approves each script by name: a new script needs its own `allowed-tools` line, checked by `tests/skill.test.js`). Codex resolves scripts from the loaded skill directory and uses `dispatch-prompt.js --host codex` with explicit project model mappings (decision 0006). Keep each file short (≤ 40 lines, checked by `tests/skill.test.js`) and leave procedure that can be scripted to a script.
 - `tests/skill.test.js` checks the router, sizes, script names, one test per script, and that every asset is used.
 
 ## Testing
