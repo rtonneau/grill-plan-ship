@@ -107,10 +107,36 @@ assert.strictEqual(badSwitch.ok, false);
 assert.deepStrictEqual(badSwitch.commands, ['git switch feat/missing']);
 git('switch', '-q', 'feat/dark-mode');
 
-// Detached HEAD is refused.
+// A detached HEAD at a local branch is accepted and records that PR base.
 git('switch', '-q', '--detach');
-assert.match(validateBranchName(repo, 'feat/other').pop(), /HEAD is detached/);
+assert.deepStrictEqual(validateBranchName(repo, 'feat/other'), []);
+const detachedInfo = createSessionBranch(repo, 'feat/other');
+assert.strictEqual(detachedInfo.base_branch, 'feat/dark-mode');
+assert.strictEqual(currentBranch(repo), 'feat/other');
 git('switch', '-q', 'feat/dark-mode');
+
+// The branch checked out in another linked worktree is the base, even when it
+// is not main. Creating the GPS feature branch does not require checking that
+// base branch out twice.
+const linkedRepo = path.join(tmp, 'linked-repo');
+const linkedWorktree = path.join(tmp, 'linked-worktree');
+fs.mkdirSync(linkedRepo);
+const linkedGit = (...args) => execFileSync('git', args, {
+  cwd: linkedRepo, encoding: 'utf-8', stdio: ['ignore', 'pipe', 'ignore'],
+}).trim();
+linkedGit('init', '-q', '-b', 'main');
+linkedGit('config', 'user.email', 't@example.com');
+linkedGit('config', 'user.name', 'T');
+fs.writeFileSync(path.join(linkedRepo, 'app.js'), '1\n');
+linkedGit('add', 'app.js');
+linkedGit('commit', '-q', '-m', 'initial');
+linkedGit('switch', '-q', '-c', 'integration/sqlite');
+linkedGit('worktree', 'add', '-q', '--detach', linkedWorktree, 'integration/sqlite');
+assert.deepStrictEqual(validateBranchName(linkedWorktree, 'feat/sqlite-table-engine'), []);
+const linkedInfo = createSessionBranch(linkedWorktree, 'feat/sqlite-table-engine');
+assert.strictEqual(linkedInfo.base_branch, 'integration/sqlite');
+assert.strictEqual(currentBranch(linkedWorktree), 'feat/sqlite-table-engine');
+linkedGit('worktree', 'remove', '--force', linkedWorktree);
 
 // openPullRequest with a stub gh: every call is appended to ghLog;
 // "pr list" prints GH_STUB_OPEN_PR (an already-open PR) when set.

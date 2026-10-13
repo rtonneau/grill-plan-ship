@@ -8,4 +8,6 @@ This is transcription, not design: copy what was agreed. Don't re-brainstorm, re
 2. Fill its skeleton with the agreed content and write it to the payload path it prints. On the plan phase of a GitHub project, name the `**Branch:**` after the plan yourself (e.g. `feat/dark-mode-toggle`); don't ask.
 3. `write-apply.js`. A `❌` with a list means nothing was written: fix those items in the payload and run it again. Relay its `✅`, `🌿` (session branch), `🗂️` (session record committed, plan phase) and `📌` (GitHub issue) lines.
 
+For a GitHub plan, a detached linked worktree is supported when GPS can identify one local branch at HEAD (preferably the branch checked out in another worktree). GPS creates the session branch from the detached commit and records that identified branch as the PR base. An ambiguous or inaccessible Git state is refused without consuming the payload.
+
 **Example:** `/gps write`
