@@ -1,7 +1,12 @@
 #!/usr/bin/env node
 
 /**
- * finish.js [--close-issue | --keep-issue] [--json]
+ * finish.js [--close-issue | --keep-issue] [--title <title>] [--json]
+ *
+ * --title is the PR title's descriptive part (after the "feat:"/"fix:"
+ * prefix derived from the branch): a clean one-line summary of what the
+ * session ended up doing, written by Claude. Without it, the raw feature
+ * name from /gps start is used instead.
  *
  * /gps finish: closes the current session: writes INDEX.md (session
  * summary), records finished_at in .session-config.json, clears
@@ -200,8 +205,10 @@ function buildPrBody(projectRoot, sessionDir, config, tickets, bounded) {
 }
 
 // Pushes the session branch and opens its PR (GitHub sessions only).
-function openSessionPr(projectRoot, sessionDir, config, tickets, bounded) {
-  const title = `${branchType(config.git.branch)}: ${config.feature_name}`;
+// `prTitle`, when given, is the clean one-line summary Claude wrote for
+// what the session ended up doing; it replaces the raw feature name.
+function openSessionPr(projectRoot, sessionDir, config, tickets, bounded, prTitle) {
+  const title = `${branchType(config.git.branch)}: ${prTitle || config.feature_name}`;
   const body = buildPrBody(projectRoot, sessionDir, config, tickets, bounded);
   return openPullRequest(projectRoot, config.git, { title, body });
 }
@@ -309,7 +316,7 @@ function finishSession({ options, projectRoot, warn }) {
 
   let pr = null;
   if (config.git) {
-    pr = openSessionPr(projectRoot, sessionDir, config, tickets, bounded);
+    pr = openSessionPr(projectRoot, sessionDir, config, tickets, bounded, options.title && options.title.trim());
     if (pr.ok) {
       // Saved at once, so a finish interrupted after this point reuses the
       // PR on its next run instead of opening a second one.
@@ -406,7 +413,7 @@ function finishSession({ options, projectRoot, warn }) {
 }
 
 main({
-  usage: 'finish.js [--close-issue | --keep-issue] [--json]',
-  options: { 'close-issue': 'boolean', 'keep-issue': 'boolean' },
+  usage: 'finish.js [--close-issue | --keep-issue] [--title <title>] [--json]',
+  options: { 'close-issue': 'boolean', 'keep-issue': 'boolean', title: 'string' },
   run: finishSession,
 });

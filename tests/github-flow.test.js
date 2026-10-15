@@ -493,6 +493,15 @@ assert.strictEqual(config.history.filter((e) => e.event === 'branch_created').le
 assert.strictEqual(config.history.filter((e) => e.event === 'plan_written').length, 1);
 assert.ok(!fs.existsSync(target.payloadPath), 'payload removed once written');
 
+// I1b. finish --title overrides the raw feature name in the PR title
+// (the branchType prefix stays mechanical).
+markTicketDone(sessionDir, 'retryslug');
+res = ok('finish.js', '--title', 'Recover from a mid-write crash cleanly');
+assert.match(res.out, /Pull request:/);
+const retryPr = prCreates()[prCreates().length - 1];
+assert.deepStrictEqual(retryPr.args.slice(0, 8),
+  ['pr', 'create', '--base', 'main', '--head', 'feat/retry-branch', '--title', 'feat: Recover from a mid-write crash cleanly']);
+
 // I2. grill write of an issue session: issue filed, then resume.md fails.
 git('switch', '-q', 'main');
 ok('start.js', '--issue', 'Retry Issue');
