@@ -2,7 +2,7 @@
 
 All notable changes to grill-plan-ship. Versions follow [semantic versioning](https://semver.org/).
 
-## Unreleased
+## 2.8.3 (2026-10-16)
 
 - Explain git's "dubious ownership" refusal (typically an agent sandbox running as another account) instead of echoing its `git config --global` suggestion, which cannot help there.
 
