@@ -4,6 +4,8 @@ All notable changes to grill-plan-ship. Versions follow [semantic versioning](ht
 
 ## Unreleased
 
+- Explain git's "dubious ownership" refusal (typically an agent sandbox running as another account) instead of echoing its `git config --global` suggestion, which cannot help there.
+
 ## 2.8.1 (2026-10-13)
 
 - Support planned GPS sessions in detached linked worktrees by inferring the pull request base from the branch checked out at the same commit, including non-default branches.

@@ -7,7 +7,7 @@ const { execSync } = require('child_process');
 const {
   readRecentCommits, readGitStatus, commitFiles, restoreFromHead, commitExists, describeCommit,
   commitWorkDir, describeWorkCommit, branchesHolding, isIgnored, GPS_WORK_PATHS,
-  commitMessages, defaultBranch, isCleanTree, tagExists, createTag, headCommit, pushWithTags, remoteHasTag, remoteBranchAt, headSha, fetchBehind,
+  failureReason, commitMessages, defaultBranch, isCleanTree, tagExists, createTag, headCommit, pushWithTags, remoteHasTag, remoteBranchAt, headSha, fetchBehind,
 } = require('../../skills/gps/scripts/lib/git');
 
 const readGitStatusSummary = (root, dir) => readGitStatus(root, dir).session;
@@ -364,5 +364,14 @@ fs.rmSync(projectRoot, { recursive: true, force: true });
   assert.strictEqual(createTag(root, 'v2', 'x').ok, false, 'not a repo');
   fs.rmSync(root, { recursive: true, force: true });
 }
+
+// failureReason keeps git's last stderr line, except for the dubious-ownership
+// refusal, whose last line (a `git config` suggestion) would mislead.
+assert.strictEqual(failureReason({ stderr: 'fatal: not a git repository\n' }), 'fatal: not a git repository');
+const dubious = failureReason({
+  stderr: "fatal: detected dubious ownership in repository at 'C:/x'\nTo add an exception for this directory, call:\n\n\tgit config --global --add safe.directory C:/x\n",
+});
+assert.ok(/another user/.test(dubious) && /outside the sandbox/.test(dubious));
+assert.ok(!/safe\.directory C:/.test(dubious), 'the misleading suggestion is not echoed');
 
 console.log('git.test.js: all assertions passed');

@@ -47,9 +47,17 @@ function branchesHolding(projectRoot, relPath) {
     .filter((branch) => tryGit(projectRoot, ['cat-file', '-e', `${branch}:${relPath}`]) !== null);
 }
 
+// Git's "dubious ownership" refusal ends with a suggested `git config` command,
+// so the last stderr line alone points at a fix that may not apply: a sandboxed
+// process runs as another account and can't read the user's global config.
+const DUBIOUS_OWNERSHIP_REASON = 'git refuses this repository because it belongs to another user. '
+  + 'If safe.directory is already set in your global git config, this process runs as a different '
+  + 'account (typically an agent sandbox) and cannot read it: rerun the script outside the sandbox';
+
 // Short, readable reason from a failed execFileSync.
 function failureReason(err) {
   const stderr = err && err.stderr ? String(err.stderr).trim() : '';
+  if (/dubious ownership/i.test(stderr)) return DUBIOUS_OWNERSHIP_REASON;
   if (stderr) return stderr.split('\n').filter(Boolean).pop();
   return err && err.code === 'ENOENT' ? 'command not found' : (err && err.message) || String(err);
 }
