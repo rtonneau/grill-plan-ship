@@ -140,7 +140,7 @@ Add the rule beside “How to run a command”: when Codex has supplied reposito
 
 - [ ] **Step 4: Document diagnosis and a live smoke case**
 
-In `docs/CODEX-SETUP.md`, explain that `~/.codex/AGENTS.md` is global, that Codex's Claude-import migration can place `@~/dotfiles/claude/COMMON_CLAUDE.md` there, and that host expansion is independent of the target cwd. Record the captured failure signature accurately: the absolute path was correct, the sandboxed manual `Get-Content` received `Access is denied` plus a secondary `PathNotFound`, and UI truncation was not path construction. In `docs/CODEX-SMOKE-TEST.md`, add a Windows workspace-write case that starts a disposable session, saves a one-ticket plan, runs `ticket-start.js --mode subagent+inline`, verifies valid config/no temp residue, and records client/version plus PASS/FAIL rather than claiming unrun coverage.
+In `docs/CODEX-SETUP.md`, explain that `~/.codex/AGENTS.md` is global and that Codex's Claude-import migration can place a literal `@~/dotfiles/claude/COMMON_CLAUDE.md` there without expanding it. Recommend inlining the intended Codex-global content. Record the captured failure signature accurately: the agent resolved the correct absolute path, the sandboxed manual `Get-Content` received `Access is denied` plus a secondary `PathNotFound`, and UI truncation was not path construction. In `docs/CODEX-SMOKE-TEST.md`, add a Windows workspace-write case that starts a disposable session, saves a one-ticket plan, runs `ticket-start.js --mode subagent+inline`, verifies valid config/no temp residue, and records client/version plus PASS/FAIL rather than claiming unrun coverage.
 
 - [ ] **Step 5: Run documentation and size checks**
 

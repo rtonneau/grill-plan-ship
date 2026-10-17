@@ -4,7 +4,7 @@
 
 GPS 2.8.3 can fail during an otherwise valid Codex shipping session on Windows. Updating an existing `.session-config.json` writes a sibling temporary file and calls `fs.renameSync(temp, destination)`. A Codex workspace sandbox may permit writes to both files but deny replacement-by-rename with `EPERM`, so `ticket-start.js` exits after partially preparing the ticket workspace.
 
-At GPS startup, Codex agents have also redundantly tried to load repository instructions with PowerShell after those instructions were already supplied by the host. The machine's global `C:\Users\rtonneau\.codex\AGENTS.md`, created by Codex's Claude-import migration, contains `@~/dotfiles/claude/COMMON_CLAUDE.md`; it therefore applies to every project. The captured command used the correct absolute `C:\Users\rtonneau\dotfiles\claude\COMMON_CLAUDE.md` path, but the workspace sandbox denied that separate shell read. PowerShell then printed both `Access is denied` and a secondary `PathNotFound`; the UI's ellipsis made the path look truncated. The target repository cwd did not participate in resolution. GPS scripts do not parse `AGENTS.md`; the mitigation belongs in skill routing and Codex setup guidance.
+At GPS startup, a Codex agent also tried to load shared instructions with PowerShell. The machine's global `C:\Users\rtonneau\.codex\AGENTS.md`, created by Codex's Claude-import migration, contained the literal Claude-style import `@~/dotfiles/claude/COMMON_CLAUDE.md`; it therefore appeared in every project's context without its target content. The agent resolved the correct absolute `C:\Users\rtonneau\dotfiles\claude\COMMON_CLAUDE.md` path, but the workspace sandbox denied that shell read. PowerShell then printed both `Access is denied` and a secondary `PathNotFound`; the UI's ellipsis made the path look truncated. The target repository cwd did not participate in resolution. GPS scripts do not parse `AGENTS.md`; the mitigation belongs in Codex configuration and setup guidance.
 
 ## Requirements
 
@@ -15,8 +15,8 @@ At GPS startup, Codex agents have also redundantly tried to load repository inst
 - Use one shared file-replacement primitive for JSON state, changelog fragments, and release version files so they cannot drift into separate Windows behaviors.
 - Preserve existing serialization exactly: `writeJsonAtomic` has no trailing newline; changelog fragments and version files retain their current content and newline rules.
 - Add regression coverage that simulates denied replacement without depending on the test runner itself being sandboxed.
-- Tell Codex agents that repository/global instructions supplied in conversation context are already loaded; GPS startup should load its own `SKILL.md` and selected reference, not shell-read `AGENTS.md` or expand its `@...` imports again.
-- Document that `~/.codex/AGENTS.md` is global across projects, Codex rather than GPS or the target repository cwd resolves imports such as `@~/...`, and a redundant sandboxed shell read may fail even though host injection succeeded.
+- Pressure-test whether the current GPS router causes a fresh Codex agent to reread instruction content already supplied in conversation; add router wording only if the no-guidance control reproduces that behavior.
+- Document that `~/.codex/AGENTS.md` is global across projects, Claude-style imports such as `@~/...` may remain literal in Codex, and a sandboxed attempt to compensate with a shell read may fail even when the path is correct.
 - Keep `skills/gps/SKILL.md` below 100 lines and reference files at or below 40 lines.
 
 ## Non-goals

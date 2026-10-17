@@ -5,7 +5,7 @@ All notable changes to grill-plan-ship. Versions follow [semantic versioning](ht
 ## Unreleased
 
 - Fall back to sandbox-compatible direct writes when Windows denies atomic replacement of GPS state, changelog fragments, or release version files, while retaining atomic rename elsewhere and cleaning temporary files.
-- Explain Codex's global `AGENTS.md` injection and distinguish host-resolved imports from redundant sandboxed shell reads; add the remaining live Windows workspace-write smoke case.
+- Explain Codex's global `AGENTS.md` injection, warn that Claude-style `@~/...` imports may remain literal and trigger sandbox-denied shell reads, and add the remaining live Windows workspace-write smoke case.
 
 ## 2.8.3 (2026-10-16)
 
