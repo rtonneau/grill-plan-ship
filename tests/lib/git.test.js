@@ -97,6 +97,12 @@ assert.match(commitFiles(projectRoot, ['code.js'], 'again').reason, /has changes
 assert.strictEqual(commitFiles(projectRoot, ['nope.js'], 'x').ok, false);
 assert.strictEqual(commitExists(projectRoot, 'deadbeef'), false);
 assert.strictEqual(describeCommit(projectRoot, 'deadbeef'), null);
+// A git that cannot inspect the repository is not "commit absent": commitExists
+// says so instead of reporting the commit missing.
+{
+  const bare = fs.mkdtempSync(path.join(os.tmpdir(), 'gps-exists-norepo-'));
+  assert.throws(() => commitExists(bare, committed.sha), /git could not inspect the repository/);
+}
 // commitFiles with a tracked file deleted from disk: committed as a deletion
 // with a pathspec (nothing else staged goes in), even under an ignored
 // directory; restoreFromHead puts files back after a failed commit.

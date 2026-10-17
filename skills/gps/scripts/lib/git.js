@@ -117,7 +117,11 @@ function sessionBaseBranch(projectRoot) {
   throw new Error('HEAD is detached and no local branch points at it; check out or create the branch that the pull request should target');
 }
 
+// Throws when git cannot inspect the repository at all (dubious ownership,
+// not a repo, ...): that is not the same as the commit being absent.
 function commitExists(projectRoot, sha) {
+  const repo = gitResult(projectRoot, ['rev-parse', '--git-dir']);
+  if (!repo.ok) throw new Error(`git could not inspect the repository: ${repo.reason}`);
   return tryGit(projectRoot, ['cat-file', '-e', `${sha}^{commit}`]) !== null;
 }
 
