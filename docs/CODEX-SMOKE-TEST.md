@@ -42,6 +42,7 @@ The disposable repository was `C:\Users\rtonneau\AppData\Local\Temp\gps-codex-di
 | Claude to Codex resume | NOT RUN | Session creation prohibited; Claude authentication not checked |
 | Codex to Claude resume | NOT RUN | Session creation prohibited; Claude authentication not checked |
 | Local finish without remote | NOT RUN | No live GPS session was created; deterministic end-to-end tests cover local completion |
+| Workspace-write session config replacement | NOT RUN | In a disposable workspace-write session, save a one-ticket plan, run `ticket-start.js 1 --mode subagent+inline`, parse the updated `.session-config.json`, and assert no sibling `.tmp-*` remains |
 
 CLI live session requested no model or effort override. Its startup reported model `gpt-6.1-sol`, reasoning effort `medium`, sandbox `read-only`, provider OpenAI. These observations describe the parent discovery run only; they do not prove any child model availability or delegation behavior.
 
@@ -72,5 +73,6 @@ Use two approved tickets: add/export subtract and assert it; then add/export mul
 6. Test native inherit/inherit: no mappings or emitted overrides; record effective runtime settings only if actually observable. Exercise missing tool/model capability if an appropriate client configuration is available; otherwise retain NOT RUN.
 7. Create/save a plan in authenticated Claude, complete one ticket and resume the same checkout/branch in Codex. Repeat in reverse with a fresh fixture; only remaining tickets may run.
 8. Finish without a remote: INDEX/session close, no push/PR/issue operation. Record PASS, FAIL, BLOCKED or NOT RUN per row, with sanitized actions and requested/observed child settings.
+9. On Windows with workspace-write sandboxing, run `ticket-start.js 1 --mode subagent+inline` against an existing session config. Verify exit 0, valid updated JSON, the recorded ship mode and ticket event, and no `.session-config.json.tmp-*` residue. Record the exact Codex client version and sandbox profile.
 
 Deterministic fixes and Windows CLI installation/discovery are verified. Full Windows CLI/desktop delegation and cross-host compatibility remain partially verified until these live rows pass.
