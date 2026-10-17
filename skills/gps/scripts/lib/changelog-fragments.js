@@ -6,7 +6,7 @@
 
 const fs = require('fs');
 const path = require('path');
-const { GpsError } = require('./guard');
+const { GpsError, replaceFile } = require('./guard');
 const { LEVELS } = require('./semver');
 const { parsePayload } = require('./changelog');
 
@@ -66,9 +66,7 @@ function listFragments(projectRoot) {
 function writeFragment(projectRoot, sessionId, fragment) {
   const filePath = fragmentPath(projectRoot, sessionId);
   fs.mkdirSync(path.dirname(filePath), { recursive: true });
-  const tmpPath = `${filePath}.tmp-${process.pid}`;
-  fs.writeFileSync(tmpPath, serializeFragment(fragment));
-  fs.renameSync(tmpPath, filePath);
+  replaceFile(filePath, serializeFragment(fragment));
   return `${FRAGMENTS_DIR}/${sessionId}.md`;
 }
 

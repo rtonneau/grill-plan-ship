@@ -63,6 +63,16 @@ writeFragment(root, '2026-10-05__a', mk('major'));
 assert.strictEqual(fs.readdirSync(dir).filter((n) => n.startsWith('2026-10-05__a')).length, 1);
 assert.strictEqual(listFragments(root)[0].bump, 'major');
 
+const originalRename = fs.renameSync;
+fs.renameSync = () => { const err = new Error('denied'); err.code = 'EPERM'; throw err; };
+try {
+  writeFragment(root, '2026-10-05__a', mk('minor'));
+} finally {
+  fs.renameSync = originalRename;
+}
+assert.strictEqual(listFragments(root)[0].bump, 'minor');
+assert.strictEqual(fs.readdirSync(dir).filter((n) => n.includes('.tmp-')).length, 0);
+
 fs.writeFileSync(path.join(dir, '2026-10-05__bad.md'), 'nope');
 assert.throws(() => listFragments(root), (e) => e.message.startsWith('.work/changelog/2026-10-05__bad.md'));
 

@@ -42,6 +42,16 @@ assert.strictEqual(market.version, undefined);
 assert.ok(get('.claude-plugin/marketplace.json').endsWith('}\n'));
 assert.strictEqual(get('CMakeLists.txt'), 'cmake_minimum_required(VERSION 3.20)\nproject(Foo VERSION 1.3.0 LANGUAGES CXX)\n');
 
+const originalRename = fs.renameSync;
+fs.renameSync = () => { const err = new Error('denied'); err.code = 'EPERM'; throw err; };
+try {
+  writeVersion(tmp, 'plugin.json', '1.4.0');
+} finally {
+  fs.renameSync = originalRename;
+}
+assert.strictEqual(JSON.parse(get('plugin.json')).version, '1.4.0');
+assert.strictEqual(fs.readdirSync(tmp).filter((n) => n.includes('.tmp-')).length, 0);
+
 // pyproject: only the project table; a dependency version elsewhere is untouched.
 put('pyproject.toml', '[tool.other]\nversion = "9"\n\n[project]\nname = "x"\nversion = "0.1.0"\n\n[tool.x]\nversion = "7"\n');
 assert.strictEqual(readVersions(tmp, ['pyproject.toml'])[0].version, '0.1.0');

@@ -7,7 +7,7 @@
 
 const fs = require('fs');
 const path = require('path');
-const { GpsError, readJson } = require('./guard');
+const { GpsError, readJson, replaceFile } = require('./guard');
 const { parseVersion } = require('./semver');
 
 const KNOWN_VERSION_FILES = [
@@ -31,12 +31,6 @@ const isToml = (file) => file.endsWith('.toml');
 
 function abs(projectRoot, file) {
   return path.join(projectRoot, ...file.split('/'));
-}
-
-function replaceFile(filePath, content) {
-  const tmpPath = `${filePath}.tmp-${process.pid}`;
-  fs.writeFileSync(tmpPath, content);
-  fs.renameSync(tmpPath, filePath);
 }
 
 // Atomic like writeJsonAtomic (temp file + rename), plus the trailing newline
