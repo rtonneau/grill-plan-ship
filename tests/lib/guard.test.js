@@ -4,7 +4,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const {
-  GpsError, localDate, isSlug, slugify, readJson, writeJsonAtomic, MAX_SLUG_LENGTH,
+  GpsError, localDate, isSlug, slugify, readJson, replaceFile, writeJsonAtomic, MAX_SLUG_LENGTH,
 } = require('../../skills/gps/scripts/lib/guard');
 
 const now = new Date(2026, 8, 22, 23, 5, 9); // local time, late evening
@@ -63,6 +63,29 @@ assert.deepStrictEqual(readJson(file), { a: 1 });
 writeJsonAtomic(file, { a: 2 });
 assert.deepStrictEqual(readJson(file), { a: 2 });
 assert.deepStrictEqual(fs.readdirSync(dir), ['x.json']); // no temp file left behind
+
+// replaceFile falls back to a direct write when a Windows sandbox denies
+// replacement-by-rename, without leaving its sibling temp file behind.
+for (const code of ['EPERM', 'EACCES']) {
+  const existing = path.join(dir, `existing-${code}.txt`);
+  fs.writeFileSync(existing, 'old');
+  const deniedRename = { ...fs, renameSync() { const err = new Error(code); err.code = code; throw err; } };
+  replaceFile(existing, `new-${code}`, deniedRename);
+  assert.strictEqual(fs.readFileSync(existing, 'utf-8'), `new-${code}`);
+
+  const missing = path.join(dir, `missing-${code}.txt`);
+  replaceFile(missing, `created-${code}`, deniedRename);
+  assert.strictEqual(fs.readFileSync(missing, 'utf-8'), `created-${code}`);
+  assert.ok(!fs.readdirSync(dir).some((name) => name.includes('.tmp-')));
+}
+
+// Unexpected rename failures propagate, preserve the destination, and clean up.
+const unchanged = path.join(dir, 'unchanged.txt');
+fs.writeFileSync(unchanged, 'before');
+const ioFailure = { ...fs, renameSync() { const err = new Error('disk failure'); err.code = 'EIO'; throw err; } };
+assert.throws(() => replaceFile(unchanged, 'after', ioFailure), (err) => err.code === 'EIO');
+assert.strictEqual(fs.readFileSync(unchanged, 'utf-8'), 'before');
+assert.ok(!fs.readdirSync(dir).some((name) => name.includes('.tmp-')));
 
 fs.writeFileSync(file, '{bad');
 assert.throws(() => readJson(file, 'config'), (err) => err instanceof GpsError && /config is not valid JSON/.test(err.message));

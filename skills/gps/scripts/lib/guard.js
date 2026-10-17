@@ -108,12 +108,26 @@ function readJsonOrNull(filePath) {
   }
 }
 
-// Writes JSON via a temp file + rename, so an interrupted write never
-// leaves a half-written file in place.
-function writeJsonAtomic(filePath, data) {
-  const tmpPath = `${filePath}.tmp-${process.pid}`;
-  fs.writeFileSync(tmpPath, JSON.stringify(data, null, 2));
-  fs.renameSync(tmpPath, filePath);
+// Replaces a file via a sibling temp file. Windows workspace sandboxes can
+// allow writes while denying replacement-by-rename; only for that permission
+// failure, fall back to writing the already-serialized content directly.
+function replaceFile(filePath, content, io = fs) {
+  const nonce = `${process.pid}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  const tmpPath = `${filePath}.tmp-${nonce}`;
+  io.writeFileSync(tmpPath, content);
+  try {
+    io.renameSync(tmpPath, filePath);
+  } catch (err) {
+    if (!err || !['EPERM', 'EACCES'].includes(err.code)) throw err;
+    io.writeFileSync(filePath, content);
+  } finally {
+    if (io.existsSync(tmpPath)) io.unlinkSync(tmpPath);
+  }
+}
+
+// Writes JSON through replaceFile; interrupted normal writes remain atomic.
+function writeJsonAtomic(filePath, data, io = fs) {
+  replaceFile(filePath, JSON.stringify(data, null, 2), io);
 }
 
 module.exports = {
@@ -130,5 +144,6 @@ module.exports = {
   slugify,
   readJson,
   readJsonOrNull,
+  replaceFile,
   writeJsonAtomic,
 };
