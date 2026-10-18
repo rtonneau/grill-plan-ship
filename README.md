@@ -83,23 +83,23 @@ Or, once the direction is clear, `/gps auto` runs from wherever the session is t
 `/gps ship` asks once how to implement the tickets:
 
 - **inline:** the coding agent implements each ticket in this session.
-- **subagent:** each ticket goes to a fresh subagent on the ticket's `**Model:**` hint (`haiku`, `sonnet`, `opus` or `inherit`) and `**Effort:**` hint (`low`, `medium`, `high`, `xhigh` or `inherit`). The subagent commits through `ticket-complete.js`, and `ticket-check.js` verifies its DONE report before the next ticket starts.
+- **subagent:** each ticket goes to a fresh subagent on the ticket's portable `**Model:**` tier (`fast`, `medium`, `heavy` or `inherit`) and `**Effort:**` hint (`low`, `medium`, `high`, `xhigh` or `inherit`). The subagent commits through `ticket-complete.js`, and `ticket-check.js` verifies its DONE report before the next ticket starts.
 - **subagent + inline follow-up:** the subagent implements and verifies; this session reviews the diff, re-runs the Verification Step, fixes what's needed and commits. `/gps auto` recommends this mode, since every ticket gets a second look before it is committed.
 
 **No mode runs tickets in parallel.** In both subagent modes, one subagent is dispatched per ticket, and the next one starts only after the previous ticket is committed (or the run stops). Even tickets that could be done in parallel run one after the other: two live subagents would edit the same working tree, and each commit would pick up the other's changes.
 
 **Effort hints in Claude Code.** An Agent call can pass a model but not an effort, so the plugin ships one subagent per level, `agents/gps-ticket-<level>.md` (`low` to `xhigh`), each setting its `effort:`. `dispatch-prompt.js` picks the one matching the ticket and passes the model on the call; `inherit` uses the general-purpose subagent at the session's own effort. A level the model doesn't support falls back to the highest one it does, and inline mode ignores effort hints, since a running session can't change its own effort. Hints stop at `xhigh` on purpose: `max` is slow and costly for one small ticket, so `/gps write` refuses it and asks you to split the ticket instead, or to run it inline under `/effort max`. The reasoning is recorded in [docs/decisions/0001-effort-hints-stop-at-xhigh.md](docs/decisions/0001-effort-hints-stop-at-xhigh.md).
 
-**Codex delegation.** The shared ticket aliases (`haiku`, `sonnet`, `opus`) describe implementation preferences. Configure their Codex model IDs in `.work/gps-config.json`, merging this section into the existing configuration:
+**Shared model tiers.** Ticket files use provider-neutral capability names. At dispatch GPS maps `fast`/`medium`/`heavy` to Haiku/Sonnet/Opus for Claude and `gpt-6-luna`/`gpt-6-sol`/`gpt-6-astra` for Codex. Codex mappings can be overridden in `.work/gps-config.json` when a client exposes different native IDs or supported effort levels:
 
 ```json
 {
   "delegation": {
     "codex": {
       "models": {
-        "haiku": { "model": "<available-model-id>", "efforts": ["low", "medium"] },
-        "sonnet": { "model": "<available-model-id>", "efforts": ["low", "medium", "high"] },
-        "opus": { "model": "<available-model-id>", "efforts": ["low", "medium", "high", "xhigh"] }
+        "fast": { "model": "<available-model-id>", "efforts": ["low", "medium"] },
+        "medium": { "model": "<available-model-id>", "efforts": ["low", "medium", "high"] },
+        "heavy": { "model": "<available-model-id>", "efforts": ["low", "medium", "high", "xhigh"] }
       },
       "inheritEfforts": ["low", "medium", "high"]
     }
@@ -107,7 +107,7 @@ Or, once the direction is clear, `/gps auto` runs from wherever the session is t
 }
 ```
 
-Replace each placeholder with a model available in your client and list only the effort levels that model supports. `inheritEfforts` describes the current session model; update it when that model changes. `dispatch-prompt.js --host codex --json` emits a native spawn call containing the same ticket brief used by Claude, plus explicit model and reasoning overrides. Before ticket-start, `dispatch-preflight.js` validates every pending delegated ticket, including later tickets, without mutation. The host then verifies actual tool/account model and effort support. Missing mappings, unsupported efforts or unknown required parent effort stop before implementation; each dispatch revalidates current settings. Accepted overrides and runtime parent effort must match preflight. `/gps auto --delegate` follows the same checks and cannot run finish after failure. The agent also checks the current client's capabilities before spawning. Explicit `inherit/inherit` needs no mapping; inline mode needs no delegation configuration. See [decision 0006](docs/decisions/0006-shared-core-with-host-dispatch-adapters.md).
+Replace each placeholder with a model available in your client and list only the effort levels that model supports. Omitted tier mappings use the built-in Codex defaults. `inheritEfforts` describes the current session model; update it when that model changes. `dispatch-prompt.js --host codex --json` emits a native spawn call containing the same ticket brief used by Claude, plus explicit model and reasoning overrides. Before ticket-start, `dispatch-preflight.js` validates every pending delegated ticket, including later tickets, without mutation. The host then verifies actual tool/account model and effort support. Unsupported efforts or unknown required parent effort stop before implementation; each dispatch revalidates current settings. Accepted overrides and runtime parent effort must match preflight. `/gps auto --delegate` follows the same checks and cannot run finish after failure. Explicit `inherit/inherit` needs no mapping; inline mode needs no delegation configuration. See [decision 0007](docs/decisions/0007-provider-neutral-model-tiers.md).
 
 For a mapped Codex model with effort `inherit`, GPS requires `--parent-effort <low|medium|high|xhigh>` from authoritative current runtime context, validates it and emits it explicitly. Unknown parent effort requires an explicit ticket effort choice; do not infer it from settings, transcripts, model IDs or declared support. Explicit ticket effort takes precedence. Parent effort is runtime input and is never stored in session state. Native `inherit/inherit` omits both overrides; the host resolves these fields, including any host agent defaults.
 

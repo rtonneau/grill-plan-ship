@@ -50,7 +50,7 @@ const GRILL_SECTIONS = [
   assert.strictEqual(plan.branchPattern, undefined, 'no Branch without GitHub');
   assert.strictEqual(plan.ticketSeparator, '--- ticket: NN-<slug> ---');
   assert.match(plan.skeleton, /^\*\*Estimated effort:\*\* <!-- gps:fill/);
-  assert.match(plan.skeleton, /\n--- ticket: 01-<slug> ---\n\n\*\*Model:\*\* <!-- gps:fill haiku \| sonnet \| opus \| inherit -->/);
+  assert.match(plan.skeleton, /\n--- ticket: 01-<slug> ---\n\n\*\*Model:\*\* <!-- gps:fill fast \| medium \| heavy \| inherit -->/);
   assert.match(h.ok(root, 'write-prepare.js').out, /Repeat the ticket block once per approved ticket/);
 
   // A payload left from an earlier run is flagged.

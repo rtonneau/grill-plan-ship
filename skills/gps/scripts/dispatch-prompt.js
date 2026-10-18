@@ -4,9 +4,9 @@
  * dispatch-prompt.js <number> --mode <subagent|subagent+inline> [--host <claude|codex>] [--model <m>] [--effort <e>] [--parent-effort <low|medium|high|xhigh>] [--json]
  *
  * /gps ship, subagent modes: builds one shared ticket brief and a host call.
- * --host defaults to claude; codex uses explicit delegation.codex mappings
- * from the project config and passes model/effort overrides independently.
- * --model overrides the portable ticket alias (haiku, sonnet, opus, inherit).
+ * --host defaults to claude; codex uses built-in tier mappings, optionally
+ * overridden by delegation.codex mappings in the project config.
+ * --model overrides the portable ticket tier (fast, medium, heavy, inherit).
  * --effort overrides low, medium, high, xhigh or inherit (no max).
  * Run ticket-start.js <number> first: the prompt points at its log.
  *
@@ -65,7 +65,7 @@ function buildPrompt(ticket, mode, scratchDir) {
 }
 
 main({
-  usage: 'dispatch-prompt.js <number> --mode <subagent|subagent+inline> [--host <claude|codex>] [--model <haiku|sonnet|opus|inherit>] [--effort <low|medium|high|xhigh|inherit>] [--parent-effort <low|medium|high|xhigh>] [--json]',
+  usage: 'dispatch-prompt.js <number> --mode <subagent|subagent+inline> [--host <claude|codex>] [--model <fast|medium|heavy|inherit>] [--effort <low|medium|high|xhigh|inherit>] [--parent-effort <low|medium|high|xhigh>] [--json]',
   positionals: { min: 1, max: 1 },
   options: { mode: 'string', host: 'string', model: 'string', effort: 'string', 'parent-effort': 'string' },
   run({ positionals: [arg], options, projectRoot }) {

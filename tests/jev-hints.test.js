@@ -57,9 +57,9 @@ function fakeEnv(behavior) {
   const res = h.ok(root, 'jev-hints.js', ['--json'], env, TICKETS);
   const data = JSON.parse(res.out);
   assert.strictEqual(data.used, true);
-  assert.deepStrictEqual(data.tickets['01-a'], { model: 'sonnet', modelRaw: 'sonnet-5.5', modelConfidence: 0.8, effort: 'high', effortConfidence: 0.7 });
+  assert.deepStrictEqual(data.tickets['01-a'], { model: 'medium', modelRaw: 'sonnet-5.5', modelConfidence: 0.8, effort: 'high', effortConfidence: 0.7 });
   const text = h.ok(root, 'jev-hints.js', [], env, TICKETS).out;
-  assert.match(text, /01-a: Model sonnet \(sonnet-5\.5, confidence 0\.8\) · Effort high \(confidence 0\.7\)/);
+  assert.match(text, /01-a: Model medium \(sonnet-5\.5, confidence 0\.8\) · Effort high \(confidence 0\.7\)/);
 }
 
 // Enabled but the call fails (connection refused) -> one

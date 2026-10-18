@@ -84,7 +84,7 @@ const sections = (headings) => headings.map((x) => `## ${x}\n\n${x} content.\n`)
   fs.writeFileSync(prep.payloadPath, h.planPayload(prep, [{ slug: '<slug>' }]));
   h.assertFails(h.run(root, 'write-apply.js'), 1, /Invalid ticket name/);
 
-  fs.writeFileSync(prep.payloadPath, h.planPayload(prep, [{ slug: 'a', model: 'haiku' }, { slug: 'b' }]));
+  fs.writeFileSync(prep.payloadPath, h.planPayload(prep, [{ slug: 'a', model: 'fast' }, { slug: 'b' }]));
   const data = JSON.parse(h.ok(root, 'write-apply.js', ['--json']).out);
   assert.deepStrictEqual(data.tickets, ['01-a', '02-b']);
   assert.strictEqual(data.git, null);

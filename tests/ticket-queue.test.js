@@ -13,15 +13,15 @@ h.writeGrill(root);
 h.ok(root, 'plan.js');
 h.assertFails(h.run(root, 'ticket-queue.js'), 1, /\/gps write/);
 const prep = h.json(root, 'write-prepare.js');
-fs.writeFileSync(prep.payloadPath, h.planPayload(prep, [{ slug: 'toggle', model: 'haiku' }, { slug: 'persist', model: 'opus' }, { slug: 'docs' }]));
+fs.writeFileSync(prep.payloadPath, h.planPayload(prep, [{ slug: 'toggle', model: 'fast' }, { slug: 'persist', model: 'heavy' }, { slug: 'docs' }]));
 h.ok(root, 'write-apply.js');
 
 // Text: one line per ticket, next pending, and the model-hint lines ship asks about.
 let res = h.ok(root, 'ticket-queue.js');
 assert.match(res.out, /0\/3 done/);
-assert.match(res.out, /- 01 toggle — pending — model haiku, effort inherit/);
+assert.match(res.out, /- 01 toggle — pending — model fast, effort inherit/);
 assert.match(res.out, /Next pending: 01 toggle/);
-assert.match(res.out, /Model and effort hints of the remaining tickets:\n1: haiku\/inherit\n2: opus\/inherit\n3: inherit\/inherit/);
+assert.match(res.out, /Model and effort hints of the remaining tickets:\n1: fast\/inherit\n2: heavy\/inherit\n3: inherit\/inherit/);
 
 // No ship mode recorded yet: no "Last ship mode" line.
 assert.doesNotMatch(res.out, /Last ship mode/);
@@ -30,16 +30,16 @@ assert.strictEqual(h.json(root, 'ticket-queue.js').shipMode, null);
 // JSON: the full queue.
 let data = h.json(root, 'ticket-queue.js');
 assert.deepStrictEqual(data.tickets.map((t) => [t.num, t.slug, t.model, t.done]),
-  [['01', 'toggle', 'haiku', false], ['02', 'persist', 'opus', false], ['03', 'docs', 'inherit', false]]);
+  [['01', 'toggle', 'fast', false], ['02', 'persist', 'heavy', false], ['03', 'docs', 'inherit', false]]);
 assert.strictEqual(data.nextPending.slug, 'toggle');
 
 // A hand-edited unknown model warns and counts as inherit; a badly named file is skipped.
 const ticketsDir = path.join(h.sessionDir(root), '02-plan', 'tickets');
 const persist = path.join(ticketsDir, '02-persist.md');
-fs.writeFileSync(persist, fs.readFileSync(persist, 'utf-8').replace('**Model:** opus', '**Model:** sonett'));
+fs.writeFileSync(persist, fs.readFileSync(persist, 'utf-8').replace('**Model:** heavy', '**Model:** mediumm'));
 fs.writeFileSync(path.join(ticketsDir, 'notes.md'), 'stray');
 res = h.ok(root, 'ticket-queue.js');
-assert.match(res.err, /⚠️ {2}Ticket 02-persist: unknown model "sonett", using inherit/);
+assert.match(res.err, /⚠️ {2}Ticket 02-persist: unknown model "mediumm", using inherit/);
 assert.match(res.err, /⚠️ {2}Skipped notes\.md/);
 assert.match(res.out, /2: inherit/);
 
@@ -52,7 +52,7 @@ assert.strictEqual(h.json(root, 'ticket-queue.js').shipMode, 'subagent');
 h.completeTicket(root, 1, 'toggle');
 data = h.json(root, 'ticket-queue.js');
 assert.strictEqual(data.nextPending.slug, 'persist');
-assert.doesNotMatch(h.ok(root, 'ticket-queue.js').out, /\n1: haiku/);
+assert.doesNotMatch(h.ok(root, 'ticket-queue.js').out, /\n1: fast/);
 h.completeTicket(root, 2, 'persist');
 h.completeTicket(root, 3, 'docs');
 assert.match(h.ok(root, 'ticket-queue.js').out, /3\/3 done[\s\S]*All tickets are done\. Next: \/gps finish/);
@@ -64,10 +64,10 @@ h.assertFails(h.run(root, 'ticket-queue.js', ['1']), 2);
 {
   // Effort hints: shown with the model; a hand-edited max warns with the reason and runs as inherit.
   const r = h.gitProject();
-  h.shipReady(r, 'effort', [{ slug: 'a', model: 'sonnet', effort: 'high' }, { slug: 'b', effort: 'low' }]);
+  h.shipReady(r, 'effort', [{ slug: 'a', model: 'medium', effort: 'high' }, { slug: 'b', effort: 'low' }]);
   let out = h.ok(r, 'ticket-queue.js');
-  assert.match(out.out, /- 01 a — pending — model sonnet, effort high/);
-  assert.match(out.out, /1: sonnet\/high\n2: inherit\/low/);
+  assert.match(out.out, /- 01 a — pending — model medium, effort high/);
+  assert.match(out.out, /1: medium\/high\n2: inherit\/low/);
   assert.deepStrictEqual(h.json(r, 'ticket-queue.js').tickets.map((t) => [t.effort, t.effortInvalid]), [['high', null], ['low', null]]);
   const b = path.join(h.sessionDir(r), '02-plan', 'tickets', '02-b.md');
   fs.writeFileSync(b, fs.readFileSync(b, 'utf-8').replace('**Effort:** low', '**Effort:** max'));

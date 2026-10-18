@@ -51,7 +51,7 @@ The [official packaging guide](https://developers.openai.com/plugins/build/plugi
 
 ## Delegation setup
 
-Use `/gps config` (as `$gps config` in Codex) to inspect declared delegation settings. README mappings contain placeholders, not recommended production model IDs. Inspect the current client's actual model and effort support before supplying mappings. Queue preflight validates those declarations; the host must separately verify tool/account capabilities before starting a ticket.
+Use `/gps config` (as `$gps config` in Codex) to inspect declared delegation settings. GPS maps the portable `fast`, `medium`, and `heavy` ticket tiers to Luna, Sol, and Astra by default. Optional README mappings override those defaults for clients with different native IDs or effort support. Queue preflight validates the resolved settings; the host must separately verify tool/account capabilities before starting a ticket.
 
 For a mapped model requesting inherited effort, supply `--parent-effort` only from authoritative current runtime context. Unknown effort requires an explicit supported effort choice. Native `inherit/inherit` requires no mapping and omits both overrides, leaving resolution to the host. Inline execution requires no mappings. These are explicit user choices; GPS never silently falls back to either.
 

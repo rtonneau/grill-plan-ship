@@ -2,6 +2,10 @@
 
 All notable changes to grill-plan-ship. Versions follow [semantic versioning](https://semver.org/).
 
+## 2.8.5 (2026-10-18)
+
+- Replace provider-specific ticket model hints with shared `fast`, `medium`, and `heavy` tiers, resolved at dispatch to Haiku/Sonnet/Opus for Claude and Luna/Sol/Astra for Codex.
+
 ## 2.8.4 (2026-10-17)
 
 - Fall back to sandbox-compatible direct writes when Windows denies atomic replacement of GPS state, changelog fragments, or release version files, while retaining atomic rename elsewhere and cleaning temporary files.

@@ -15,18 +15,18 @@ assert.strictEqual(parseTicketFilename('01-Bad Name.md'), null);
 assert.strictEqual(parseTicketFilename('not-a-ticket.txt'), null);
 
 // A ticket's model: valid values (any case), and "inherit" for missing or unknown ones
-assert.strictEqual(ticketModel('# T\n\n**Model:** haiku\n\n**Acceptance Criteria:**\n'), 'haiku');
-assert.strictEqual(ticketModel('**Model:**   Sonnet  \n'), 'sonnet');
-assert.strictEqual(ticketModel('**Model:** opus\n'), 'opus');
+assert.strictEqual(ticketModel('# T\n\n**Model:** fast\n\n**Acceptance Criteria:**\n'), 'fast');
+assert.strictEqual(ticketModel('**Model:**   Medium  \n'), 'medium');
+assert.strictEqual(ticketModel('**Model:** heavy\n'), 'heavy');
 assert.strictEqual(ticketModel('**Model:** inherit\n'), 'inherit');
 assert.strictEqual(ticketModel('# T\n\n**Notes:**\nno model line\n'), 'inherit');
 assert.strictEqual(ticketModel('**Model:** gpt-9\n'), 'inherit');
 assert.strictEqual(ticketModel('**Model:**\n'), 'inherit');
 // Fenced examples are content; CRLF files parse; the real line wins over a later fenced one
-assert.strictEqual(ticketModel('# T\n\n**Notes:**\n```\n**Model:** opus\n```\n'), 'inherit');
-assert.strictEqual(ticketModel('**Model:** haiku\r\n\r\n```\n**Model:** opus\n```\n'), 'haiku');
-assert.strictEqual(ticketModel('# T\r\n\r\n**Model:** sonnet\r\n'), 'sonnet');
-assert.deepStrictEqual(TICKET_MODELS, ['haiku', 'sonnet', 'opus', 'inherit']);
+assert.strictEqual(ticketModel('# T\n\n**Notes:**\n```\n**Model:** heavy\n```\n'), 'inherit');
+assert.strictEqual(ticketModel('**Model:** fast\r\n\r\n```\n**Model:** heavy\n```\n'), 'fast');
+assert.strictEqual(ticketModel('# T\r\n\r\n**Model:** medium\r\n'), 'medium');
+assert.deepStrictEqual(TICKET_MODELS, ['fast', 'medium', 'heavy', 'inherit']);
 assert.ok(Object.isFrozen(TICKET_MODELS));
 
 const sessionDir = fs.mkdtempSync(path.join(os.tmpdir(), 'gps-ticket-queue-'));
@@ -52,7 +52,7 @@ assert.deepStrictEqual(listTickets(sessionDir), { tickets: [], nextPending: null
 
 fs.mkdirSync(ticketsDir, { recursive: true });
 fs.writeFileSync(path.join(ticketsDir, '01-add-login.md'), '# Ticket 1: add-login\n');
-fs.writeFileSync(path.join(ticketsDir, '02-add-logout.md'), '# Ticket 2: add-logout\n\n**Model:** haiku\n');
+fs.writeFileSync(path.join(ticketsDir, '02-add-logout.md'), '# Ticket 2: add-logout\n\n**Model:** fast\n');
 
 // Neither ticket has a commit-log.md yet -> both pending, nextPending is ticket 1
 let result = listTickets(sessionDir);
@@ -63,7 +63,7 @@ assert.strictEqual(result.nextPending.num, '01');
 
 // Model comes from the ticket's "**Model:**" line; no line means inherit
 assert.strictEqual(result.tickets[0].model, 'inherit');
-assert.strictEqual(result.tickets[1].model, 'haiku');
+assert.strictEqual(result.tickets[1].model, 'fast');
 assert.strictEqual(result.tickets[0].modelInvalid, null);
 assert.strictEqual(result.tickets[1].modelInvalid, null);
 

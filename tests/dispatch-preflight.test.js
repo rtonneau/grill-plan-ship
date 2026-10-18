@@ -36,34 +36,36 @@ h.ok(root, 'plan.js');
 check(root, [], 1, /not written yet/);
 const prep = h.json(root, 'write-prepare.js');
 fs.writeFileSync(prep.payloadPath, h.planPayload(prep, [
-  { slug: 'first' }, { slug: 'later', model: 'sonnet', effort: 'high' },
-  { slug: 'last', model: 'opus', effort: 'medium' },
+  { slug: 'first' }, { slug: 'later', model: 'medium', effort: 'high' },
+  { slug: 'last', model: 'heavy', effort: 'medium' },
 ]));
 h.ok(root, 'write-apply.js');
-const result = check(root, [], 1, /02-later: No Codex model mapping for sonnet[\s\S]*03-last: No Codex model mapping for opus/);
+let data = check(root);
+assert.strictEqual(data.tickets[1].resolved.model, 'gpt-6-sol');
+assert.strictEqual(data.tickets[2].resolved.model, 'gpt-6-astra');
 assert.ok(!fs.existsSync(path.join(h.sessionDir(root), '03-implement', '01-first')));
 const file = path.join(root, '.work', 'gps-config.json');
 const stored = JSON.parse(fs.readFileSync(file, 'utf8'));
 const delegation = { codex: { models: {
-  sonnet: { model: 'test-model', efforts: ['high'] }, opus: { model: 'test-other', efforts: ['medium'] },
+  medium: { model: 'test-model', efforts: ['high'] }, heavy: { model: 'test-other', efforts: ['medium'] },
 }, inheritEfforts: ['low'] } };
 fs.writeFileSync(file, JSON.stringify({ ...stored, delegation }));
-let data = check(root);
+data = check(root);
 assert.deepStrictEqual(data.tickets[0].resolved, {});
 assert.deepStrictEqual(data.tickets[1].resolved, { model: 'test-model', reasoning_effort: 'high' });
 assert.strictEqual(data.allDone, false);
 assert.strictEqual(data.sessionId, h.currentSession(root));
 assert.match(h.ok(root, 'dispatch-preflight.js', args).out, /Runtime capability verification is still required/);
-check(root, ['--override', '2=sonnet/inherit'], 1, /Parent effort is unknown/);
-check(root, ['--override', '02=sonnet/inherit', '--parent-effort', 'medium'], 1, /not configured as supported/);
-data = check(root, ['--override', '02=sonnet/inherit', '--parent-effort', 'high']);
+check(root, ['--override', '2=medium/inherit'], 1, /Parent effort is unknown/);
+check(root, ['--override', '02=medium/inherit', '--parent-effort', 'medium'], 1, /not configured as supported/);
+data = check(root, ['--override', '02=medium/inherit', '--parent-effort', 'high']);
 assert.strictEqual(data.tickets[1].effort, 'inherit');
 assert.strictEqual(data.tickets[1].resolved.reasoning_effort, 'high');
-assert.deepStrictEqual(check(root, ['--override', '2=sonnet/high']).tickets, check(root, ['--override', '02=sonnet/high']).tickets);
-for (const value of ['2=sonnet', '2=/high', '2=gpt/high', '2=sonnet/max', 'x=sonnet/high']) {
+assert.deepStrictEqual(check(root, ['--override', '2=medium/high']).tickets, check(root, ['--override', '02=medium/high']).tickets);
+for (const value of ['2=medium', '2=/high', '2=gpt/high', '2=medium/max', 'x=medium/high']) {
   check(root, ['--override', value], 2, /Invalid --override/);
 }
-check(root, ['--override', '02=sonnet/high', '--override', '2=opus/medium'], 2, /Duplicate/);
+check(root, ['--override', '02=medium/high', '--override', '2=heavy/medium'], 2, /Duplicate/);
 check(root, ['--override', '99=inherit/inherit'], 1, /no pending ticket/);
 for (const value of ['inherit', 'max', 'ultra']) check(root, ['--parent-effort', value], 2, /--parent-effort/);
 h.assertFails(h.run(root, 'dispatch-preflight.js', ['--mode', 'subagent']), 2, /--host/);
@@ -73,11 +75,11 @@ check(root, ['--mode', 'inline'], 2); // repeated mode also remains a usage erro
 
 // Already-started pending tickets stay in the report; real dispatch revalidates.
 h.ok(root, 'ticket-start.js', ['2']);
-data = check(root, ['--override', '2=sonnet/inherit', '--parent-effort', 'high']);
+data = check(root, ['--override', '2=medium/inherit', '--parent-effort', 'high']);
 const call = h.json(root, 'dispatch-prompt.js', ['2', ...args, '--effort', 'inherit', '--parent-effort', 'high']).call;
 assert.deepStrictEqual(data.tickets[1].resolved, { model: call.model, reasoning_effort: call.reasoning_effort });
 fs.writeFileSync(file, JSON.stringify(stored));
-h.assertFails(h.run(root, 'dispatch-prompt.js', ['2', ...args]), 1, /No Codex model mapping/);
+assert.strictEqual(h.json(root, 'dispatch-prompt.js', ['2', ...args, '--effort', 'high']).call.model, 'gpt-6-sol');
 const claude = JSON.parse(h.ok(root, 'dispatch-preflight.js', ['--host', 'claude', '--mode', 'subagent', '--json']).out);
 assert.deepStrictEqual(claude.tickets[1].resolved, { subagent_type: 'grill-plan-ship:gps-ticket-high', model: 'sonnet' });
 
@@ -88,14 +90,13 @@ data = check(root, ['--override', '1=inherit/inherit', '--override', '2=inherit/
 assert.strictEqual(data.tickets.filter((t) => Number(t.ticket.split('-')[0]) === 1).length, 2);
 assert.ok(data.tickets.some((t) => t.ticket === '1-duplicate'));
 fs.unlinkSync(path.join(ticketsDir, '1-duplicate.md'));
-// Hand-edited hints retain queue normalization and visible warnings.
+// Hand-edited hints retain queue normalization.
 const first = path.join(ticketsDir, '01-first.md');
 fs.appendFileSync(first, '\n**Model:** unknown\n**Effort:** turbo\n');
-const warnings = check(root, [], 1, /No Codex model mapping/);
-assert.match(warnings.err, /unknown model unknown normalized to inherit/);
-assert.match(warnings.err, /unknown effort turbo normalized to inherit/);
+data = check(root);
+assert.deepStrictEqual(data.tickets[0].resolved, {});
 fs.unlinkSync(file);
-check(root, [], 1, /No Codex model mapping/);
+check(root);
 check(root, ['--override', '2=inherit/inherit', '--override', '3=inherit/inherit']);
 assert.ok(!fs.existsSync(file), 'missing configuration is never created');
 for (const [n, slug] of [[1, 'first'], [2, 'later'], [3, 'last']]) h.completeTicket(root, n, slug);

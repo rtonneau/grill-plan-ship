@@ -46,11 +46,11 @@ const block = prep.skeleton.slice(prep.skeleton.indexOf('--- ticket:'));
 const ticket = (slug, model, effort) => h.fillSkeleton(block.replace('01-<slug>', slug), 'Done.')
   .replace('**Model:** Done.', model ? `**Model:** ${model}` : '')
   .replace('**Effort:** Done.', effort ? `**Effort:** ${effort}` : '');
-fs.writeFileSync(prep.payloadPath, `${h.fillSkeleton(head, '1 day')}${ticket('01-toggle', 'haiku', 'high')}\n${ticket('02-persist')}`);
+fs.writeFileSync(prep.payloadPath, `${h.fillSkeleton(head, '1 day')}${ticket('01-toggle', 'fast', 'high')}\n${ticket('02-persist')}`);
 h.ok(root, 'write-apply.js');
 let report = expectStatus('ship', '/gps ship');
 assert.strictEqual(report.current.nextPending.slug, 'toggle');
-assert.match(h.ok(root, 'ticket-queue.js').out, /1: haiku\/high\n2: inherit\/inherit/);
+assert.match(h.ok(root, 'ticket-queue.js').out, /1: fast\/high\n2: inherit\/inherit/);
 
 // ship: ticket 1 the subagent way, ticket 2 inline
 for (const [num, slug, mode] of [[1, 'toggle', 'subagent'], [2, 'persist', 'inline']]) {

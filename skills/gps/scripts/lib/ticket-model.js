@@ -8,8 +8,9 @@ const { toLines } = require('./guard');
 const FENCE_OPEN_RE = /^\s*(`{3,}|~{3,})/;
 const FENCE_CLOSE_RE = /^\s*(`{3,}|~{3,})\s*$/;
 
-// Values the line may hold; "inherit" (or no line) means the session's own model.
-const TICKET_MODELS = Object.freeze(['haiku', 'sonnet', 'opus', 'inherit']);
+// Provider-neutral capability tiers. "inherit" (or no line) means the
+// session's own model; host adapters translate the other values at dispatch.
+const TICKET_MODELS = Object.freeze(['fast', 'medium', 'heavy', 'inherit']);
 
 // Effort levels a ticket may ask for; "inherit" (or no line) means the
 // session's own effort. Each level but inherit has a plugin subagent,

@@ -7,20 +7,21 @@ const {
 } = require('../../skills/gps/scripts/lib/ticket-model');
 
 // readTicketModel: raw value of the first line outside code fences
-assert.strictEqual(readTicketModel('# T\n\n**Model:** haiku\n'), 'haiku');
+assert.strictEqual(readTicketModel('# T\n\n**Model:** fast\n'), 'fast');
 assert.strictEqual(readTicketModel('# T\n'), null);
 assert.strictEqual(readTicketModel('**Model:**\n'), '');
-assert.strictEqual(readTicketModel('~~~\n**Model:** opus\n~~~\n**Model:** haiku\n'), 'haiku');
+assert.strictEqual(readTicketModel('~~~\n**Model:** heavy\n~~~\n**Model:** fast\n'), 'fast');
 assert.strictEqual(readTicketModel('````\n```\n**Model:** opus\n```\n````\n'), null);
-assert.strictEqual(readTicketModel('﻿**Model:** opus\r\n'), 'opus');
+assert.strictEqual(readTicketModel('﻿**Model:** heavy\r\n'), 'heavy');
 
 // normalizeTicketModel: { model, raw }
-assert.deepStrictEqual(normalizeTicketModel('**Model:** Opus\n'), { model: 'opus', raw: 'Opus' });
+assert.deepStrictEqual(normalizeTicketModel('**Model:** Heavy\n'), { model: 'heavy', raw: 'Heavy' });
 assert.deepStrictEqual(normalizeTicketModel('**Model:** gpt-9\n'), { model: 'inherit', raw: 'gpt-9' });
 assert.deepStrictEqual(normalizeTicketModel('no line\n'), { model: 'inherit', raw: null });
+assert.deepStrictEqual([...TICKET_MODELS], ['fast', 'medium', 'heavy', 'inherit']);
 
 // readTicketEffort / normalizeTicketEffort: same rules as the model line
-assert.strictEqual(readTicketEffort('**Model:** haiku\n**Effort:** high\n'), 'high');
+assert.strictEqual(readTicketEffort('**Model:** fast\n**Effort:** high\n'), 'high');
 assert.strictEqual(readTicketEffort('```\n**Effort:** low\n```\n'), null);
 assert.deepStrictEqual(normalizeTicketEffort('**Effort:** XHigh\n'), { effort: 'xhigh', raw: 'XHigh' });
 assert.deepStrictEqual(normalizeTicketEffort('**Effort:** turbo\n'), { effort: 'inherit', raw: 'turbo' });
