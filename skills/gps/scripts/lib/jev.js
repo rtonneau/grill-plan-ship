@@ -16,7 +16,7 @@ const JEV_MODEL = 'jev-latest';
 class JevError extends Error {}
 
 // Version-named, so Jev's judgment has real nuance; the ticket's
-// **Model:** line only ever gets the collapsed family (decision 0004).
+// **Model:** line gets the provider-neutral capability tier.
 const MODEL_CRITERIA = {
   'haiku-5.5': 'Small, clear, and of a kind that recurs often: renames, docs, config, one file with an obvious pattern.',
   'sonnet-5': 'Ordinary multi-step implementation judgment (older Sonnet build).',
@@ -33,11 +33,11 @@ const EFFORT_CRITERIA = {
 };
 
 const FAMILY_BY_MODEL = {
-  'haiku-5.5': 'haiku',
-  'sonnet-5': 'sonnet',
-  'sonnet-5.5': 'sonnet',
-  'opus-5': 'opus',
-  'opus-5.5': 'opus',
+  'haiku-5.5': 'fast',
+  'sonnet-5': 'medium',
+  'sonnet-5.5': 'medium',
+  'opus-5': 'heavy',
+  'opus-5.5': 'heavy',
 };
 
 const ENDPOINT = 'https://api.typesafe.ai/v1/systemone';
@@ -64,7 +64,7 @@ function buildRequestBody(tickets) {
   tickets.forEach(({ name }, i) => {
     questions[`model_${name}`] = {
       type: 'choice',
-      instructions: `Which Claude model should implement the ticket at \`state.tickets[${i}].body\`?`,
+      instructions: `Which implementation capability tier should handle the ticket at \`state.tickets[${i}].body\`?`,
       criteria: MODEL_CRITERIA,
     };
     questions[`effort_${name}`] = {

@@ -31,8 +31,8 @@ function choices(name, model, effort) {
   assert.strictEqual(fakeFetch.calls[0].url, 'https://api.typesafe.ai/v1/systemone');
   assert.strictEqual(fakeFetch.calls[0].init.headers.Authorization, 'Bearer test-key');
   assert.deepStrictEqual(result, {
-    '01-a': { model: 'sonnet', modelRaw: 'sonnet-5.5', modelConfidence: 0.8, effort: 'high', effortConfidence: 0.7 },
-    '02-b': { model: 'haiku', modelRaw: 'haiku-5.5', modelConfidence: 0.8, effort: 'low', effortConfidence: 0.7 },
+    '01-a': { model: 'medium', modelRaw: 'sonnet-5.5', modelConfidence: 0.8, effort: 'high', effortConfidence: 0.7 },
+    '02-b': { model: 'fast', modelRaw: 'haiku-5.5', modelConfidence: 0.8, effort: 'low', effortConfidence: 0.7 },
   });
 
   // Every MODEL_CRITERIA key collapses to the right family.

@@ -70,7 +70,7 @@ assert.deepStrictEqual(data2.jev.detected, { enabled: true, reason: 'TYPESAFE_AP
 assert.strictEqual(h.json(root, 'config.js').delegation, null);
 assert.match(h.ok(root, 'config.js').out, /delegation.codex.models = not configured/);
 const delegation = { codex: {
-  models: { sonnet: { model: 'test-model', efforts: ['low', 'high'] } },
+  models: { medium: { model: 'test-model', efforts: ['low', 'high'] } },
   inheritEfforts: ['medium'],
 } };
 fs.writeFileSync(file, JSON.stringify({ ...stored(), delegation }));
@@ -78,7 +78,7 @@ const mappedBefore = fs.readFileSync(file, 'utf8');
 assert.deepStrictEqual(h.json(root, 'config.js').delegation, delegation);
 res = h.ok(root, 'config.js');
 assert.match(res.out, /declared settings \(not live capability detection\)/);
-assert.match(res.out, /sonnet: model test-model, efforts low, high/);
+assert.match(res.out, /medium: model test-model, efforts low, high/);
 assert.match(res.out, /delegation.codex.inheritEfforts = medium/);
 assert.strictEqual(fs.readFileSync(file, 'utf8'), mappedBefore);
 for (const args of [['--rescan'], ['--rescan', '--apply']]) {

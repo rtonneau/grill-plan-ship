@@ -15,7 +15,7 @@ const h = require('./helpers');
   h.ok(root, 'plan.js');
   h.assertFails(h.run(root, 'ticket-start.js', ['1']), 1, /\/gps write/);
   const prep = h.json(root, 'write-prepare.js');
-  fs.writeFileSync(prep.payloadPath, h.planPayload(prep, [{ slug: 'a', model: 'sonnet' }, { slug: 'b' }]));
+  fs.writeFileSync(prep.payloadPath, h.planPayload(prep, [{ slug: 'a', model: 'medium' }, { slug: 'b' }]));
   h.ok(root, 'write-apply.js');
 
   // Invalid numbers.
@@ -25,7 +25,7 @@ const h = require('./helpers');
 
   // No number -> the next pending ticket; "001" and "1" are the same ticket.
   let res = h.ok(root, 'ticket-start.js');
-  assert.match(res.out, /TICKET 01: a \(hints: model sonnet, effort inherit\)/);
+  assert.match(res.out, /TICKET 01: a \(hints: model medium, effort inherit\)/);
   assert.match(res.out, /Do a\./);
   assert.match(res.out, /Next: implement it[\s\S]*ticket-complete\.js 1 --message/);
   const log = path.join(h.sessionDir(root), '03-implement', '01-a', 'commit-log.md');

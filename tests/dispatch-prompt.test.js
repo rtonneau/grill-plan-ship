@@ -5,13 +5,13 @@ const fs = require('fs');
 const h = require('./helpers');
 
 const root = h.gitProject();
-h.shipReady(root, 'dispatch', [{ slug: 'toggle', model: 'haiku' }, { slug: 'docs' }]);
+h.shipReady(root, 'dispatch', [{ slug: 'toggle', model: 'fast' }, { slug: 'docs' }]);
 const args = (n, mode, ...rest) => [String(n), '--mode', mode, ...rest];
 
 // Usage errors.
 h.assertFails(h.run(root, 'dispatch-prompt.js', ['1']), 2, /--mode must be one of: subagent, subagent\+inline/);
 h.assertFails(h.run(root, 'dispatch-prompt.js', args(1, 'inline')), 2, /--mode/);
-h.assertFails(h.run(root, 'dispatch-prompt.js', args(1, 'subagent', '--model', 'gpt-9')), 2, /--model must be one of: haiku, sonnet, opus, inherit/);
+h.assertFails(h.run(root, 'dispatch-prompt.js', args(1, 'subagent', '--model', 'gpt-9')), 2, /--model must be one of: fast, medium, heavy, inherit/);
 
 // Needs ticket-start.js first.
 h.assertFails(h.run(root, 'dispatch-prompt.js', args(1, 'subagent')), 1, /no workspace yet[\s\S]*ticket-start\.js 1/);
@@ -19,7 +19,7 @@ h.ok(root, 'ticket-start.js', ['1']);
 
 // subagent mode: the ticket's model, every path filled in, the full contract.
 let data = h.json(root, 'dispatch-prompt.js', args(1, 'subagent'));
-assert.strictEqual(data.model, 'haiku');
+assert.strictEqual(data.model, 'fast');
 assert.strictEqual(data.call.subagent_type, 'general-purpose');
 assert.strictEqual(data.call.model, 'haiku');
 assert.strictEqual(data.call.description, 'gps ticket 01 toggle');
@@ -36,7 +36,7 @@ assert.match(prompt, /git log --oneline/);
 assert.doesNotMatch(prompt, /\$CLAUDE_PLUGIN_ROOT/, 'nothing left to substitute');
 
 // --model overrides; inherit leaves the model out of the call.
-assert.strictEqual(h.json(root, 'dispatch-prompt.js', args(1, 'subagent', '--model', 'opus')).call.model, 'opus');
+assert.strictEqual(h.json(root, 'dispatch-prompt.js', args(1, 'subagent', '--model', 'heavy')).call.model, 'opus');
 data = h.json(root, 'dispatch-prompt.js', args(1, 'subagent', '--model', 'inherit'));
 assert.strictEqual(data.model, 'inherit');
 assert.ok(!('model' in data.call));
@@ -49,7 +49,7 @@ assert.doesNotMatch(prompt, /ticket-complete\.js" 1/);
 
 // Text mode shows the call and what to do with its answer.
 const text = h.ok(root, 'dispatch-prompt.js', args(1, 'subagent')).out;
-assert.match(text, /^Agent tool call for ticket 01 \(toggle\), mode subagent, model haiku, effort inherit:/);
+assert.match(text, /^Agent tool call for ticket 01 \(toggle\), mode subagent, model fast, effort inherit:/);
 assert.match(text, /On DONE run ticket-check\.js 1/);
 assert.match(h.ok(root, 'dispatch-prompt.js', args(1, 'subagent+inline')).out, /On READY review and complete it in this session/);
 
@@ -58,9 +58,9 @@ const configPath = path.join(root, '.work', 'gps-config.json');
 const projectConfig = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
 const configBefore = fs.readFileSync(configPath, 'utf-8');
 h.assertFails(h.run(root, 'dispatch-prompt.js', args(1, 'subagent', '--host', 'unknown')), 2, /--host/);
-h.assertFails(h.run(root, 'dispatch-prompt.js', args(1, 'subagent', '--host', 'codex')), 1, /No Codex model mapping for haiku/);
+h.assertFails(h.run(root, 'dispatch-prompt.js', args(1, 'subagent', '--host', 'codex')), 1, /Parent effort is unknown/);
 assert.strictEqual(fs.readFileSync(configPath, 'utf-8'), configBefore, 'failed dispatch leaves configuration unchanged');
-projectConfig.delegation = { codex: { models: { haiku: { model: 'available-model', efforts: ['low'] } } } };
+projectConfig.delegation = { codex: { models: { fast: { model: 'available-model', efforts: ['low'] } } } };
 fs.writeFileSync(configPath, JSON.stringify(projectConfig));
 const codex = h.json(root, 'dispatch-prompt.js', args(1, 'subagent', '--host', 'codex', '--effort', 'low'));
 assert.strictEqual(codex.host, 'codex');
@@ -96,12 +96,12 @@ h.assertFails(h.run(root, 'dispatch-prompt.js', args(1, 'subagent')), 1, /alread
 // --effort overrides; max is refused with the reason (decision 0001).
 {
   const r = h.gitProject();
-  h.shipReady(r, 'effort', [{ slug: 'a', model: 'sonnet', effort: 'xhigh' }]);
+  h.shipReady(r, 'effort', [{ slug: 'a', model: 'medium', effort: 'xhigh' }]);
   h.ok(r, 'ticket-start.js', ['1']);
   let d = h.json(r, 'dispatch-prompt.js', ['1', '--mode', 'subagent']);
   assert.strictEqual(d.effort, 'xhigh');
   assert.strictEqual(d.call.subagent_type, 'grill-plan-ship:gps-ticket-xhigh');
-  assert.strictEqual(d.call.model, 'sonnet', 'the model still travels on the call');
+  assert.strictEqual(d.call.model, 'sonnet', 'the portable tier resolves on the call');
   assert.match(h.ok(r, 'dispatch-prompt.js', ['1', '--mode', 'subagent']).out, /subagent_type: grill-plan-ship:gps-ticket-xhigh \(sets effort xhigh\)/);
   d = h.json(r, 'dispatch-prompt.js', ['1', '--mode', 'subagent+inline', '--effort', 'low']);
   assert.strictEqual(d.call.subagent_type, 'grill-plan-ship:gps-ticket-low');

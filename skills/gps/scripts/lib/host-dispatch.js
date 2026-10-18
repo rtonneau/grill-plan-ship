@@ -2,6 +2,13 @@
 const { GpsError, UsageError } = require('./guard');
 const { TICKET_EFFORTS } = require('./ticket-model');
 
+const CLAUDE_MODELS = Object.freeze({ fast: 'haiku', medium: 'sonnet', heavy: 'opus' });
+const CODEX_MODELS = Object.freeze({
+  fast: Object.freeze({ model: 'gpt-6-luna', efforts: Object.freeze(['low', 'medium', 'high', 'xhigh']) }),
+  medium: Object.freeze({ model: 'gpt-6-sol', efforts: Object.freeze(['low', 'medium', 'high', 'xhigh']) }),
+  heavy: Object.freeze({ model: 'gpt-6-astra', efforts: Object.freeze(['low', 'medium', 'high', 'xhigh']) }),
+});
+
 function validateParentEffort(host, parentEffort) {
   if (parentEffort == null) return;
   if (host !== 'codex') throw new UsageError('--parent-effort only applies to --host codex.');
@@ -13,7 +20,8 @@ function validateParentEffort(host, parentEffort) {
 function resolveCodexHints({ model, effort, parentEffort }, config = {}) {
   validateParentEffort('codex', parentEffort);
   const codex = config.delegation && config.delegation.codex;
-  const mapping = model === 'inherit' ? null : codex && codex.models && codex.models[model];
+  const configured = model === 'inherit' ? null : codex && codex.models && codex.models[model];
+  const mapping = model === 'inherit' ? null : configured || CODEX_MODELS[model];
   const hint = 'Configure delegation.codex in .work/gps-config.json using models available in your Codex client, or explicitly choose inherit/inherit.';
   if (model !== 'inherit' && (!mapping || typeof mapping.model !== 'string' || !mapping.model.trim())) {
     throw new GpsError(`No Codex model mapping for ${model}.`, hint);
@@ -38,7 +46,7 @@ function buildDispatch(host, { model, effort, parentEffort, description, prompt,
   if (host === 'claude') {
     return {
       subagent_type: effort === 'inherit' ? 'general-purpose' : `grill-plan-ship:gps-ticket-${effort}`,
-      ...(model !== 'inherit' && { model }),
+      ...(model !== 'inherit' && { model: CLAUDE_MODELS[model] }),
       description,
       prompt,
     };
@@ -52,4 +60,4 @@ function buildDispatch(host, { model, effort, parentEffort, description, prompt,
   };
 }
 
-module.exports = { buildDispatch, resolveCodexHints, validateParentEffort };
+module.exports = { CLAUDE_MODELS, CODEX_MODELS, buildDispatch, resolveCodexHints, validateParentEffort };

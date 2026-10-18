@@ -49,7 +49,7 @@ function isTicketDone(commitLogPath) {
 // duplicate numbers are all kept, in alphabetical order). Files that
 // don't match NN-<slug>.md are returned in `skipped` instead.
 // Each ticket is { num, slug, ticketPath, implDir, commitLogPath, done, model,
-// modelInvalid, effort, effortInvalid }: `model` is haiku|sonnet|opus|inherit
+// modelInvalid, effort, effortInvalid }: `model` is fast|medium|heavy|inherit
 // and `effort` low|medium|high|xhigh|inherit; `modelInvalid` / `effortInvalid`
 // is the unknown value (not null) when the line was hand-edited to one, so the
 // caller can warn. /gps write rejects such values, so only hand edits reach it.

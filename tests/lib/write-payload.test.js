@@ -181,18 +181,18 @@ const GRILL_HEADINGS = ['Problem Statement', 'Notes'];
   const check = (model) =>
     validatePayload(parsePayload(`## Strategy\nx\n--- ticket: 01-a ---\n${model}body\n`), opts);
   assert.deepStrictEqual(check(''), []);
-  assert.deepStrictEqual(check('**Model:** haiku\n\n'), []);
+  assert.deepStrictEqual(check('**Model:** fast\n\n'), []);
   assert.deepStrictEqual(check('**Model:** Inherit\n\n'), []);
   const bad = check('**Model:** gpt-9\n\n');
-  assert.ok(bad.some((e) => /Ticket "01-a" has unknown model "gpt-9"\. Use one of: haiku, sonnet, opus, inherit\./.test(e)), bad);
+  assert.ok(bad.some((e) => /Ticket "01-a" has unknown model "gpt-9"\. Use one of: fast, medium, heavy, inherit\./.test(e)), bad);
   const empty = check('**Model:**\n\n');
-  assert.ok(empty.some((e) => /empty \*\*Model:\*\* line\. Give one of: haiku, sonnet, opus, inherit, or remove the line\./.test(e)), empty);
+  assert.ok(empty.some((e) => /empty \*\*Model:\*\* line\. Give one of: fast, medium, heavy, inherit, or remove the line\./.test(e)), empty);
   // The placeholder copied from write.md is an unknown model, not a valid one
-  const placeholder = check('**Model:** <haiku | sonnet | opus | inherit>\n\n');
-  assert.ok(placeholder.some((e) => /unknown model "<haiku \| sonnet \| opus \| inherit>"/.test(e)), placeholder);
+  const placeholder = check('**Model:** <fast | medium | heavy | inherit>\n\n');
+  assert.ok(placeholder.some((e) => /unknown model "<fast \| medium \| heavy \| inherit>"/.test(e)), placeholder);
   // An example in a code fence is content, not the ticket's Model line
   assert.deepStrictEqual(check('```\n**Model:** gpt-4\n```\n'), []);
-  assert.deepStrictEqual(check('**Model:** haiku\r\n\r\n'), []);
+  assert.deepStrictEqual(check('**Model:** fast\r\n\r\n'), []);
 }
 
 // A UTF-8 byte-order mark does not hide the first heading
