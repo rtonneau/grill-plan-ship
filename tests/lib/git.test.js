@@ -8,9 +8,39 @@ const {
   readRecentCommits, readGitStatus, commitFiles, restoreFromHead, commitExists, describeCommit,
   commitWorkDir, describeWorkCommit, branchesHolding, isIgnored, GPS_WORK_PATHS,
   failureReason, commitMessages, defaultBranch, isCleanTree, tagExists, createTag, headCommit, pushWithTags, remoteHasTag, remoteBranchAt, headSha, fetchBehind,
+  safeGitArgs,
 } = require('../../skills/gps/scripts/lib/git');
 
 const readGitStatusSummary = (root, dir) => readGitStatus(root, dir).session;
+
+// Every GPS git process trusts only the containing repository for that
+// invocation. This keeps direct Node script calls usable from agent sandboxes
+// without changing the user's global git config or wrapping the command in a
+// host-specific shell environment assignment.
+{
+  const container = fs.mkdtempSync(path.join(os.tmpdir(), 'gps-safe-dir-'));
+  const repo = path.join(container, 'repo with spaces');
+  const nestedProject = path.join(repo, 'packages', 'app');
+  fs.mkdirSync(path.join(repo, '.git'), { recursive: true });
+  fs.mkdirSync(nestedProject, { recursive: true });
+  assert.deepStrictEqual(
+    safeGitArgs(nestedProject, ['status', '--short']),
+    ['-c', `safe.directory=${repo}`, 'status', '--short'],
+  );
+
+  const linked = path.join(container, 'linked worktree');
+  fs.mkdirSync(linked);
+  fs.writeFileSync(path.join(linked, '.git'), 'gitdir: elsewhere\n');
+  assert.deepStrictEqual(
+    safeGitArgs(linked, ['rev-parse', 'HEAD']),
+    ['-c', `safe.directory=${linked}`, 'rev-parse', 'HEAD'],
+  );
+
+  const nonRepo = path.join(container, 'not-a-repo');
+  fs.mkdirSync(nonRepo);
+  assert.deepStrictEqual(safeGitArgs(nonRepo, ['status']), ['status']);
+  fs.rmSync(container, { recursive: true, force: true });
+}
 
 const projectRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'gps-git-'));
 const sessionDir = path.join(projectRoot, '.work', 'sessions', '2026-09-22__test-feature');

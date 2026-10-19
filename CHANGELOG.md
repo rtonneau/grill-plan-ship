@@ -2,6 +2,10 @@
 
 All notable changes to grill-plan-ship. Versions follow [semantic versioning](https://semver.org/).
 
+## 2.8.6 (2026-10-19)
+
+- Run every GPS Git subprocess with a process-local `safe.directory` for its containing worktree, so Codex can approve the stable direct GPS script command on Windows instead of a ticket-specific PowerShell environment wrapper; Claude Code behavior and global Git configuration remain unchanged.
+
 ## 2.8.5 (2026-10-18)
 
 - Replace provider-specific ticket model hints with shared `fast`, `medium`, and `heavy` tiers, resolved at dispatch to Haiku/Sonnet/Opus for Claude and Luna/Sol/Astra for Codex.
