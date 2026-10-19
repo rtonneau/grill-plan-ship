@@ -16,8 +16,27 @@ const BRANCH_RE = new RegExp(`^(${BRANCH_TYPES.join('|')})/[a-z0-9]+([._-][a-z0-
 const MAX_BRANCH_LENGTH = 80;
 const BRANCH_PATTERN = `<${BRANCH_TYPES.join('|')}>/<short-slug>`;
 
+// Find the worktree that contains a project root without asking git first:
+// safe.directory must already be in effect before git will inspect a checkout
+// owned by the host user from an agent sandbox account. A .git directory is a
+// normal checkout; a .git file is a linked worktree.
+function repositoryRoot(projectRoot) {
+  let current = path.resolve(projectRoot);
+  while (true) {
+    if (fs.existsSync(path.join(current, '.git'))) return current;
+    const parent = path.dirname(current);
+    if (parent === current) return null;
+    current = parent;
+  }
+}
+
+function safeGitArgs(projectRoot, args) {
+  const root = repositoryRoot(projectRoot);
+  return root ? ['-c', `safe.directory=${root}`, ...args] : args;
+}
+
 function git(projectRoot, args) {
-  return execFileSync('git', args, {
+  return execFileSync('git', safeGitArgs(projectRoot, args), {
     cwd: projectRoot,
     encoding: 'utf-8',
     stdio: ['ignore', 'pipe', 'pipe'],
@@ -156,7 +175,7 @@ function readGitStatusEntries(projectRoot, pathspec) {
   const args = ['status', '--porcelain', '--untracked-files=all'];
   if (pathspec) args.push('--', pathspec);
   try {
-    return parsePorcelain(execFileSync('git', args, {
+    return parsePorcelain(execFileSync('git', safeGitArgs(projectRoot, args), {
       cwd: projectRoot, encoding: 'utf-8', stdio: ['ignore', 'pipe', 'ignore'],
     }));
   } catch (_err) {
@@ -456,6 +475,7 @@ module.exports = {
   DEFAULT_MAX_COMMITS,
   BRANCH_TYPES,
   BRANCH_PATTERN,
+  safeGitArgs,
   failureReason,
   isWorkTree,
   originUrl,
