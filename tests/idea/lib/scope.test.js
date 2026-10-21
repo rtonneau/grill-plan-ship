@@ -76,6 +76,39 @@ test("writeGlobalConfig: rejects a path that does not exist", () => {
   });
 });
 
+test("writeGlobalConfig: resolves a relative path to absolute before validating and storing", () => {
+  const repo = makeRepo();
+  const cfg = path.join(tmpDir(), "idea-config.json");
+  const relative = path.relative(process.cwd(), repo);
+  withEnv("GPS_IDEA_CONFIG_PATH", cfg, () => {
+    const written = writeGlobalConfig({ globalRoot: relative });
+    assert.ok(path.isAbsolute(written.globalRoot));
+    assert.equal(written.globalRoot, repo);
+    assert.deepEqual(JSON.parse(fs.readFileSync(cfg, "utf8")), { globalRoot: repo });
+    // A later read, from any cwd, gets the same absolute path back.
+    assert.deepEqual(readGlobalConfig(), { globalRoot: repo });
+  });
+});
+
+test("writeGlobalConfig: rejects a relative path that resolves to a non-repo directory", () => {
+  const dir = tmpDir();
+  const cfg = path.join(tmpDir(), "idea-config.json");
+  const relative = path.relative(process.cwd(), dir);
+  withEnv("GPS_IDEA_CONFIG_PATH", cfg, () => {
+    assert.throws(() => writeGlobalConfig({ globalRoot: relative }), /Not a git repository/);
+    assert.ok(!fs.existsSync(cfg));
+  });
+});
+
+test("writeGlobalConfig: rejects a relative path that resolves to a nonexistent directory", () => {
+  const cfg = path.join(tmpDir(), "idea-config.json");
+  const relative = path.relative(process.cwd(), path.join(tmpDir(), "nope"));
+  withEnv("GPS_IDEA_CONFIG_PATH", cfg, () => {
+    assert.throws(() => writeGlobalConfig({ globalRoot: relative }), /Not a directory/);
+    assert.ok(!fs.existsSync(cfg));
+  });
+});
+
 test("repoRoot: top-level from a subdirectory, null outside a repo", () => {
   const repo = makeRepo();
   const sub = path.join(repo, "a", "b");

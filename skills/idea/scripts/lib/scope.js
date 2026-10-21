@@ -27,16 +27,23 @@ function readGlobalConfig() {
 }
 
 function writeGlobalConfig({ globalRoot }) {
-  if (!globalRoot || !fs.existsSync(globalRoot) || !fs.statSync(globalRoot).isDirectory()) {
+  if (!globalRoot) {
     throw new IdeaError(`Not a directory: ${globalRoot}`, "Pick an existing directory for the personal repo.");
   }
-  if (!isRepo(globalRoot)) {
-    throw new IdeaError(`Not a git repository: ${globalRoot}`, "Run `git init` there, or pick another path.");
+  // Resolve before validating/storing: a relative path is read back from other
+  // script invocations, possibly run from a different cwd, so only an absolute
+  // path means the same place every time.
+  const resolved = path.resolve(globalRoot);
+  if (!fs.existsSync(resolved) || !fs.statSync(resolved).isDirectory()) {
+    throw new IdeaError(`Not a directory: ${resolved}`, "Pick an existing directory for the personal repo.");
+  }
+  if (!isRepo(resolved)) {
+    throw new IdeaError(`Not a git repository: ${resolved}`, "Run `git init` there, or pick another path.");
   }
   const file = globalConfigPath();
   fs.mkdirSync(path.dirname(file), { recursive: true });
-  replaceFile(file, JSON.stringify({ globalRoot }, null, 2));
-  return { globalRoot };
+  replaceFile(file, JSON.stringify({ globalRoot: resolved }, null, 2));
+  return { globalRoot: resolved };
 }
 
 function repoRoot(cwd) {
