@@ -9,7 +9,7 @@
  * report (kind "issue"): on a GitHub project the grill write files it as
  * a GitHub issue; otherwise a warning says it stays local.
  *
- * A scouted idea whose slug matches the session's is consumed: printed as
+ * A scouted seed whose slug matches the session's is consumed: printed as
  * the grill's starting context and removed from .pending-seeds.json.
  * Warns when .work/ is git-ignored (gps then commits none of its files),
  * and suggests /gps init while the project's gps setup is not committed.

@@ -2,6 +2,11 @@
 
 All notable changes to grill-plan-ship. Versions follow [semantic versioning](https://semver.org/).
 
+## Unreleased
+
+- Add the `idea` skill (`/idea capture|start|plan|review|promote|drop|list|config`): a backlog for future work, kept apart from gps sessions, promoting into a fresh `/gps start` session when it's time to build. Global (not-repo-tied) Ideas live in a personal repo you name once with `/idea config --set-global-root <path>`.
+- Rename `/gps scout`'s "scouted idea(s)" to "seed(s)" in text and `--json` output (`ideas` -> `seeds`, `ideasProblem` -> `seedsProblem` on `clean.js` and `status.js`), freeing "Idea" for the new `idea` skill.
+
 ## 2.8.6 (2026-10-19)
 
 - Run every GPS Git subprocess with a process-local `safe.directory` for its containing worktree, so Codex can approve the stable direct GPS script command on Windows instead of a ticket-specific PowerShell environment wrapper; Claude Code behavior and global Git configuration remain unchanged.

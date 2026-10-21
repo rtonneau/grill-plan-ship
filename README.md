@@ -43,10 +43,10 @@ Or, once the direction is clear, `/gps auto` runs from wherever the session is t
 | Command | What it does |
 |---|---|
 | `/gps init` | Optional first-run setup: check the project (git, GitHub, helper skills) and commit gps's `.gitignore` entries, config and (when missing) CHANGELOG.md on their own |
-| `/gps scout [--from <review-file>] [direction]` | Turn an architecture review, or an existing review file, into ideas for `/gps start` |
+| `/gps scout [--from <review-file>] [direction]` | Turn an architecture review, or an existing review file, into seeds for `/gps start` |
 | `/gps start [--issue] <name>` | New session, then the grill (`--issue`: a bug report, filed as a GitHub issue) |
-| `/gps status` | Every session, scouted ideas, the current phase, a saved handoff, the next command |
-| `/gps clean [id...]` | Delete old sessions or drop ideas, after showing exactly what goes |
+| `/gps status` | Every session, scouted seeds, the current phase, a saved handoff, the next command |
+| `/gps clean [id...]` | Delete old sessions or drop seeds, after showing exactly what goes |
 | `/gps config [--rescan]` | Show GitHub/Jev flags, changelog/release and declared delegation settings, or rescan flags |
 | `/gps write` | Save the approved grill or plan to disk (`plan`, `ship` and `auto` do it for you) |
 | `/gps plan` | Save the grill if pending, then draft tickets with model and effort hints |
@@ -62,8 +62,8 @@ Or, once the direction is clear, `/gps auto` runs from wherever the session is t
 ```
 /gps init                                  # "GitHub: detected on" + one chore(gps): set up gps commit, after your yes
 /gps scout only review src/parser          # architecture scan of one area -> "/gps start <slug>" lines
-/gps scout --from docs/review.md only Critical and High   # an existing review -> grouped ideas
-/gps start runconfig-resolver              # a scouted idea: the grill opens with it already loaded
+/gps scout --from docs/review.md only Critical and High   # an existing review -> grouped seeds
+/gps start runconfig-resolver              # a scouted seed: the grill opens with it already loaded
 /gps start --issue crash when saving a large file          # a report; on GitHub it becomes issue #N
 /gps status                                # "dark mode — ship · 1/3 done; next 02 persist" + Next: line
 /gps clean 2026-08-01__old-spike           # dry run first, deletes only after your yes
@@ -76,6 +76,27 @@ Or, once the direction is clear, `/gps auto` runs from wherever the session is t
 /gps release                               # suggests 1.5.0 (minor); after your yes: version files bumped, tag v1.5.0, then "Push and publish?"
 /gps handoff                               # HANDOFF.md: where you stopped, next step, settled decisions
 /gps help what does auto skip?             # explains from the references, names the command to run
+```
+
+## Idea backlog
+
+The `idea` skill keeps a backlog of future work apart from gps sessions. An Idea is one file in a Backlog: Project scope (`.work/idea/` in this repo) or Global scope (`.work/idea/global/` in a personal repo you name once with `/idea config --set-global-root <path>`). An Idea moves `captured` → `grilled` → `planned` → `promoted` or `dropped`.
+
+| Command | What it does |
+|---|---|
+| `/idea capture <name> [note] [--global]` | Capture an Idea in seconds, no grill (status `captured`) |
+| `/idea start <name\|slug> [--global]` | Grill a new or captured Idea (status `grilled`) |
+| `/idea plan [slug]` | Add a 3–8 milestone plan to a grilled Idea (status `planned`) |
+| `/idea review <slug>` | Revisit a grilled or planned Idea: re-grill what is open or stale |
+| `/idea promote <slug>` | Promote an Idea into a gps session, grill saved on the default branch |
+| `/idea drop <slug>` | Mark an Idea `dropped` with a reason; the file stays |
+| `/idea list [--all]` | Show the Project and Global Backlogs (`--all` adds promoted and dropped) |
+| `/idea config [--set-global-root <path>]` | Show or set which personal repo holds Global Ideas |
+
+```
+/idea capture dark-mode add a toggle in settings    # saved captured, no grill
+/idea start dark-mode                               # grills it; saved grilled
+/idea promote dark-mode                             # becomes a /gps session, Idea marked promoted
 ```
 
 ## How `/gps ship` works
@@ -157,7 +178,7 @@ Every script in `skills/gps/scripts/` follows the same rules (see `scripts/lib/c
 |---|---|
 | `start.js` | create a session (`--issue` for a report) and consume a matching scout seed |
 | `status.js` | the status report |
-| `clean.js` | list, `--dry-run` or `--delete` sessions and ideas |
+| `clean.js` | list, `--dry-run` or `--delete` sessions and seeds |
 | `init.js` | check the project's setup, or `--apply [--unignore-work]` it and commit it |
 | `config.js` | show or `--rescan [--apply]` the GitHub flag |
 | `set-current.js` | switch the current session (only after the user confirms) |
@@ -178,7 +199,7 @@ Every script in `skills/gps/scripts/` follows the same rules (see `scripts/lib/c
 | `auto-route.js` | the steps `/gps auto` will run |
 | `handoff.js` | write HANDOFF.md |
 | `help.js` | `/gps help`: where you are, the workflow, every command (or one command's details) |
-| `scout-merge.js` | archive a review and merge its ideas into the seeds |
+| `scout-merge.js` | archive a review and merge its candidates into the seeds |
 | `domain-doc.js` | built-in grill: where the glossary and ADRs live (`where`), the glossary to add a term to, or the next numbered ADR |
 
 ## Session files
@@ -215,10 +236,10 @@ The built-in grill uses a project's own domain docs when it has them, the way ma
 
 gps has no server and no telemetry. Everything it does runs on your machine, through the scripts in `skills/gps/scripts/` (plain, readable Node.js with no dependencies):
 
-- **Commands it runs:** `node` for its own scripts, which the skill pre-approves in Claude Code one by one in `allowed-tools` (`Bash(node ${CLAUDE_SKILL_DIR}/scripts/<name>.js *)` for each script in `skills/gps/scripts/`) so they run without a permission prompt; nothing else is pre-approved by the skill. Codex applies its own configured sandbox and approval rules. The scripts call `git` and, on GitHub projects, `gh`, always with an argument list, never through a shell.
-- **Files it writes:** session files under `.work/` and run artifacts under `.scratch/` in your project, a few lines in the project's `.gitignore`, the changelog fragment `.work/changelog/<session-id>.md` at `/gps finish`, the CHANGELOG and the version files (such as `package.json`) at `/gps release`, which also deletes the fragments, and a temporary file for each pull request, issue or GitHub Release body (deleted right after, except a release's notes file when `gh release create` fails: the by-hand command uses it).
-- **Files it reads:** the project it runs in (its files and git history), gps's own scripts and templates, and a file a command is explicitly given, such as the review for `/gps scout --from`. It does not read host transcripts or your home directory. Jev reads TYPESAFE_API_KEY from the environment to authenticate its optional request.
-- **Commits it makes:** one commit per ticket with only the files you name, the `chore(gps)` session-record commits described above, a commit of leftover tracked changes at `/gps finish` (the changelog fragment travels in its `chore(gps)` record commit), the `chore(release): X.Y.Z` commit (CHANGELOG, version files and fragment deletions) and its annotated tag `vX.Y.Z` at `/gps release`, and the `chore(gps): set up gps` commit of `/gps init --apply`.
+- **Commands it runs:** `node` for its own scripts, which the skill pre-approves in Claude Code one by one in `allowed-tools` (`Bash(node ${CLAUDE_SKILL_DIR}/scripts/<name>.js *)` for each script in `skills/gps/scripts/`) so they run without a permission prompt; nothing else is pre-approved by the skill. The `idea` skill, shipped in the same plugin, pre-approves its own six scripts in `skills/idea/scripts/` the same way, under its own `SKILL.md`. Codex applies its own configured sandbox and approval rules. The scripts call `git` and, on GitHub projects, `gh`, always with an argument list, never through a shell.
+- **Files it writes:** session files under `.work/` and run artifacts under `.scratch/` in your project, a few lines in the project's `.gitignore`, the changelog fragment `.work/changelog/<session-id>.md` at `/gps finish`, the CHANGELOG and the version files (such as `package.json`) at `/gps release`, which also deletes the fragments, and a temporary file for each pull request, issue or GitHub Release body (deleted right after, except a release's notes file when `gh release create` fails: the by-hand command uses it). The `idea` skill writes each Idea as one file under `.work/idea/` (Project scope) or your configured Global repo's `.work/idea/global/` (Global scope), and keeps which repo that is in `~/.gps/idea-config.json`.
+- **Files it reads:** the project it runs in (its files and git history), gps's own scripts and templates, and a file a command is explicitly given, such as the review for `/gps scout --from`. Other than the `idea` skill's `~/.gps/idea-config.json`, it does not read host transcripts or your home directory. Jev reads TYPESAFE_API_KEY from the environment to authenticate its optional request.
+- **Commits it makes:** one commit per ticket with only the files you name, the `chore(gps)` session-record commits described above, a commit of leftover tracked changes at `/gps finish` (the changelog fragment travels in its `chore(gps)` record commit), the `chore(release): X.Y.Z` commit (CHANGELOG, version files and fragment deletions) and its annotated tag `vX.Y.Z` at `/gps release`, and the `chore(gps): set up gps` commit of `/gps init --apply`. The `idea` skill adds one `idea(<slug>): <action>` commit per saved Idea, in the project you ran it from or in your configured Global repo, and never pushes it.
 - **What leaves your machine** (with your own git and gh credentials): with any `origin`, at `/gps release` only, `git fetch` of the base branch before a cut, `git push` of the release commit and tag at `/gps release --push` (after your yes) and `git ls-remote`, which only reads. On GitHub projects only: `git push` of the session branch and `gh pr create` at `/gps finish`; `gh release create` at `/gps release --push` when `release.githubRelease` allows it; `gh issue create`, `gh issue comment` and `gh issue close` for `/gps start --issue` sessions; and `gh auth status`, `gh pr list` and `gh release view`, which only read.
 
 Optional **Jev** sends drafted ticket names and complete bodies plus classification instructions to TypeSafe at `https://api.typesafe.ai/v1/systemone`, authenticated by `TYPESAFE_API_KEY`. Arbitrary repository files are not uploaded by this code; ticket bodies may include project details or code. Initial configuration derives `jev.enabled` from key presence; subsequent calls require both the saved flag and key. Set `jev.enabled` to `false` in `.work/gps-config.json` to opt out. A rescan can propose changing the flag, and an applied rescan can enable it again when the key is present. We make no TypeSafe retention or training guarantees. Conversation policies belong to the selected host (Anthropic for Claude Code, OpenAI for Codex). See [PRIVACY.md](PRIVACY.md).

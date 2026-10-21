@@ -27,16 +27,16 @@ function hashWork(root) {
 }
 
 {
-  // Scouted ideas but no session -> listed, and the first one is suggested.
+  // Scouted seeds but no session -> listed, and the first one is suggested.
   const root = h.tempProject();
   fs.mkdirSync(h.sessionsDir(root), { recursive: true });
   fs.writeFileSync(path.join(h.sessionsDir(root), '.pending-seeds.json'),
     JSON.stringify({ 'safe-linking': { strength: 'Strong', severity: 'Critical', problem: 'C1: data loss', solution: 's' } }));
   const report = h.json(root, 'status.js');
-  assert.deepStrictEqual(report.ideas.map((i) => i.slug), ['safe-linking']);
+  assert.deepStrictEqual(report.seeds.map((i) => i.slug), ['safe-linking']);
   assert.strictEqual(report.suggestedNext.command, '/gps start safe-linking');
   const text = h.ok(root, 'status.js').out;
-  assert.match(text, /## Scouted ideas not started/);
+  assert.match(text, /## Scouted seeds not started/);
   assert.match(text, /\| safe-linking \| Critical · Strong \| C1: data loss \| `\/gps start safe-linking` \|/);
   assert.match(text, /Next: \/gps start safe-linking/);
 }

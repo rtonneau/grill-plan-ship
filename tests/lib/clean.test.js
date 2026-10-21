@@ -4,7 +4,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const {
-  listCleanable, listIdeas, planDeletion, applyDeletion, renderList, renderPlan,
+  listCleanable, listSeeds, planDeletion, applyDeletion, renderList, renderPlan,
 } = require('../../skills/gps/scripts/lib/clean');
 
 const sessionsDir = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'gps-libclean-')), '.work', 'sessions');
@@ -26,23 +26,23 @@ fs.writeFileSync(path.join(sessionsDir, '.pending-seeds.json'), JSON.stringify({
 const sessions = listCleanable(sessionsDir, now);
 assert.deepStrictEqual(sessions.map((s) => [s.sessionId, s.idleDays, s.finished, s.current, s.ticketsStarted]),
   [['done', 29, true, true, 0], ['wip', 3, false, false, 1]]);
-const { ideas, problem } = listIdeas(sessionsDir, now);
-assert.deepStrictEqual(ideas.map((i) => [i.slug, i.idleDays]), [['old', 9], ['fresh', 1]]);
+const { seeds, problem } = listSeeds(sessionsDir, now);
+assert.deepStrictEqual(seeds.map((i) => [i.slug, i.idleDays]), [['old', 9], ['fresh', 1]]);
 assert.strictEqual(problem, null);
 
 // The list text escapes table cells; 29 idle days is very-stale (28+).
-const text = renderList(sessions, ideas, null);
+const text = renderList(sessions, seeds, null);
 assert.match(text, /\| done \| done \| finished \| 29 \| current \(not deletable\), very-stale \|/);
 assert.match(text, /\| wip \| wip \| unfinished \| 3 \| 1 ticket\(s\) started, branch feat\/wip, PR, issue \|/);
 assert.match(text, /\| old \|  \| 9 \| Old \\\| idea \|/);
-assert.match(renderList([], [], 'bad json'), /ideas file is unreadable \(bad json\)/);
+assert.match(renderList([], [], 'bad json'), /seeds file is unreadable \(bad json\)/);
 
 // The plan: validated, with one warning per thing the deletion loses.
 assert.throws(() => planDeletion(sessionsDir, ['done']), /is the current session/);
-assert.throws(() => planDeletion(sessionsDir, ['nope']), /neither a session nor a scouted idea/);
+assert.throws(() => planDeletion(sessionsDir, ['nope']), /neither a session nor a scouted seed/);
 const plan = planDeletion(sessionsDir, ['wip', 'old', 'wip']);
 assert.deepStrictEqual(plan.sessions.map((s) => s.sessionId), ['wip']);
-assert.deepStrictEqual(plan.ideas, [{ slug: 'old', problem: 'Old | idea' }]);
+assert.deepStrictEqual(plan.seeds, [{ slug: 'old', problem: 'Old | idea' }]);
 assert.deepStrictEqual(plan.warnings, [
   'wip is not finished.',
   'wip has 1 ticket(s) started.',
@@ -50,7 +50,7 @@ assert.deepStrictEqual(plan.warnings, [
 ]);
 const planText = renderPlan(plan);
 assert.match(planText, /- session wip \(wip\): unfinished, idle \d+ days/);
-assert.match(planText, /- idea old: Old \| idea/);
+assert.match(planText, /- seed old: Old \| idea/);
 assert.match(planText, /⚠️ wip is not finished\./);
 
 // Nothing is removed until applyDeletion.

@@ -17,12 +17,12 @@ fs.mkdirSync(sessionsDir, { recursive: true });
   assert.deepStrictEqual(empty.sessions, []);
   assert.strictEqual(empty.current, null);
   assert.strictEqual(empty.currentProblem.code, 'no-sessions');
-  assert.deepStrictEqual(empty.ideas, []);
-  assert.strictEqual(empty.ideasProblem, null);
+  assert.deepStrictEqual(empty.seeds, []);
+  assert.strictEqual(empty.seedsProblem, null);
   assert.strictEqual(empty.suggestedNext, undefined);
 }
 
-// Scouted ideas but no session -> ideas listed strongest first, next command is the top idea
+// Scouted seeds but no session -> seeds listed strongest first, next command is the top seed
 {
   const seedsFile = path.join(sessionsDir, '.pending-seeds.json');
   const seeds = {
@@ -34,19 +34,19 @@ fs.mkdirSync(sessionsDir, { recursive: true });
   fs.writeFileSync(seedsFile, JSON.stringify(seeds));
   const scouted = buildStatusReport(sessionsDir, projectRoot);
   assert.deepStrictEqual(scouted.sessions, []);
-  assert.deepStrictEqual(scouted.ideas.map((i) => i.slug), ['second-strong', 'safe-linker', 'test-harness', 'maybe-later']);
-  const safe = scouted.ideas[1];
+  assert.deepStrictEqual(scouted.seeds.map((i) => i.slug), ['second-strong', 'safe-linker', 'test-harness', 'maybe-later']);
+  const safe = scouted.seeds[1];
   assert.strictEqual(safe.severity, 'Critical');
   assert.strictEqual(safe.sourcePath, 'docs/review.md');
   assert.strictEqual(safe.startCommand, '/gps start safe-linker');
   assert.strictEqual(scouted.suggestedNext.command, '/gps start second-strong');
-  assert.match(scouted.suggestedNext.why, /4 scouted idea/);
+  assert.match(scouted.suggestedNext.why, /4 scouted seed/);
 
   // An unreadable seeds file is reported, never moved aside (status is read-only)
   fs.writeFileSync(seedsFile, '{ nope');
   const corrupt = buildStatusReport(sessionsDir, projectRoot);
-  assert.deepStrictEqual(corrupt.ideas, []);
-  assert.match(corrupt.ideasProblem, /unreadable/);
+  assert.deepStrictEqual(corrupt.seeds, []);
+  assert.match(corrupt.seedsProblem, /unreadable/);
   assert.strictEqual(fs.readFileSync(seedsFile, 'utf-8'), '{ nope');
   fs.unlinkSync(seedsFile);
 }

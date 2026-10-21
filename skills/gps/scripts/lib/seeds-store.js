@@ -1,6 +1,6 @@
 // skills/gps/scripts/lib/seeds-store.js
 //
-// Scouted ideas not started yet: .work/sessions/.pending-seeds.json, keyed
+// Scouted seeds not started yet: .work/sessions/.pending-seeds.json, keyed
 // by slug. /gps scout merges into it, /gps start consumes one, /gps clean
 // drops some, /gps status only peeks.
 

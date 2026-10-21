@@ -40,10 +40,10 @@ Grill (spec the work) → Plan (atomic tickets) → Ship (one commit per ticket)
 | Command | What it does | Instructions |
 |---|---|---|
 | `/gps init` | Check the project and commit gps's setup once (optional) | `references/init.md` |
-| `/gps scout [--from <review-file>] [direction]` | Review the codebase's architecture (or read a review file with `--from`) and turn the findings into ideas for `/gps start` | `references/scout.md` |
+| `/gps scout [--from <review-file>] [direction]` | Review the codebase's architecture (or read a review file with `--from`) and turn the findings into seeds for `/gps start` | `references/scout.md` |
 | `/gps start [--issue] <name>` | New session, then the grill (`--issue`: a report, filed as a GitHub issue) | `references/start.md` |
-| `/gps status` | Sessions, ideas, current phase and handoff, next command | `references/status.md` |
-| `/gps clean [id...]` | Delete sessions or drop ideas, after confirmation | `references/clean.md` |
+| `/gps status` | Sessions, seeds, current phase and handoff, next command | `references/status.md` |
+| `/gps clean [id...]` | Delete sessions or drop seeds, after confirmation | `references/clean.md` |
 | `/gps config [--rescan]` | Show or re-detect the project's GitHub flag | `references/config.md` |
 | `/gps write` | Save the approved grill or plan to disk | `references/write.md` |
 | `/gps plan` | Save the grill if pending, start the plan, draft tickets | `references/plan.md` |
