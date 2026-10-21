@@ -10,6 +10,7 @@ const {
   globalConfigPath, readGlobalConfig, writeGlobalConfig,
   repoRoot, defaultBranch, resolveScope, listIdeaSlugs,
 } = require("../../../skills/idea/scripts/lib/scope");
+const { IdeaError } = require("../../../skills/idea/scripts/lib/guard");
 
 function withEnv(name, value, fn) {
   const old = process.env[name];
@@ -203,6 +204,24 @@ test("resolveScope: global root's project and global dirs are distinct", () => {
   assert.equal(g.globalDir, g.ideaDir);
   assert.equal(g.branch, "main");
   assert.equal(g.defaultBranch, "main");
+});
+
+test("resolveScope: throws IdeaError when the configured Global root is no longer a git repository", () => {
+  const root = makeRepo();
+  fs.rmSync(root, { recursive: true, force: true });
+  assert.throws(
+    () => resolveScope({ cwd: tmpDir(), global: true, globalRoot: root }),
+    (err) => err instanceof IdeaError && /no longer a git repository/.test(err.message)
+  );
+});
+
+test("resolveScope: throws IdeaError when the configured Global root exists but its .git is gone", () => {
+  const root = makeRepo();
+  fs.rmSync(path.join(root, ".git"), { recursive: true, force: true });
+  assert.throws(
+    () => resolveScope({ cwd: tmpDir(), global: true, globalRoot: root }),
+    (err) => err instanceof IdeaError && /no longer a git repository/.test(err.message)
+  );
 });
 
 test("resolveScope: global scope from an unrelated cwd reads branch fields from the global root", () => {

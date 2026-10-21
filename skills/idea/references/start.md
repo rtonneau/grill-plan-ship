@@ -2,7 +2,7 @@
 
 **When:** there is time to grill an Idea, new or captured. Ends with the Idea saved as `grilled`.
 
-1. Derive the slug (`SKILL.md`; a slug passes through unchanged). Run `idea-find.js <slug> --json`. The target Scope is Global with `--global`, else Project.
+1. With `--global`: run `idea-resolve.js --global --json` first. If it fails because no personal repo is configured, point the user at `idea-config.js --set-global-root <path>` and stop, before the grill runs for nothing. Otherwise, derive the slug (`SKILL.md`; a slug passes through unchanged). Run `idea-find.js <slug> --json`. The target Scope is Global with `--global`, else Project.
    - **No hit in either Scope:** a new Idea. Go to step 2.
    - **`captured` in the target Scope** (this case wins over a hit in the other Scope): read its file; the grill opens with its Problem (the note and context lines) instead of asking the user to restate it. Go to step 2.
    - **Any other hit** (any status in the other Scope, or a status past `captured` in the target Scope, `dropped` included): the collision prompt below.

@@ -3,9 +3,39 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
+const os = require("node:os");
 const path = require("node:path");
 const { makeRepo, git, tmpDir } = require("../helpers");
-const { commitPaths } = require("../../../skills/idea/scripts/lib/git");
+const { commitPaths, safeGitArgs } = require("../../../skills/idea/scripts/lib/git");
+
+// Every idea skill git process trusts only the containing repository for that
+// invocation. This keeps direct Node script calls usable from agent sandboxes
+// without changing the user's global git config or wrapping the command in a
+// host-specific shell environment assignment.
+test("safeGitArgs: scopes safe.directory to the repository containing root, nothing outside one", () => {
+  const container = fs.mkdtempSync(path.join(os.tmpdir(), "idea-safe-dir-"));
+  const repo = path.join(container, "repo with spaces");
+  const nestedProject = path.join(repo, "packages", "app");
+  fs.mkdirSync(path.join(repo, ".git"), { recursive: true });
+  fs.mkdirSync(nestedProject, { recursive: true });
+  assert.deepEqual(
+    safeGitArgs(nestedProject, ["status", "--short"]),
+    ["-c", `safe.directory=${repo}`, "status", "--short"]
+  );
+
+  const linked = path.join(container, "linked worktree");
+  fs.mkdirSync(linked);
+  fs.writeFileSync(path.join(linked, ".git"), "gitdir: elsewhere\n");
+  assert.deepEqual(
+    safeGitArgs(linked, ["rev-parse", "HEAD"]),
+    ["-c", `safe.directory=${linked}`, "rev-parse", "HEAD"]
+  );
+
+  const nonRepo = path.join(container, "not-a-repo");
+  fs.mkdirSync(nonRepo);
+  assert.deepEqual(safeGitArgs(nonRepo, ["status"]), ["status"]);
+  fs.rmSync(container, { recursive: true, force: true });
+});
 
 test("commitPaths: commits only the given paths, unrelated staged file stays staged", () => {
   const repo = makeRepo();

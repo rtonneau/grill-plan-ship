@@ -8,7 +8,7 @@ _Recorded 2026-10-21, version 2.8.6._
 
 ## Decision
 
-Rename gps's scouted candidates from "idea(s)" to "seed(s)", everywhere: prose in `scout.md`, `clean.js`, `status.js` and their references, and the `--json` fields (`ideas` -> `seeds`, `ideasProblem` -> `seedsProblem`). This matches the on-disk store, already named `seeds-store.js` and `.pending-seeds.json` before the rename, so the code and the words it prints now agree. "Idea" is freed for the `idea` skill's own, unrelated meaning.
+Rename gps's scouted candidates from "idea(s)" to "seed(s)", everywhere they already appeared in text or data: `SKILL.md`, `references/clean.md`, `clean.js`, `status.js`, `help.js`, `scout-merge.js` and `README.md`, including the `--json` fields (`ideas` -> `seeds`, `ideasProblem` -> `seedsProblem`). `scout.md` never said "idea" and needed no change. This matches the on-disk store, already named `seeds-store.js` and `.pending-seeds.json` before the rename, so the code and the words it prints now agree. "Idea" is freed for the `idea` skill's own, unrelated meaning.
 
 ## Alternatives rejected
 

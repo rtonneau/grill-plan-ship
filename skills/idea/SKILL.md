@@ -30,7 +30,9 @@ An **Idea** is future work written down so it isn't lost, but not started. Each 
 
 ## How to run a command
 
-Read the command's references file (in this skill's directory) before doing anything else, every time: it holds the steps and the exact script calls, in order. In those files `<name>.js` means `node ${CLAUDE_SKILL_DIR}/scripts/<name>.js`; run it with that exact path, unquoted, so it matches the pre-approved command.
+Read the command's references file (in this skill's directory) before doing anything else, every time: it holds the steps and the exact script calls, in order. In those files, `<name>.js` means the matching script under this skill's `scripts/` directory. In Claude Code, use `node ${CLAUDE_SKILL_DIR}/scripts/<name>.js`, with that exact path, unquoted, so it matches the pre-approved command; in Codex, use the absolute script path resolved from the loaded idea skill directory, quoted for the host shell.
+
+This skill is shared by Claude Code and Codex. Translate `/idea` shown in shared references or script output to `$idea` when speaking to a Codex user.
 
 The slug comes from the name: lowercase it, turn every run of characters outside `a-z0-9` into one `-`, trim `-` from both ends. Every script taking a slug refuses an empty slug and `global`.
 
@@ -55,7 +57,7 @@ When rewriting an existing Idea, start from its current body and keep what still
 
 ## Rules for every command
 
-- Ask every question that has a finite set of answers with `AskUserQuestion`: one question per call, recommended answer first and marked "(Recommended)". Keep free text for open-ended answers. Inside a grill skill (`grilling`, `domain-modeling`, `brainstorming`) this overrides the skill's own "ask in chat".
+- **Host question rule:** In Claude Code use `AskUserQuestion`, one question per call, recommended answer first marked "(Recommended)"; keep free text for open-ended answers. In Codex inspect the available question tool, its schema and mode restrictions; never assume Claude Code tool availability. If no suitable tool is available, ask concise numbered conversational questions. Inside a grill skill (`grilling`, `domain-modeling`, `brainstorming`) this overrides the skill's own "ask in chat".
 - Take every fact about scope, path, status and branch from `idea-resolve.js` or `idea-find.js`, run in this conversation, never from memory or a directory listing.
 - `idea-save.js` alone writes the frontmatter (`status`, `scope`, `created`, `reviews`, `promoted_to`) and the Changelog: never hand-edit them. You write only the body file.
 - `idea-save.js` commits the one Idea file it wrote; leave pushing to the user and never push.

@@ -100,6 +100,15 @@ function resolveScope({ cwd, global = false, globalRoot }) {
     ideaDir = globalDir;
     workRoot = globalRoot;
     gitRoot = repoRoot(globalRoot);
+    // writeGlobalConfig validated this once, at --set-global-root time; the repo
+    // can be moved or deleted afterwards, so re-check it here rather than
+    // silently recreating .work/idea/global/ at a stale, non-repo path.
+    if (!fs.existsSync(globalRoot) || !isRepo(globalRoot)) {
+      throw new IdeaError(
+        `Configured Global root is no longer a git repository: ${globalRoot}`,
+        "Run idea-config.js --set-global-root <path> again."
+      );
+    }
   } else {
     scope = "project";
     gitRoot = repoRoot(cwd);

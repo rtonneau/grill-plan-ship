@@ -20,12 +20,13 @@ Every command that writes an Idea runs these before `idea-save.js`. First run `i
 If `workDirExists` is true, or the Idea already exists, go to check 2.
 
 - **Global** (`--global`): `.work/` belongs to your configured personal repo. Add `--create-work-dir` to the save without asking.
-- **Project, `inRepo` true:**
+- **Project, `inRepo` true, `globalDir` set:**
   1. "Create `<gitRoot>/.work/idea/`": add `--create-work-dir` to the save.
   2. "Use Global (`<globalDir>`)": add `--global` to the save, and run check 2 on `idea-resolve.js --global --json`.
-- **Project, `inRepo` false** (no git repo here):
+- **Project, `inRepo` false, `globalDir` set** (no git repo here):
   1. "Use Global (`<globalDir>`)": add `--global` to the save, and run check 2 on `idea-resolve.js --global --json`.
   2. "Create `./.work/idea/` here (not committed: no git repo)": add `--create-work-dir` to the save.
+- **Project, `globalDir` null** (either `inRepo`): add `--create-work-dir` to the save without asking — no Global root is configured to offer; without a repo, say it won't be committed.
 
 ### 2. Off the default branch
 
