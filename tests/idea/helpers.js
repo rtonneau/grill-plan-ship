@@ -55,4 +55,35 @@ function makeRepo({ branch = "main", remote = false } = {}) {
   return dir;
 }
 
-module.exports = { makeRepo, git, tmpDir, run, ok, json };
+// Same shape as run(): { code, out, err }. A distinct name for the five idea
+// action scripts' tests, each of which sets GPS_IDEA_CONFIG_PATH per call via
+// `env` (the file a repo's `globalRoot` is read from — see lib/scope.js) the
+// same way the old dotfiles-based tests set IDEA_DOTFILES_ROOT per call.
+const runScript = run;
+
+// A project repo (with .work/) plus a separate repo configured as the Global
+// root (with .work/), and a GPS_IDEA_CONFIG_PATH-style config file naming it.
+// Every idea script test that needs a Global scope to exist builds on this.
+function setup() {
+  const globalRoot = makeRepo();
+  fs.mkdirSync(path.join(globalRoot, ".work"));
+  const cfg = path.join(tmpDir(), "idea-config.json");
+  fs.writeFileSync(cfg, JSON.stringify({ globalRoot }));
+  const repo = makeRepo();
+  fs.mkdirSync(path.join(repo, ".work"));
+  return { cfg, repo, globalRoot };
+}
+
+// Writes `text` to a fresh tmp file, for scripts' --body-file flag.
+function bodyFile(text) {
+  const file = path.join(tmpDir("idea-body-"), "body.md");
+  fs.writeFileSync(file, text);
+  return file;
+}
+
+// Commit subjects in `repo`, newest first.
+function subjects(repo) {
+  return git(repo, ["log", "--format=%s"]).trim().split("\n");
+}
+
+module.exports = { makeRepo, git, tmpDir, run, ok, json, runScript, setup, bodyFile, subjects };
