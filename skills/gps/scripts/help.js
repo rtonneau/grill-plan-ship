@@ -22,7 +22,7 @@ const SKILL_DIR = path.join(__dirname, '..');
 const capitalize = (text) => text.charAt(0).toUpperCase() + text.slice(1);
 
 const WORKFLOW = [
-  '1. **Scout** (optional): `/gps scout` turns a codebase review into ideas.',
+  '1. **Scout** (optional): `/gps scout` turns a codebase review into seeds.',
   '2. **Grill**: `/gps start <name>` opens a session and questions you until the design is clear.',
   '3. **Plan**: `/gps plan` saves the design and drafts small tickets for you to approve.',
   '4. **Ship**: `/gps ship` implements the tickets, one commit each.',
@@ -70,7 +70,7 @@ function whereYouAre(projectRoot) {
       lines: setup ? ['No session yet, and gps is not set up in this repository (optional: /gps init).'] : ['No session yet.'],
       next: setup
         ? { command: '/gps init', why: 'Check the project and commit gps\'s setup once; then /gps start <feature-name>.' }
-        : { command: '/gps start <feature-name>', why: 'Begin a feature (or /gps scout for ideas first).' },
+        : { command: '/gps start <feature-name>', why: 'Begin a feature (or /gps scout for seeds first).' },
     };
   }
   if (pointer.problem) {

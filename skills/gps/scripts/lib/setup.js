@@ -16,7 +16,7 @@ const { diagnoseGithub } = require('./github');
 const { isWorkTree, currentBranch, isIgnored, isTracked, pathHasChanges, commitFiles } = require('./git');
 
 // Files under .work/ (and .scratch/) that must never be shared: the
-// current session pointer, scouted ideas not started yet (and their
+// current session pointer, scouted seeds not started yet (and their
 // corrupt backups) and the /gps write and changelog payloads in progress.
 const LOCAL_ONLY = [
   '.scratch/',

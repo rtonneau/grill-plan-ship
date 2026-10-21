@@ -41,12 +41,12 @@ main({
     });
     for (const warning of result.warnings) warn(warning);
 
-    const lines = [`✅ Seeded ${result.seeded.length} idea(s); report archived as .work/sessions/${result.sourceReport}`, ''];
+    const lines = [`✅ Seeded ${result.seeded.length} seed(s); report archived as .work/sessions/${result.sourceReport}`, ''];
     for (const s of result.seeded) {
       const badge = s.severity ? `${s.severity} · ${s.strength}` : s.strength;
       lines.push(`- \`${s.startCommand}\` — ${badge} — ${s.problem.split('\n')[0]}`);
     }
-    lines.push('', 'Next: /gps start <slug> for the idea to pursue; the grill opens seeded with it.');
+    lines.push('', 'Next: /gps start <slug> for the seed to pursue; the grill opens seeded with it.');
     return { text: lines.join('\n'), data: result };
   },
 });

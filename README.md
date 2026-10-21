@@ -43,10 +43,10 @@ Or, once the direction is clear, `/gps auto` runs from wherever the session is t
 | Command | What it does |
 |---|---|
 | `/gps init` | Optional first-run setup: check the project (git, GitHub, helper skills) and commit gps's `.gitignore` entries, config and (when missing) CHANGELOG.md on their own |
-| `/gps scout [--from <review-file>] [direction]` | Turn an architecture review, or an existing review file, into ideas for `/gps start` |
+| `/gps scout [--from <review-file>] [direction]` | Turn an architecture review, or an existing review file, into seeds for `/gps start` |
 | `/gps start [--issue] <name>` | New session, then the grill (`--issue`: a bug report, filed as a GitHub issue) |
-| `/gps status` | Every session, scouted ideas, the current phase, a saved handoff, the next command |
-| `/gps clean [id...]` | Delete old sessions or drop ideas, after showing exactly what goes |
+| `/gps status` | Every session, scouted seeds, the current phase, a saved handoff, the next command |
+| `/gps clean [id...]` | Delete old sessions or drop seeds, after showing exactly what goes |
 | `/gps config [--rescan]` | Show GitHub/Jev flags, changelog/release and declared delegation settings, or rescan flags |
 | `/gps write` | Save the approved grill or plan to disk (`plan`, `ship` and `auto` do it for you) |
 | `/gps plan` | Save the grill if pending, then draft tickets with model and effort hints |
@@ -62,8 +62,8 @@ Or, once the direction is clear, `/gps auto` runs from wherever the session is t
 ```
 /gps init                                  # "GitHub: detected on" + one chore(gps): set up gps commit, after your yes
 /gps scout only review src/parser          # architecture scan of one area -> "/gps start <slug>" lines
-/gps scout --from docs/review.md only Critical and High   # an existing review -> grouped ideas
-/gps start runconfig-resolver              # a scouted idea: the grill opens with it already loaded
+/gps scout --from docs/review.md only Critical and High   # an existing review -> grouped seeds
+/gps start runconfig-resolver              # a scouted seed: the grill opens with it already loaded
 /gps start --issue crash when saving a large file          # a report; on GitHub it becomes issue #N
 /gps status                                # "dark mode — ship · 1/3 done; next 02 persist" + Next: line
 /gps clean 2026-08-01__old-spike           # dry run first, deletes only after your yes
@@ -157,7 +157,7 @@ Every script in `skills/gps/scripts/` follows the same rules (see `scripts/lib/c
 |---|---|
 | `start.js` | create a session (`--issue` for a report) and consume a matching scout seed |
 | `status.js` | the status report |
-| `clean.js` | list, `--dry-run` or `--delete` sessions and ideas |
+| `clean.js` | list, `--dry-run` or `--delete` sessions and seeds |
 | `init.js` | check the project's setup, or `--apply [--unignore-work]` it and commit it |
 | `config.js` | show or `--rescan [--apply]` the GitHub flag |
 | `set-current.js` | switch the current session (only after the user confirms) |
@@ -178,7 +178,7 @@ Every script in `skills/gps/scripts/` follows the same rules (see `scripts/lib/c
 | `auto-route.js` | the steps `/gps auto` will run |
 | `handoff.js` | write HANDOFF.md |
 | `help.js` | `/gps help`: where you are, the workflow, every command (or one command's details) |
-| `scout-merge.js` | archive a review and merge its ideas into the seeds |
+| `scout-merge.js` | archive a review and merge its candidates into the seeds |
 | `domain-doc.js` | built-in grill: where the glossary and ADRs live (`where`), the glossary to add a term to, or the next numbered ADR |
 
 ## Session files

@@ -50,8 +50,8 @@ h.assertFails(clean('--dry-run', '--delete', 'old'), 2, /not both/);
 
 // The current session and unknown or unsafe ids abort the whole batch.
 h.assertFails(clean('--delete', 'old', 'fresh'), 1, /current session/);
-h.assertFails(clean('--delete', 'old', 'nope'), 1, /neither a session nor a scouted idea/);
-h.assertFails(clean('--delete', '..'), 1, /Invalid session or idea id/);
+h.assertFails(clean('--delete', 'old', 'nope'), 1, /neither a session nor a scouted seed/);
+h.assertFails(clean('--delete', '..'), 1, /Invalid session or seed id/);
 assert.ok(fs.existsSync(path.join(sessionsDir, 'old')), 'a failed batch deletes nothing');
 
 // --dry-run: exactly what would go, with warnings; changes nothing.
@@ -80,7 +80,7 @@ assert.ok(fs.existsSync(path.join(sessionsDir, 'old')), 'a failed batch deletes 
   assert.ok(fs.existsSync(path.join(sessionsDir, '.pending-seeds.json')));
 }
 
-// Scouted ideas: listed oldest first, dropped alone or mixed with sessions.
+// Scouted seeds: listed oldest first, dropped alone or mixed with sessions.
 {
   const seedsFile = path.join(sessionsDir, '.pending-seeds.json');
   const readSeeds = () => JSON.parse(fs.readFileSync(seedsFile, 'utf-8'));
@@ -92,41 +92,41 @@ assert.ok(fs.existsSync(path.join(sessionsDir, 'old')), 'a failed batch deletes 
   }));
 
   const report = list();
-  assert.deepStrictEqual(report.ideas.map((i) => i.slug), ['runconfig-resolver', 'cache-layer', 'keep-me']);
-  assert.deepStrictEqual(report.ideas.map((i) => i.idleDays), [10, 2, null]);
-  assert.strictEqual(report.ideasProblem, null);
+  assert.deepStrictEqual(report.seeds.map((i) => i.slug), ['runconfig-resolver', 'cache-layer', 'keep-me']);
+  assert.deepStrictEqual(report.seeds.map((i) => i.idleDays), [10, 2, null]);
+  assert.strictEqual(report.seedsProblem, null);
   assert.match(h.ok(root, 'clean.js').out, /\| runconfig-resolver \| Strong \| 10 \| Config lookup is scattered \|/);
-  assert.match(h.ok(root, 'clean.js', ['--dry-run', 'cache-layer']).out, /- idea cache-layer: Slow reads/);
+  assert.match(h.ok(root, 'clean.js', ['--dry-run', 'cache-layer']).out, /- seed cache-layer: Slow reads/);
 
   const bad = clean('--delete', 'runconfig-resolver', 'stale', 'nope');
-  h.assertFails(bad, 1, /Ideas: runconfig-resolver, cache-layer, keep-me/);
+  h.assertFails(bad, 1, /Seeds: runconfig-resolver, cache-layer, keep-me/);
   assert.ok(readSeeds()['runconfig-resolver']);
   assert.ok(fs.existsSync(path.join(sessionsDir, 'stale')));
 
-  assert.match(h.ok(root, 'clean.js', ['--delete', 'runconfig-resolver']).out, /Dropped scouted idea runconfig-resolver/);
+  assert.match(h.ok(root, 'clean.js', ['--delete', 'runconfig-resolver']).out, /Dropped scouted seed runconfig-resolver/);
   assert.deepStrictEqual(Object.keys(readSeeds()), ['cache-layer', 'keep-me']);
   const mixed = h.json(root, 'clean.js', ['--delete', 'cache-layer', 'stale']);
-  assert.deepStrictEqual(mixed.deleted, { sessions: ['stale'], ideas: ['cache-layer'] });
+  assert.deepStrictEqual(mixed.deleted, { sessions: ['stale'], seeds: ['cache-layer'] });
   assert.ok(!fs.existsSync(path.join(sessionsDir, 'stale')));
   assert.deepStrictEqual(Object.keys(readSeeds()), ['keep-me']);
 
   // An unreadable seeds file is reported, never moved aside or rewritten.
   fs.writeFileSync(seedsFile, '{ broken');
   const broken = list();
-  assert.deepStrictEqual(broken.ideas, []);
-  assert.ok(broken.ideasProblem);
+  assert.deepStrictEqual(broken.seeds, []);
+  assert.ok(broken.seedsProblem);
   h.assertFails(clean('--delete', 'keep-me'), 1, /unreadable/);
   assert.strictEqual(fs.readFileSync(seedsFile, 'utf-8'), '{ broken');
   assert.ok(!fs.readdirSync(sessionsDir).some((f) => f.includes('corrupt')));
 }
 
-// Only ideas left: still listed.
+// Only seeds left: still listed.
 {
   fs.writeFileSync(path.join(sessionsDir, '.pending-seeds.json'), JSON.stringify({ solo: {} }));
   fs.rmSync(path.join(sessionsDir, 'fresh'), { recursive: true, force: true });
   const report = list();
   assert.deepStrictEqual(report.sessions, []);
-  assert.deepStrictEqual(report.ideas.map((i) => i.slug), ['solo']);
+  assert.deepStrictEqual(report.seeds.map((i) => i.slug), ['solo']);
 }
 
 fs.rmSync(root, { recursive: true, force: true });
