@@ -78,6 +78,27 @@ Or, once the direction is clear, `/gps auto` runs from wherever the session is t
 /gps help what does auto skip?             # explains from the references, names the command to run
 ```
 
+## Idea backlog
+
+The `idea` skill keeps a backlog of future work apart from gps sessions. An Idea is one file in a Backlog: Project scope (`.work/idea/` in this repo) or Global scope (`.work/idea/global/` in a personal repo you name once with `/idea config --set-global-root <path>`). An Idea moves `captured` → `grilled` → `planned` → `promoted` or `dropped`.
+
+| Command | What it does |
+|---|---|
+| `/idea capture <name> [note] [--global]` | Capture an Idea in seconds, no grill (status `captured`) |
+| `/idea start <name\|slug> [--global]` | Grill a new or captured Idea (status `grilled`) |
+| `/idea plan [slug]` | Add a 3–8 milestone plan to a grilled Idea (status `planned`) |
+| `/idea review <slug>` | Revisit a grilled or planned Idea: re-grill what is open or stale |
+| `/idea promote <slug>` | Promote an Idea into a gps session, grill saved on the default branch |
+| `/idea drop <slug>` | Mark an Idea `dropped` with a reason; the file stays |
+| `/idea list [--all]` | Show the Project and Global Backlogs (`--all` adds promoted and dropped) |
+| `/idea config [--set-global-root <path>]` | Show or set which personal repo holds Global Ideas |
+
+```
+/idea capture dark-mode add a toggle in settings    # saved captured, no grill
+/idea start dark-mode                               # grills it; saved grilled
+/idea promote dark-mode                             # becomes a /gps session, Idea marked promoted
+```
+
 ## How `/gps ship` works
 
 `/gps ship` asks once how to implement the tickets:
