@@ -166,7 +166,7 @@ assert.ok(fs.existsSync(path.join(sessionsDir, 'old')), 'a failed batch deletes 
   assert.ok(fs.existsSync(sessionScratch) && fs.existsSync(orphanDir));
 
   // An unknown id refuses the whole batch; nothing is removed.
-  h.assertFails(clean('--delete', 'gone-session', 'nope'), 1, /neither a session nor a scouted idea/);
+  h.assertFails(clean('--delete', 'gone-session', 'nope'), 1, /neither a session nor a scouted seed/);
   h.assertFails(clean('--delete', 'with-scratch', 'current-one'), 1, /current session/);
   assert.ok(fs.existsSync(sessionScratch) && fs.existsSync(orphanDir));
 

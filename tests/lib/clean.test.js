@@ -77,7 +77,7 @@ assert.deepStrictEqual(Object.keys(JSON.parse(fs.readFileSync(path.join(sessions
   assert.deepStrictEqual(listOrphanScratch(sessionsDir, null), []);
   assert.match(renderList(sessions, [], null, listOrphanScratch(sessionsDir, projectRoot)), /## Orphan scratch dirs[\s\S]*\| \.scratch\/tests\/lost \| 2\.0 KB \|/);
 
-  assert.throws(() => planDeletion(sessionsDir, ['lost', 'nope'], projectRoot), /neither a session nor a scouted idea/);
+  assert.throws(() => planDeletion(sessionsDir, ['lost', 'nope'], projectRoot), /neither a session nor a scouted seed/);
   assert.throws(() => planDeletion(sessionsDir, ['lost'], null), /neither a session/);
   const p2 = planDeletion(sessionsDir, ['sc', 'lost'], projectRoot);
   assert.deepStrictEqual(p2.orphanScratch.map((o) => o.id), ['lost']);
