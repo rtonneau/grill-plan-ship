@@ -145,4 +145,4 @@ function removeGitignoreEntry(projectRoot, entry) {
   return true;
 }
 
-module.exports = { BUILD_DIR_NAMES, CLEAN_POLICIES, isBuildTree, dirSize, formatBytes, cleanScratch, ensureScratchDir, gitignoreCovers, ensureGitignoreEntry, removeGitignoreEntry };
+module.exports = { SCRATCH_ROOT, BUILD_DIR_NAMES, CLEAN_POLICIES, isBuildTree, dirSize, formatBytes, cleanScratch, ensureScratchDir, gitignoreCovers, ensureGitignoreEntry, removeGitignoreEntry };

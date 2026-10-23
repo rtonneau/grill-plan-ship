@@ -106,7 +106,7 @@ assert.ok(fs.existsSync(path.join(sessionsDir, 'old')), 'a failed batch deletes 
   assert.match(h.ok(root, 'clean.js', ['--delete', 'runconfig-resolver']).out, /Dropped scouted idea runconfig-resolver/);
   assert.deepStrictEqual(Object.keys(readSeeds()), ['cache-layer', 'keep-me']);
   const mixed = h.json(root, 'clean.js', ['--delete', 'cache-layer', 'stale']);
-  assert.deepStrictEqual(mixed.deleted, { sessions: ['stale'], ideas: ['cache-layer'] });
+  assert.deepStrictEqual(mixed.deleted, { sessions: ['stale'], orphanScratch: [], ideas: ['cache-layer'] });
   assert.ok(!fs.existsSync(path.join(sessionsDir, 'stale')));
   assert.deepStrictEqual(Object.keys(readSeeds()), ['keep-me']);
 
@@ -127,6 +127,63 @@ assert.ok(fs.existsSync(path.join(sessionsDir, 'old')), 'a failed batch deletes 
   const report = list();
   assert.deepStrictEqual(report.sessions, []);
   assert.deepStrictEqual(report.ideas.map((i) => i.slug), ['solo']);
+}
+
+// Scratch dirs: a session's goes with it, an orphan is listed, sized, validated and deleted.
+{
+  const scratch = (id, bytes = 0) => {
+    const dir = path.join(root, '.scratch', 'tests', id);
+    fs.mkdirSync(path.join(dir, 'build'), { recursive: true });
+    fs.writeFileSync(path.join(dir, 'build', 'out.bin'), 'x'.repeat(bytes));
+    return dir;
+  };
+  addSession('with-scratch', 5);
+  addSession('current-one', 1);
+  fs.writeFileSync(path.join(sessionsDir, '.current-session'), 'current-one');
+  fs.writeFileSync(path.join(sessionsDir, '.pending-seeds.json'), '{}');
+  const sessionScratch = scratch('with-scratch', 2048);
+  scratch('current-one', 10);
+  const orphanDir = scratch('gone-session', 3072);
+  const orphanDir2 = scratch('gone-too', 5);
+
+  const report = list();
+  assert.deepStrictEqual(report.orphanScratch.map((o) => [o.id, o.path, o.bytes]),
+    [['gone-session', '.scratch/tests/gone-session', 3072], ['gone-too', '.scratch/tests/gone-too', 5]]);
+  assert.strictEqual(report.sessions.find((s) => s.sessionId === 'with-scratch').scratch.bytes, 2048);
+  assert.strictEqual(report.sessions.find((s) => s.sessionId === 'current-one').scratch.bytes, 10);
+  const text = h.ok(root, 'clean.js').out;
+  assert.match(text, /## Orphan scratch dirs/);
+  assert.match(text, /\| \.scratch\/tests\/gone-session \| 3\.0 KB \|/);
+  assert.ok(!/## Orphan scratch dirs[\s\S]*current-one/.test(text), 'the current session is never an orphan');
+
+  // --dry-run shows the scratch path and size for sessions and orphans.
+  const dry = h.ok(root, 'clean.js', ['--dry-run', 'with-scratch', 'gone-session']);
+  assert.match(dry.out, /- session with-scratch .*\n {2}- scratch dir \.scratch\/tests\/with-scratch \(2\.0 KB\)/);
+  assert.match(dry.out, /- orphan scratch dir \.scratch\/tests\/gone-session \(3\.0 KB\)/);
+  const plan = h.json(root, 'clean.js', ['--dry-run', 'with-scratch', 'gone-session']);
+  assert.strictEqual(plan.sessions[0].scratch.path, '.scratch/tests/with-scratch');
+  assert.deepStrictEqual(plan.orphanScratch.map((o) => o.path), ['.scratch/tests/gone-session']);
+  assert.ok(fs.existsSync(sessionScratch) && fs.existsSync(orphanDir));
+
+  // An unknown id refuses the whole batch; nothing is removed.
+  h.assertFails(clean('--delete', 'gone-session', 'nope'), 1, /neither a session nor a scouted idea/);
+  h.assertFails(clean('--delete', 'with-scratch', 'current-one'), 1, /current session/);
+  assert.ok(fs.existsSync(sessionScratch) && fs.existsSync(orphanDir));
+
+  const done = h.ok(root, 'clean.js', ['--delete', 'with-scratch', 'gone-session']);
+  assert.match(done.out, /✅ Deleted session with-scratch\.\n✅ Deleted scratch dir \.scratch\/tests\/gone-session\./);
+  assert.ok(!fs.existsSync(sessionScratch) && !fs.existsSync(orphanDir));
+  assert.ok(fs.existsSync(orphanDir2) && fs.existsSync(path.join(root, '.scratch', 'tests', 'current-one')));
+  assert.ok(!fs.existsSync(path.join(sessionsDir, 'with-scratch')));
+
+  // Orphans alone are something to clean, even with no sessions directory.
+  fs.rmSync(sessionsDir, { recursive: true, force: true });
+  const only = h.json(root, 'clean.js');
+  assert.deepStrictEqual(only.sessions, []);
+  assert.deepStrictEqual(only.orphanScratch.map((o) => o.id), ['current-one', 'gone-too']);
+  assert.match(h.ok(root, 'clean.js', ['--delete', 'gone-too']).out, /✅ Deleted scratch dir \.scratch\/tests\/gone-too\./);
+  fs.rmSync(path.join(root, '.scratch'), { recursive: true, force: true });
+  h.assertFails(clean(), 1, /Nothing to clean/);
 }
 
 fs.rmSync(root, { recursive: true, force: true });
