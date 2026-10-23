@@ -21,7 +21,8 @@ skills/idea/               Idea backlog skill, same shape (SKILL.md, references/
 agents/gps-ticket-<level>.md  one ticket subagent per TICKET_EFFORTS level but inherit (lib/ticket-model.js):
                            identical bodies, only name/description/effort differ (checked by tests/skill.test.js)
 docs/decisions/NNNN-*.md   design decisions with their reasons; 0001: effort hints stop at xhigh, no max; 0003: changelog fragments in .work/changelog/, version set only by /gps release;
-                           0002: gps commits only its own .work/ paths; 0004: model hints stay family-level (haiku/sonnet/opus/inherit), no version pinning
+                           0002: gps commits only its own .work/ paths; 0004: model hints stay family-level (haiku/sonnet/opus/inherit), no version pinning;
+                           0008: finish removes scratch build trees by name (`scratch.cleanupOnFinish`), warns on failure
 docs/WORK-DIR.md           contract for other skills sharing .work/ (names every GPS_WORK_PATHS entry, checked by tests/skill.test.js)
 tests/                     <script>.test.js per script, lib/<lib>.test.js per lib, e2e, github-flow, skill
 docs/                      icon.png (listing icon) and gps-workflow.png (README diagram), rendered from the

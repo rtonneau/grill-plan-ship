@@ -4,7 +4,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const {
-  listCleanable, listSeeds, planDeletion, applyDeletion, renderList, renderPlan,
+  listCleanable, listOrphanScratch, listSeeds, planDeletion, applyDeletion, renderList, renderPlan,
 } = require('../../skills/gps/scripts/lib/clean');
 
 const sessionsDir = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'gps-libclean-')), '.work', 'sessions');
@@ -58,6 +58,36 @@ assert.ok(fs.existsSync(path.join(sessionsDir, 'wip')));
 applyDeletion(sessionsDir, plan);
 assert.ok(!fs.existsSync(path.join(sessionsDir, 'wip')));
 assert.deepStrictEqual(Object.keys(JSON.parse(fs.readFileSync(path.join(sessionsDir, '.pending-seeds.json'), 'utf-8'))), ['fresh']);
+
+// Scratch dirs: attached to sessions, orphans listed (never the current one) and planned.
+{
+  const projectRoot = path.dirname(path.dirname(sessionsDir));
+  const mk = (id, bytes) => {
+    fs.mkdirSync(path.join(projectRoot, '.scratch', 'tests', id), { recursive: true });
+    fs.writeFileSync(path.join(projectRoot, '.scratch', 'tests', id, 'f.txt'), 'x'.repeat(bytes));
+  };
+  addSession('sc', 2);
+  mk('sc', 100);
+  mk('done', 7);
+  mk('lost', 2048);
+  assert.deepStrictEqual(listCleanable(sessionsDir, now, projectRoot).map((s) => [s.sessionId, s.scratch && s.scratch.bytes]),
+    [['done', 7], ['sc', 100]]);
+  assert.strictEqual(listCleanable(sessionsDir, now).find((s) => s.sessionId === 'sc').scratch, null);
+  assert.deepStrictEqual(listOrphanScratch(sessionsDir, projectRoot), [{ id: 'lost', path: '.scratch/tests/lost', bytes: 2048 }]);
+  assert.deepStrictEqual(listOrphanScratch(sessionsDir, null), []);
+  assert.match(renderList(sessions, [], null, listOrphanScratch(sessionsDir, projectRoot)), /## Orphan scratch dirs[\s\S]*\| \.scratch\/tests\/lost \| 2\.0 KB \|/);
+
+  assert.throws(() => planDeletion(sessionsDir, ['lost', 'nope'], projectRoot), /neither a session nor a scouted seed/);
+  assert.throws(() => planDeletion(sessionsDir, ['lost'], null), /neither a session/);
+  const p2 = planDeletion(sessionsDir, ['sc', 'lost'], projectRoot);
+  assert.deepStrictEqual(p2.orphanScratch.map((o) => o.id), ['lost']);
+  assert.match(renderPlan(p2), /- orphan scratch dir \.scratch\/tests\/lost \(2\.0 KB\)/);
+  assert.ok(fs.existsSync(path.join(projectRoot, '.scratch', 'tests', 'lost')));
+  applyDeletion(sessionsDir, p2, projectRoot);
+  assert.ok(!fs.existsSync(path.join(projectRoot, '.scratch', 'tests', 'lost')));
+  assert.ok(!fs.existsSync(path.join(projectRoot, '.scratch', 'tests', 'sc')));
+  assert.ok(fs.existsSync(path.join(projectRoot, '.scratch', 'tests', 'done')));
+}
 
 fs.rmSync(path.dirname(path.dirname(sessionsDir)), { recursive: true, force: true });
 console.log('clean.test.js (lib): all assertions passed');

@@ -39,6 +39,7 @@ function buildPrompt(ticket, mode, scratchDir) {
     `- Spec (read it in full; it is your complete brief): ${ticket.ticketPath}`,
     `- Commit log: ${ticket.commitLogPath}`,
     `- Scratch dir for every build/run/test artifact (never the source tree): ${scratchDir}`,
+    `- Build trees in the scratch dir are deleted at /gps finish: copy any log or output you cite in the commit log into ${scratchDir}/evidence/.`,
     '',
     '1. Orient: run `git log --oneline -n 20` and read the files the ticket names before assuming anything about earlier tickets.',
     '2. Implement the ticket so every Acceptance Criterion holds.',
