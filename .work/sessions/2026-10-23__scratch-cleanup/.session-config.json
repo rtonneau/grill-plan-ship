@@ -1,0 +1,66 @@
+{
+  "session_id": "2026-10-23__scratch-cleanup",
+  "feature_name": "scratch-cleanup",
+  "scratch_dir": ".scratch/tests/2026-10-23__scratch-cleanup",
+  "created_at": "2026-10-23T16:09:47.722Z",
+  "template_version": 2,
+  "history": [
+    {
+      "at": "2026-10-23T16:09:47.722Z",
+      "event": "session_started",
+      "phase": "grill",
+      "files": [
+        "01-grill/resume.md"
+      ]
+    },
+    {
+      "at": "2026-10-23T16:16:34.996Z",
+      "event": "grill_written",
+      "phase": "plan-not-started",
+      "files": [
+        "01-grill/resume.md"
+      ]
+    },
+    {
+      "at": "2026-10-23T16:16:35.100Z",
+      "event": "plan_started",
+      "phase": "plan",
+      "files": [
+        "02-plan/plan.md"
+      ]
+    },
+    {
+      "at": "2026-10-23T16:18:17.642Z",
+      "event": "branch_created",
+      "phase": "plan",
+      "detail": {
+        "branch": "feat/scratch-cleanup",
+        "base": "main"
+      }
+    },
+    {
+      "at": "2026-10-23T16:18:17.668Z",
+      "event": "plan_written",
+      "phase": "ship",
+      "files": [
+        "02-plan/plan.md",
+        "02-plan/tickets/01-scratch-build-tree-rule.md",
+        "02-plan/tickets/02-scratch-config-settings.md",
+        "02-plan/tickets/03-finish-cleans-scratch.md",
+        "02-plan/tickets/04-clean-removes-scratch.md",
+        "02-plan/tickets/05-brief-evidence-line.md",
+        "02-plan/tickets/06-docs-scratch-cleanup.md"
+      ],
+      "detail": {
+        "tickets": 6
+      }
+    }
+  ],
+  "current_phase": "ship",
+  "git": {
+    "branch": "feat/scratch-cleanup",
+    "base_branch": "main",
+    "branch_created_at": "2026-10-23T16:18:17.642Z",
+    "pr_url": null
+  }
+}
