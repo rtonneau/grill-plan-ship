@@ -33,7 +33,7 @@ const h = require('./helpers');
   const res = h.ok(root, 'scout-merge.js', [report, entries]);
   assert.match(res.err, /moved to \.pending-seeds\.json\.corrupt-/);
   assert.match(res.err, /⚠️ {2}Duplicate slug "a-b"/);
-  assert.match(res.out, /✅ Seeded 1 idea\(s\); report archived as \.work\/sessions\/scout-reports\/architecture-review-/);
+  assert.match(res.out, /✅ Seeded 1 seed\(s\); report archived as \.work\/sessions\/scout-reports\/architecture-review-/);
   assert.match(res.out, /- `\/gps start a-b` — Strong — p\n/);
   assert.match(res.out, /Next: \/gps start <slug>/);
   const quarantined = fs.readdirSync(h.sessionsDir(root)).find((f) => f.includes('.corrupt-'));

@@ -1,6 +1,6 @@
 // skills/gps/scripts/lib/status.js
 //
-// /gps status: every session, every scouted idea not started yet, and for
+// /gps status: every session, every scouted seed not started yet, and for
 // the current session its phase, tickets, recent commits and saved handoff
 // (with drift against live state). buildStatusReport gathers the data;
 // renderStatus turns it into the text relayed to the user. Read-only.
@@ -40,15 +40,15 @@ function summarizeSession(sessionsDir, sessionId) {
   };
 }
 
-// Scouted ideas not yet turned into sessions, strongest first; scout order
+// Scouted seeds not yet turned into sessions, strongest first; scout order
 // is kept within a strength.
-function listPendingIdeas(sessionsDir) {
-  const { seeds, problem } = peekSeeds(sessionsDir);
+function listPendingSeeds(sessionsDir) {
+  const { seeds: pending, problem } = peekSeeds(sessionsDir);
   const rank = (strength) => {
     const i = STRENGTHS.indexOf(strength);
     return i === -1 ? STRENGTHS.length : i;
   };
-  const ideas = Object.entries(seeds)
+  const seeds = Object.entries(pending)
     .map(([slug, seed], index) => ({ slug, seed: seed || {}, index }))
     .sort((a, b) => rank(a.seed.strength) - rank(b.seed.strength) || a.index - b.index)
     .map(({ slug, seed }) => ({
@@ -61,24 +61,24 @@ function listPendingIdeas(sessionsDir) {
       createdAt: seed.createdAt || null,
       startCommand: `/gps start ${slug}`,
     }));
-  const ideasProblem = problem
+  const seedsProblem = problem
     ? `${SEEDS_FILENAME} is unreadable (${problem}); the next /gps scout will move it aside and start fresh.`
     : null;
-  return { ideas, ideasProblem };
+  return { seeds, seedsProblem };
 }
 
 function buildStatusReport(sessionsDir, projectRoot) {
   const sessions = listSessionDirs(sessionsDir).map((sessionId) => summarizeSession(sessionsDir, sessionId));
-  const { ideas, ideasProblem } = listPendingIdeas(sessionsDir);
+  const { seeds, seedsProblem } = listPendingSeeds(sessionsDir);
 
   const pointer = resolveCurrentPointer(sessionsDir);
   if (pointer.problem) {
     const { message, hint } = pointerError(sessionsDir, pointer);
-    const report = { sessions, ideas, ideasProblem, current: null, currentProblem: { code: pointer.problem, message, hint } };
-    if (pointer.problem === 'no-sessions' && ideas.length > 0) {
+    const report = { sessions, seeds, seedsProblem, current: null, currentProblem: { code: pointer.problem, message, hint } };
+    if (pointer.problem === 'no-sessions' && seeds.length > 0) {
       report.suggestedNext = {
-        command: ideas[0].startCommand,
-        why: `No session started yet; ${ideas.length} scouted idea(s) are waiting and ${ideas[0].slug} is ranked first (${ideas[0].strength}).`,
+        command: seeds[0].startCommand,
+        why: `No session started yet; ${seeds.length} scouted seed(s) are waiting and ${seeds[0].slug} is ranked first (${seeds[0].strength}).`,
       };
     }
     return report;
@@ -93,8 +93,8 @@ function buildStatusReport(sessionsDir, projectRoot) {
 
   return {
     sessions,
-    ideas,
-    ideasProblem,
+    seeds,
+    seedsProblem,
     current: {
       sessionId,
       phase,
@@ -125,11 +125,11 @@ function sessionLine(s, currentId) {
   return line;
 }
 
-function ideasTable(ideas) {
+function seedsTable(seeds) {
   return [
-    '| Idea | Badge | Problem | Start |',
+    '| Seed | Badge | Problem | Start |',
     '|---|---|---|---|',
-    ...ideas.map((i) => `| ${mdCell(i.slug)} | ${mdCell(i.severity ? `${i.severity} · ${i.strength}` : i.strength)} | ${mdCell(i.problem)} | \`${i.startCommand}\` |`),
+    ...seeds.map((i) => `| ${mdCell(i.slug)} | ${mdCell(i.severity ? `${i.severity} · ${i.strength}` : i.strength)} | ${mdCell(i.problem)} | \`${i.startCommand}\` |`),
   ];
 }
 
@@ -164,8 +164,8 @@ function renderStatus(report) {
   if (report.sessions.length > 0) {
     lines.push('## Sessions', '', ...report.sessions.map((s) => sessionLine(s, currentId)), '');
   }
-  if (report.ideas.length > 0) lines.push('## Scouted ideas not started', '', ...ideasTable(report.ideas), '');
-  if (report.ideasProblem) lines.push(`⚠️ ${report.ideasProblem}`, '');
+  if (report.seeds.length > 0) lines.push('## Scouted seeds not started', '', ...seedsTable(report.seeds), '');
+  if (report.seedsProblem) lines.push(`⚠️ ${report.seedsProblem}`, '');
   if (report.current) lines.push(...currentBlock(report.current, report.sessions), '');
   if (report.currentProblem && report.currentProblem.code !== 'no-sessions') {
     lines.push(`⚠️ ${report.currentProblem.message}`, report.currentProblem.hint, '');

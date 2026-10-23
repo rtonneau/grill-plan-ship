@@ -1,12 +1,12 @@
 #!/usr/bin/env node
 
 /**
- * clean.js [--json]                    list sessions (most idle first), scouted ideas, orphan scratch dirs
+ * clean.js [--json]                    list sessions (most idle first) and scouted seeds
  * clean.js --dry-run <id>... [--json]  validate the ids, print exactly what would go
- * clean.js --delete <id>... [--json]   delete those sessions (with their .scratch/tests/<id>), drop those ideas
+ * clean.js --delete <id>... [--json]   delete those sessions and drop those seeds
  *
  * /gps clean. An id is a session id, an orphan scratch dir id (a
- * .scratch/tests/<id> with no session) or an idea slug. Every id is validated
+ * .scratch/tests/<id> with no session) or a seed slug. Every id is validated
  * before anything is removed; the current session is never deleted.
  * Claude runs --delete only after the user confirmed the --dry-run output.
  * .current-session, scout reports, branches, PRs and issues are left alone.
@@ -15,11 +15,11 @@
 const fs = require('fs');
 const { main } = require('./lib/cli');
 const { sessionsDirOf } = require('./lib/session-store');
-const { listCleanable, listIdeas, listOrphanScratch, planDeletion, applyDeletion, renderList, renderPlan } = require('./lib/clean');
+const { listCleanable, listOrphanScratch, listSeeds, planDeletion, applyDeletion, renderList, renderPlan } = require('./lib/clean');
 const { STALE_DAYS, VERY_STALE_DAYS } = require('./lib/staleness');
 const { GpsError, UsageError } = require('./lib/guard');
 
-const NOTHING = ['Nothing to clean: no sessions, scouted ideas or orphan scratch dirs.', 'Run /gps start <feature-name> or /gps scout first.'];
+const NOTHING = ['Nothing to clean: no sessions, scouted seeds or orphan scratch dirs.', 'Run /gps start <feature-name> or /gps scout first.'];
 
 main({
   usage: 'clean.js [--dry-run|--delete <id>...] [--json]',
@@ -37,11 +37,11 @@ main({
 
     if (ids.length === 0) {
       const sessions = listCleanable(sessionsDir, new Date(), projectRoot);
-      const { ideas, problem } = listIdeas(sessionsDir);
-      if (sessions.length === 0 && ideas.length === 0 && orphanScratch.length === 0 && !problem) throw new GpsError(...NOTHING);
+      const { seeds, problem } = listSeeds(sessionsDir);
+      if (sessions.length === 0 && seeds.length === 0 && orphanScratch.length === 0 && !problem) throw new GpsError(...NOTHING);
       return {
-        text: renderList(sessions, ideas, problem, orphanScratch),
-        data: { staleAfterDays: STALE_DAYS, veryStaleAfterDays: VERY_STALE_DAYS, sessions, ideas, ideasProblem: problem, orphanScratch },
+        text: renderList(sessions, seeds, problem, orphanScratch),
+        data: { staleAfterDays: STALE_DAYS, veryStaleAfterDays: VERY_STALE_DAYS, sessions, seeds, seedsProblem: problem, orphanScratch },
       };
     }
 
@@ -57,9 +57,9 @@ main({
       text: [
         ...plan.sessions.map((s) => `✅ Deleted session ${s.sessionId}.`),
         ...plan.orphanScratch.map((o) => `✅ Deleted scratch dir ${o.path}.`),
-        ...plan.ideas.map((i) => `✅ Dropped scouted idea ${i.slug}.`),
+        ...plan.seeds.map((i) => `✅ Dropped scouted seed ${i.slug}.`),
       ].join('\n'),
-      data: { deleted: { sessions: plan.sessions.map((s) => s.sessionId), orphanScratch: plan.orphanScratch.map((o) => o.id), ideas: plan.ideas.map((i) => i.slug) } },
+      data: { deleted: { sessions: plan.sessions.map((s) => s.sessionId), orphanScratch: plan.orphanScratch.map((o) => o.id), seeds: plan.seeds.map((i) => i.slug) } },
     };
   },
 });
