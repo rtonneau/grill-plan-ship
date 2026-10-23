@@ -174,9 +174,33 @@
         "ticket": "05-brief-evidence-line",
         "commit": "2fb96ff"
       }
+    },
+    {
+      "at": "2026-10-23T16:34:58.071Z",
+      "event": "ticket_started",
+      "phase": "ship",
+      "files": [
+        "02-plan/tickets/06-docs-scratch-cleanup.md",
+        "03-implement/06-docs-scratch-cleanup/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "06-docs-scratch-cleanup"
+      }
+    },
+    {
+      "at": "2026-10-23T16:42:42.056Z",
+      "event": "ticket_done",
+      "phase": "finish-pending",
+      "files": [
+        "03-implement/06-docs-scratch-cleanup/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "06-docs-scratch-cleanup",
+        "commit": "4608193"
+      }
     }
   ],
-  "current_phase": "ship",
+  "current_phase": "finish-pending",
   "git": {
     "branch": "feat/scratch-cleanup",
     "base_branch": "main",
