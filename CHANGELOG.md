@@ -2,10 +2,13 @@
 
 All notable changes to grill-plan-ship. Versions follow [semantic versioning](https://semver.org/).
 
-## Unreleased
+## 2.9.0 (2026-10-23)
 
 - Add the `idea` skill (`/idea capture|start|plan|review|promote|drop|list|config`): a backlog for future work, kept apart from gps sessions, promoting into a fresh `/gps start` session when it's time to build. Global (not-repo-tied) Ideas live in a personal repo you name once with `/idea config --set-global-root <path>`.
 - Rename `/gps scout`'s "scouted idea(s)" to "seed(s)" in text and `--json` output (`ideas` -> `seeds`, `ideasProblem` -> `seedsProblem` on `clean.js` and `status.js`), freeing "Idea" for the new `idea` skill.
+- `/gps finish` now removes regenerable build trees (`build/`, `node_modules/`, CMake build dirs, caches…) from the session's `.scratch/tests/<session>/` dir and keeps logs and other evidence; set `scratch.cleanupOnFinish` to `none`, `build-artifacts` (default) or `all`, and add names with `scratch.extraDirs`.
+- `/gps clean` deletes a session's scratch dir along with the session, lists orphan scratch dirs (no matching session) so they can be deleted too, and shows each scratch dir's size in the dry run.
+- Ticket subagents are told to copy any log they cite into the scratch dir's `evidence/` folder, so it survives the cleanup at finish.
 
 ## 2.8.6 (2026-10-19)
 
