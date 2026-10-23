@@ -43,6 +43,13 @@
  * Issue sessions (`issue` in the config): without a branch (bounded),
  * finish comments a summary on the issue and, with --close-issue, closes
  * it. With a branch, the PR body says "Closes #N".
+ *
+ * After the finished state is recorded and before the .work/ commit, the
+ * session's scratch dir (.scratch/tests/<session-id>/) is cleaned per
+ * scratch.cleanupOnFinish in .work/gps-config.json (none | build-artifacts |
+ * all, see lib/scratch-dir.js). A removal that fails is a warning naming the
+ * path left behind; the finish itself is unchanged. A refused finish never
+ * touches the scratch dir.
  */
 
 const fs = require('fs');
@@ -61,6 +68,8 @@ const { PR_ATTRIBUTION, openPullRequest, commentOnIssue, closeIssue } = require(
 const { GpsError, UsageError, writeJsonAtomic } = require('./lib/guard');
 const { getHistory, hasEvent, renderTimeline, recordEvent } = require('./lib/history');
 const { FRAGMENTS_DIR } = require('./lib/changelog-fragments');
+const { scratchSettings } = require('./lib/project-config');
+const { cleanScratch, formatBytes } = require('./lib/scratch-dir');
 
 // Where session directories live, relative to the project root, with '/' separators.
 const SESSIONS_REL = path.relative('.', sessionsDirOf('.')).split(path.sep).join('/');
@@ -343,6 +352,16 @@ function finishSession({ options, projectRoot, warn }) {
   recordEvent(configPath, config, sessionDir, { event: 'session_finished', files: ['INDEX.md'], at: finishedAt });
   clearCurrentSession(sessionsDir);
 
+  // Before the .work/ commit, so the scratch_cleaned event is in the record.
+  const settings = scratchSettings(projectRoot);
+  const scratch = cleanScratch(projectRoot, sessionId, { policy: settings.cleanupOnFinish, extraDirs: settings.extraDirs });
+  if (scratch.removed.length > 0) {
+    recordEvent(configPath, config, sessionDir, {
+      event: 'scratch_cleaned',
+      detail: { policy: scratch.policy, removed: scratch.removed, freedBytes: scratch.freedBytes },
+    });
+  }
+
   // The final record goes in its own commit, then to the pull request.
   const record = commitWorkDir(projectRoot, `chore(gps): finish ${sessionId}`);
   let repushed = null;
@@ -375,6 +394,11 @@ function finishSession({ options, projectRoot, warn }) {
   if (repushed && !repushed.ok) {
     byHand(`The session record was not pushed (${repushed.reason}).`, [`git push -u origin ${config.git.branch}`]);
   }
+  if (scratch.removed.length > 0) {
+    const what = scratch.policy === 'all' ? `removed ${scratch.removed[0]}` : `removed ${scratch.removed.length} build tree(s)`;
+    lines.push(`🧹 Scratch: ${what}, freed ${formatBytes(scratch.freedBytes)} (policy ${scratch.policy})`);
+  }
+  for (const failure of scratch.failures) warn(`Scratch cleanup left ${failure.path} behind (${failure.reason}).`);
   if (config.changelog) {
     const { bump, bullets } = config.changelog;
     lines.push(`📝 Changelog: ${bump}${typeof bullets === 'number' ? ` (${bullets} bullet(s))` : ''}`);
@@ -407,6 +431,7 @@ function finishSession({ options, projectRoot, warn }) {
     text: lines.join('\n'),
     data: {
       sessionId, indexPath, finishedAt, leftover, record, pr, back, issue: issueResult,
+      scratch: { policy: scratch.policy, removed: scratch.removed, freedBytes: scratch.freedBytes, failures: scratch.failures },
       unfinished: unfinished.map((s) => s.sessionId),
     },
   };
