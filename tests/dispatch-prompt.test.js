@@ -27,6 +27,7 @@ let prompt = data.call.prompt;
 assert.ok(prompt.includes(path.join(h.sessionDir(root), '02-plan', 'tickets', '01-toggle.md')), 'spec path');
 assert.ok(prompt.includes(path.join(h.sessionDir(root), '03-implement', '01-toggle', 'commit-log.md')), 'log path');
 assert.ok(prompt.includes(`.scratch/tests/${h.currentSession(root)}`), 'scratch dir');
+assert.ok(prompt.includes(`.scratch/tests/${h.currentSession(root)}/evidence/`), 'evidence line');
 assert.ok(prompt.includes(path.join(h.SCRIPTS, 'ticket-complete.js')), 'absolute script path');
 assert.match(prompt, /ticket-complete\.js" 1 --message/);
 assert.match(prompt, /ticket-block\.js" 1 --reason/);
