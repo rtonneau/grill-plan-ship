@@ -150,6 +150,30 @@
         "ticket": "04-clean-removes-scratch",
         "commit": "eb85b56"
       }
+    },
+    {
+      "at": "2026-10-23T16:33:56.325Z",
+      "event": "ticket_started",
+      "phase": "ship",
+      "files": [
+        "02-plan/tickets/05-brief-evidence-line.md",
+        "03-implement/05-brief-evidence-line/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "05-brief-evidence-line"
+      }
+    },
+    {
+      "at": "2026-10-23T16:34:55.358Z",
+      "event": "ticket_done",
+      "phase": "ship",
+      "files": [
+        "03-implement/05-brief-evidence-line/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "05-brief-evidence-line",
+        "commit": "2fb96ff"
+      }
     }
   ],
   "current_phase": "ship",
