@@ -78,6 +78,30 @@
         "ticket": "01-scratch-build-tree-rule",
         "commit": "d2eb61c"
       }
+    },
+    {
+      "at": "2026-10-23T16:20:51.619Z",
+      "event": "ticket_started",
+      "phase": "ship",
+      "files": [
+        "02-plan/tickets/02-scratch-config-settings.md",
+        "03-implement/02-scratch-config-settings/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "02-scratch-config-settings"
+      }
+    },
+    {
+      "at": "2026-10-23T16:24:10.875Z",
+      "event": "ticket_done",
+      "phase": "ship",
+      "files": [
+        "03-implement/02-scratch-config-settings/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "02-scratch-config-settings",
+        "commit": "f625950"
+      }
     }
   ],
   "current_phase": "ship",
