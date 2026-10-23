@@ -127,6 +127,12 @@ Settings live in `.work/gps-config.json`; `/gps config` shows them, read-only:
 | `changelog.path` | `CHANGELOG.md` | where `/gps release` writes the release section (the sessions' fragments wait in `.work/changelog/` until then) |
 | `release.versionFiles` | detected at the first release, then saved | the files that hold the version (e.g. `package.json`) |
 | `release.githubRelease` | `minor+` | GitHub Release at the push: `none`, `minor+` (minor and major) or `all` |
+| `scratch.cleanupOnFinish` | `build-artifacts` | what `/gps finish` removes from `.scratch/tests/<session-id>/`: `none`, `build-artifacts` (build trees only, whole; evidence files stay) or `all` (the whole dir) |
+| `scratch.extraDirs` | `[]` | extra plain directory names to treat as build trees (e.g. `out`, `cache`); no `/`, `\`, `.` or `..` |
+
+## Scratch dirs
+
+Run artifacts go to `.scratch/tests/<session-id>/`. The built-in build-tree names are `build`, `build-*`, `build_*`, `node_modules`, `CMakeFiles`, `__pycache__`, `.venv`, `venv`, `target`, `dist`, `obj`, `.gradle` and `.cache`, plus any dir holding a `CMakeCache.txt` and any name in `scratch.extraDirs`. `/gps finish` applies `scratch.cleanupOnFinish` (default `build-artifacts`) and prints a `🧹 Scratch:` line; a removal that fails prints a `⚠️` warning with the path left behind and does not fail the finish. Keep any log or output a ticket cites outside build trees (the dispatched agent copies it to `evidence/`). `/gps clean` removes a session's scratch dir with the session, and lists orphan scratch dirs (no session dir) with their sizes, deleting them only on your yes. Reasoning: [docs/decisions/0008-scratch-cleanup-on-finish.md](docs/decisions/0008-scratch-cleanup-on-finish.md).
 
 ## Layout
 ```
