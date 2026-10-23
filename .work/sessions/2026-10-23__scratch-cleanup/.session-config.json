@@ -126,6 +126,30 @@
         "ticket": "03-finish-cleans-scratch",
         "commit": "784d1e5"
       }
+    },
+    {
+      "at": "2026-10-23T16:27:27.850Z",
+      "event": "ticket_started",
+      "phase": "ship",
+      "files": [
+        "02-plan/tickets/04-clean-removes-scratch.md",
+        "03-implement/04-clean-removes-scratch/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "04-clean-removes-scratch"
+      }
+    },
+    {
+      "at": "2026-10-23T16:33:55.549Z",
+      "event": "ticket_done",
+      "phase": "ship",
+      "files": [
+        "03-implement/04-clean-removes-scratch/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "04-clean-removes-scratch",
+        "commit": "eb85b56"
+      }
     }
   ],
   "current_phase": "ship",
