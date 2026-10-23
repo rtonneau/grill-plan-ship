@@ -86,6 +86,21 @@ for (const args of [['--rescan'], ['--rescan', '--apply']]) {
   assert.deepStrictEqual(stored().delegation, delegation, 'rescan preserves delegation');
 }
 
+// scratch settings are shown read-only, with their defaults, and in --json.
+fs.writeFileSync(file, JSON.stringify({ version: 1, github: { enabled: false, detected_at: '2026-01-01T00:00:00.000Z' } }));
+res = h.ok(root, 'config.js');
+assert.match(res.out, /scratch.cleanupOnFinish = build-artifacts/);
+assert.match(res.out, /scratch.extraDirs = none/);
+assert.deepStrictEqual(h.json(root, 'config.js').scratch, { cleanupOnFinish: 'build-artifacts', extraDirs: [] });
+fs.writeFileSync(file, JSON.stringify({ version: 1, github: { enabled: false, detected_at: '2026-01-01T00:00:00.000Z' },
+  scratch: { cleanupOnFinish: 'all', extraDirs: ['out', 'cache'] } }));
+res = h.ok(root, 'config.js');
+assert.match(res.out, /scratch.cleanupOnFinish = all/);
+assert.match(res.out, /scratch.extraDirs = out, cache/);
+assert.deepStrictEqual(h.json(root, 'config.js').scratch, { cleanupOnFinish: 'all', extraDirs: ['out', 'cache'] });
+fs.writeFileSync(file, JSON.stringify({ version: 1, github: { enabled: false, detected_at: '2026-01-01T00:00:00.000Z' }, scratch: { cleanupOnFinish: 'bogus' } }));
+h.assertFails(h.run(root, 'config.js'), 1, /scratch.cleanupOnFinish/);
+
 fs.writeFileSync(file, '{"github": {}}');
 h.assertFails(h.run(root, 'config.js'), 1, /"github\.enabled" must be true or false/);
 

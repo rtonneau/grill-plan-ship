@@ -12,6 +12,7 @@ const path = require('path');
 const { GpsError, readJson, writeJsonAtomic } = require('./guard');
 const { diagnoseGithub } = require('./github');
 const { diagnoseJev } = require('./jev');
+const { CLEAN_POLICIES: SCRATCH_POLICIES } = require('./scratch-dir');
 
 const CONFIG_FILENAME = 'gps-config.json';
 const CONFIG_VERSION = 1;
@@ -21,6 +22,7 @@ function configPath(projectRoot) {
 }
 
 const GITHUB_RELEASE_MODES = ['none', 'minor+', 'all'];
+const SCRATCH_DEFAULT_POLICY = 'build-artifacts';
 
 function invalid(what, filePath) {
   return new GpsError(
@@ -43,6 +45,9 @@ function insideProject(projectRoot, relPath) {
 // then posix-normalized ("./CHANGELOG.md" -> "CHANGELOG.md").
 const normalizeRelPath = (relPath) => path.posix.normalize(relPath.replace(/\\/g, '/'));
 
+// A scratch.extraDirs entry is a plain name: no separators, not "." or "..".
+const isPlainName = (name) => typeof name === 'string' && name !== '' && name !== '.' && name !== '..' && !/[\\/]/.test(name);
+
 function validate(config, filePath) {
   if (!config || !config.github || typeof config.github.enabled !== 'boolean') {
     throw invalid('"github.enabled" must be true or false', filePath);
@@ -52,7 +57,7 @@ function validate(config, filePath) {
   }
   // The file is <projectRoot>/.work/gps-config.json.
   const projectRoot = path.dirname(path.dirname(filePath));
-  const { changelog, release } = config;
+  const { changelog, release, scratch } = config;
   if (changelog !== undefined) {
     if (!isObject(changelog)) throw invalid('"changelog" must be an object', filePath);
     if (changelog.enabled !== undefined && typeof changelog.enabled !== 'boolean') {
@@ -78,6 +83,16 @@ function validate(config, filePath) {
       if (!files.every((f) => insideProject(projectRoot, normalizeRelPath(f)))) {
         throw invalid('"release.versionFiles" must hold relative paths inside the project', filePath);
       }
+    }
+  }
+  if (scratch !== undefined) {
+    if (!isObject(scratch)) throw invalid('"scratch" must be an object', filePath);
+    if (scratch.cleanupOnFinish !== undefined && !SCRATCH_POLICIES.includes(scratch.cleanupOnFinish)) {
+      throw invalid(`"scratch.cleanupOnFinish" must be one of ${SCRATCH_POLICIES.join(', ')}`, filePath);
+    }
+    const extra = scratch.extraDirs;
+    if (extra !== undefined && !(Array.isArray(extra) && extra.every(isPlainName))) {
+      throw invalid('"scratch.extraDirs" must be a list of plain directory names (no "/", "\\", "." or "..")', filePath);
     }
   }
   return config;
@@ -183,6 +198,15 @@ function changelogSettings(projectRoot) {
   };
 }
 
+// Scratch cleanup settings, defaults applied on read (never written).
+function scratchSettings(projectRoot) {
+  const scratch = (readConfig(projectRoot) || {}).scratch || {};
+  return {
+    cleanupOnFinish: scratch.cleanupOnFinish || SCRATCH_DEFAULT_POLICY,
+    extraDirs: scratch.extraDirs ? [...scratch.extraDirs] : [],
+  };
+}
+
 function releaseSettings(projectRoot) {
   const release = (readConfig(projectRoot) || {}).release || {};
   return {
@@ -199,4 +223,5 @@ function saveVersionFiles(projectRoot, files) {
 module.exports = {
   CONFIG_FILENAME, readConfig, ensureProjectConfig, githubEnabled, rescanProjectConfig,
   jevEnabled, rescanJevConfig, changelogSettings, releaseSettings, saveVersionFiles,
+  scratchSettings, SCRATCH_POLICIES,
 };

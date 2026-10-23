@@ -5,8 +5,8 @@
  * config.js --rescan [--json]         detect GitHub again; writes only when the value is unchanged
  * config.js --rescan --apply [--json] write the newly detected value
  *
- * Also shows (read-only) changelog.enabled, release.versionFiles and
- * release.githubRelease.
+ * Also shows (read-only) changelog.enabled, release.versionFiles,
+ * release.githubRelease, scratch.cleanupOnFinish and scratch.extraDirs.
  *
  * /gps config. Bare config.js is read-only (it only creates a missing
  * file). Claude runs --rescan --apply only after the user confirmed the
@@ -15,7 +15,7 @@
 
 const path = require('path');
 const { main } = require('./lib/cli');
-const { CONFIG_FILENAME, readConfig, rescanProjectConfig, rescanJevConfig, changelogSettings, releaseSettings } = require('./lib/project-config');
+const { CONFIG_FILENAME, readConfig, rescanProjectConfig, rescanJevConfig, changelogSettings, releaseSettings, scratchSettings } = require('./lib/project-config');
 const { UsageError } = require('./lib/guard');
 
 const SCOPE_NOTE = 'The flag applies to sessions whose plan is not saved yet; sessions already planned keep their current mode.';
@@ -55,13 +55,16 @@ main({
     const jev = rescanJevConfig(projectRoot, rescanOpts);
     const changelog = changelogSettings(projectRoot);
     const release = releaseSettings(projectRoot);
+    const scratch = scratchSettings(projectRoot);
     const config = readConfig(projectRoot) || {};
     const delegation = config.delegation || null;
-    const data = { github, jev, file, changelog, release, delegation };
+    const data = { github, jev, file, changelog, release, scratch, delegation };
     const settings = [
       `changelog.enabled = ${changelog.enabled} (path ${changelog.path})`,
       `release.versionFiles = ${release.versionFiles ? release.versionFiles.join(', ') : 'not saved yet'}`,
       `release.githubRelease = ${release.githubRelease}`,
+      `scratch.cleanupOnFinish = ${scratch.cleanupOnFinish}`,
+      `scratch.extraDirs = ${scratch.extraDirs.length ? scratch.extraDirs.join(', ') : 'none'}`,
     ];
     const codex = delegation && delegation.codex;
     settings.push('Codex delegation: declared settings (not live capability detection)');
