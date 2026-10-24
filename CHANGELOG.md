@@ -2,6 +2,13 @@
 
 All notable changes to grill-plan-ship. Versions follow [semantic versioning](https://semver.org/).
 
+## 2.10.0 (2026-10-24)
+
+- A full `/gps ship` now runs `/gps finish` by itself once every ticket is done. Set `ship.autoFinish` to `false` in `.work/gps-config.json` to stop after the last ticket instead; `/gps config` shows the setting.
+- A finish run by `/gps ship` or `/gps auto` asks nothing: it keeps the issue open and offers no session switch. A typed `/gps finish` still asks both questions.
+- `/gps auto ship` now finishes the session too while `ship.autoFinish` is on.
+- `/gps finish` now reports the pull request's number, title and branch → base along with its URL, in its output and in the session's INDEX.md.
+
 ## 2.9.0 (2026-10-23)
 
 - Add the `idea` skill (`/idea capture|start|plan|review|promote|drop|list|config`): a backlog for future work, kept apart from gps sessions, promoting into a fresh `/gps start` session when it's time to build. Global (not-repo-tied) Ideas live in a personal repo you name once with `/idea config --set-global-root <path>`.
