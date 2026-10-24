@@ -31,8 +31,8 @@ Restart Claude Code. Update later with `/plugin marketplace update rtonneau/gril
 /gps init                  # optional, once per project: checks it and commits gps's setup
 /gps start add-dark-mode   # creates the session, then the grill conversation starts
 /gps plan                  # once the design is approved: saves it, then drafts tickets
-/gps ship                  # once the tickets are approved: saves them, implements each, one commit each
-/gps finish                # changelog fragment, INDEX.md summary; on GitHub, pushes the branch and opens the PR
+/gps ship                  # once the tickets are approved: saves them, implements each, one commit each, then finishes
+/gps finish                # changelog fragment, INDEX.md; on GitHub, push and PR (/gps ship runs it: ship.autoFinish)
 /gps release               # when you choose: turns the changelog fragments into a version, a tag and a push
 ```
 
@@ -50,8 +50,8 @@ Or, once the direction is clear, `/gps auto` runs from wherever the session is t
 | `/gps config [--rescan]` | Show GitHub/Jev flags, changelog/release and declared delegation settings, or rescan flags |
 | `/gps write` | Save the approved grill or plan to disk (`plan`, `ship` and `auto` do it for you) |
 | `/gps plan` | Save the grill if pending, then draft tickets with model and effort hints |
-| `/gps ship [N]` | Save the plan if pending, then implement every remaining ticket (or only ticket N) |
-| `/gps finish` | Close the session: changelog fragment, leftovers committed, INDEX.md, PR |
+| `/gps ship [N]` | Save the plan if pending, then implement every remaining ticket and chain `/gps finish` (or only ticket N) |
+| `/gps finish` | Close the session: changelog fragment, leftovers committed, INDEX.md, PR (a full `/gps ship` runs it for you) |
 | `/gps auto [--delegate] [plan\|ship\|finish]` | Run from the current phase to the target without stopping |
 | `/gps release` | Turn the changelog fragments into a version: suggest, bump, tag, push |
 | `/gps handoff` | Save an in-flight checkpoint before you stop for the day |
@@ -134,6 +134,8 @@ For a mapped Codex model with effort `inherit`, GPS requires `--parent-effort <l
 
 Only one implementer is ever live. A ticket that can't be finished is recorded with `ticket-block.js` and stops the run; it is never retried automatically. Each ticket's `commit-log.md` gets its test result and review notes from Claude, and its commit and time spent from the script.
 
+**Ship chains finish.** When a full `/gps ship` reaches "All tickets are done" (also when they were all done already), it runs `/gps finish` for you as a *chained finish*: it asks nothing, keeps any issue open and offers no session switch. `/gps auto` runs its finish the same way, and `/gps auto ship` adds finish after ship. `/gps ship N` and a stopped run (a BLOCKED ticket, a failed check, any `❌`) never chain; a typed `/gps finish` still asks its questions. Set `ship.autoFinish` to `false` to stop after the last ticket instead. Reasoning: [docs/decisions/0011-ship-chains-finish.md](docs/decisions/0011-ship-chains-finish.md).
+
 ## Changelog and releases
 
 `/gps finish` first writes the session's changelog entry to its own file, `.work/changelog/<session-id>.md`: front matter (`bump`, `floor`, and a `reason` when the bump is above the floor) and bullets. Claude drafts user-facing bullets from the session's commits and picks the bump (`patch`, `minor` or `major`); `changelog-apply.js` writes the fragment. It never edits `CHANGELOG.md` and makes no commit of its own: the `chore(gps): finish …` record commit carries the fragment, so the pull request shows it. The bump can't go below the floor the commit types imply, and going higher needs a reason, which INDEX.md records. No version number is touched, and no two sessions write the same file, so parallel sessions never conflict. If `.work/` is git-ignored, the fragment stays on your machine and `changelog-prepare.js` warns.
@@ -150,6 +152,7 @@ Settings live in `.work/gps-config.json`; `/gps config` shows them, read-only:
 | `release.githubRelease` | `minor+` | GitHub Release at the push: `none`, `minor+` (minor and major) or `all` |
 | `scratch.cleanupOnFinish` | `build-artifacts` | what `/gps finish` removes from `.scratch/tests/<session-id>/`: `none`, `build-artifacts` (build trees only, whole; evidence files stay) or `all` (the whole dir) |
 | `scratch.extraDirs` | `[]` | extra plain directory names to treat as build trees (e.g. `out`, `cache`); no `/`, `\`, `.` or `..` |
+| `ship.autoFinish` | `true` | a full `/gps ship` runs `/gps finish` as a chained finish once every ticket is done; `false` only suggests it |
 
 ## Scratch dirs
 

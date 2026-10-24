@@ -1,0 +1,178 @@
+{
+  "session_id": "2026-10-24__at-end-og-ship-phase-on-last-ticket-completion-gps-finish-should",
+  "feature_name": "At end og ship phase, on last ticket completion, '/gps finish' should be called automatically",
+  "scratch_dir": ".scratch/tests/2026-10-24__at-end-og-ship-phase-on-last-ticket-completion-gps-finish-should",
+  "created_at": "2026-10-24T06:45:17.008Z",
+  "template_version": 2,
+  "history": [
+    {
+      "at": "2026-10-24T06:45:17.008Z",
+      "event": "session_started",
+      "phase": "grill",
+      "files": [
+        "01-grill/resume.md"
+      ]
+    },
+    {
+      "at": "2026-10-24T06:51:49.525Z",
+      "event": "auto_started",
+      "phase": "grill",
+      "detail": {
+        "target": "finish",
+        "steps": "write:grill → plan → write:plan → ship → finish"
+      }
+    },
+    {
+      "at": "2026-10-24T06:53:03.208Z",
+      "event": "grill_written",
+      "phase": "plan-not-started",
+      "files": [
+        "01-grill/resume.md"
+      ]
+    },
+    {
+      "at": "2026-10-24T06:53:03.323Z",
+      "event": "plan_started",
+      "phase": "plan",
+      "files": [
+        "02-plan/plan.md"
+      ]
+    },
+    {
+      "at": "2026-10-24T06:54:23.401Z",
+      "event": "branch_created",
+      "phase": "plan",
+      "detail": {
+        "branch": "feat/ship-chains-finish",
+        "base": "main"
+      }
+    },
+    {
+      "at": "2026-10-24T06:54:23.419Z",
+      "event": "plan_written",
+      "phase": "ship",
+      "files": [
+        "02-plan/plan.md",
+        "02-plan/tickets/01-ship-autofinish-setting.md",
+        "02-plan/tickets/02-auto-route-ship-chains-finish.md",
+        "02-plan/tickets/03-references-chained-finish.md"
+      ],
+      "detail": {
+        "tickets": 3
+      }
+    },
+    {
+      "at": "2026-10-24T06:54:33.756Z",
+      "event": "ticket_started",
+      "phase": "ship",
+      "files": [
+        "02-plan/tickets/01-ship-autofinish-setting.md",
+        "03-implement/01-ship-autofinish-setting/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "01-ship-autofinish-setting"
+      }
+    },
+    {
+      "at": "2026-10-24T06:55:45.903Z",
+      "event": "ticket_done",
+      "phase": "ship",
+      "files": [
+        "03-implement/01-ship-autofinish-setting/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "01-ship-autofinish-setting",
+        "commit": "1d1bed6"
+      }
+    },
+    {
+      "at": "2026-10-24T06:55:51.879Z",
+      "event": "ticket_started",
+      "phase": "ship",
+      "files": [
+        "02-plan/tickets/02-auto-route-ship-chains-finish.md",
+        "03-implement/02-auto-route-ship-chains-finish/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "02-auto-route-ship-chains-finish"
+      }
+    },
+    {
+      "at": "2026-10-24T07:03:38.655Z",
+      "event": "ticket_done",
+      "phase": "ship",
+      "files": [
+        "03-implement/02-auto-route-ship-chains-finish/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "02-auto-route-ship-chains-finish",
+        "commit": "0b4d8da"
+      }
+    },
+    {
+      "at": "2026-10-24T07:03:44.446Z",
+      "event": "ticket_started",
+      "phase": "ship",
+      "files": [
+        "02-plan/tickets/03-references-chained-finish.md",
+        "03-implement/03-references-chained-finish/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "03-references-chained-finish"
+      }
+    },
+    {
+      "at": "2026-10-24T07:14:27.679Z",
+      "event": "ticket_done",
+      "phase": "finish-pending",
+      "files": [
+        "03-implement/03-references-chained-finish/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "03-references-chained-finish",
+        "commit": "32140e2"
+      }
+    },
+    {
+      "at": "2026-10-24T07:14:43.175Z",
+      "event": "changelog_written",
+      "phase": "finish-pending",
+      "detail": {
+        "bump": "minor"
+      }
+    },
+    {
+      "at": "2026-10-24T07:14:49.461Z",
+      "event": "pr_opened",
+      "phase": "finish-pending",
+      "detail": {
+        "url": "https://github.com/rtonneau/grill-plan-ship/pull/48"
+      }
+    },
+    {
+      "at": "2026-10-24T07:14:49.463Z",
+      "event": "session_finished",
+      "phase": "finished",
+      "files": [
+        "INDEX.md"
+      ]
+    }
+  ],
+  "current_phase": "finished",
+  "git": {
+    "branch": "feat/ship-chains-finish",
+    "base_branch": "main",
+    "branch_created_at": "2026-10-24T06:54:23.401Z",
+    "pr_url": "https://github.com/rtonneau/grill-plan-ship/pull/48"
+  },
+  "ship_mode": "subagent+inline",
+  "changelog": {
+    "bump": "minor",
+    "floor": "minor",
+    "reason": null,
+    "bullets": 3,
+    "path": ".work/changelog/2026-10-24__at-end-og-ship-phase-on-last-ticket-completion-gps-finish-should.md",
+    "written_at": "2026-10-24T07:14:43.160Z"
+  },
+  "finished_at": "2026-10-24T07:14:49.463Z"
+}

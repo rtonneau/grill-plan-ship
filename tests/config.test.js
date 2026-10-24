@@ -101,6 +101,18 @@ assert.deepStrictEqual(h.json(root, 'config.js').scratch, { cleanupOnFinish: 'al
 fs.writeFileSync(file, JSON.stringify({ version: 1, github: { enabled: false, detected_at: '2026-01-01T00:00:00.000Z' }, scratch: { cleanupOnFinish: 'bogus' } }));
 h.assertFails(h.run(root, 'config.js'), 1, /scratch.cleanupOnFinish/);
 
+// ship.autoFinish is shown read-only: default true, explicit false, invalid refused.
+fs.writeFileSync(file, JSON.stringify({ version: 1, github: { enabled: false, detected_at: '2026-01-01T00:00:00.000Z' } }));
+res = h.ok(root, 'config.js');
+assert.match(res.out, /ship.autoFinish = true/);
+assert.deepStrictEqual(h.json(root, 'config.js').ship, { autoFinish: true });
+fs.writeFileSync(file, JSON.stringify({ version: 1, github: { enabled: false, detected_at: '2026-01-01T00:00:00.000Z' }, ship: { autoFinish: false } }));
+res = h.ok(root, 'config.js');
+assert.match(res.out, /ship.autoFinish = false/);
+assert.deepStrictEqual(h.json(root, 'config.js').ship, { autoFinish: false });
+fs.writeFileSync(file, JSON.stringify({ version: 1, github: { enabled: false, detected_at: '2026-01-01T00:00:00.000Z' }, ship: { autoFinish: 'no' } }));
+h.assertFails(h.run(root, 'config.js'), 1, /"ship.autoFinish" must be true or false/);
+
 fs.writeFileSync(file, '{"github": {}}');
 h.assertFails(h.run(root, 'config.js'), 1, /"github\.enabled" must be true or false/);
 

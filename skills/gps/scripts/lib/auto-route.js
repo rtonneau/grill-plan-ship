@@ -4,6 +4,8 @@
 // target, in pipeline order, plus the questions to ask before the run.
 // The phase comes from resolveWriteTarget, as everywhere else. A preset
 // ship mode (--delegate) replaces the ship-mode question when the route ships.
+// Target ship also runs finish when ship.autoFinish is on (the default): the
+// route keeps target "ship" and flags chainedFinish.
 
 const { resolveWriteTarget } = require('./write-target');
 const { isFinished } = require('./phase');
@@ -21,7 +23,7 @@ function firstStep(sessionDir) {
   return reason === 'plan-not-started' ? 'plan' : 'ship';
 }
 
-function computeRoute(sessionDir, config, target = 'finish', { shipMode } = {}) {
+function computeRoute(sessionDir, config, target = 'finish', { shipMode, autoFinish = true } = {}) {
   if (isFinished(config)) {
     throw new GpsError('This session is already finished.',
       'Run /gps status to pick another session, or /gps start <feature-name>.');
@@ -39,8 +41,11 @@ function computeRoute(sessionDir, config, target = 'finish', { shipMode } = {}) 
   }
 
   const steps = STEPS.slice(first, last + 1);
-  if (!steps.includes('ship')) return { target, steps, questions: [] };
-  return shipMode ? { target, steps, questions: [], shipMode } : { target, steps, questions: ['ship-mode'] };
+  const chainedFinish = target === 'ship' && autoFinish;
+  if (chainedFinish) steps.push('finish');
+  const route = { target, steps, questions: [], ...(chainedFinish && { chainedFinish }) };
+  if (!steps.includes('ship')) return route;
+  return shipMode ? { ...route, shipMode } : { ...route, questions: ['ship-mode'] };
 }
 
 module.exports = { STEPS, TARGETS, computeRoute };

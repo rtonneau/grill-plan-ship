@@ -1,5 +1,7 @@
 // tests/auto-route.test.js — auto-route.js (/gps auto). Routing rules: tests/lib/auto-route.test.js.
 const assert = require('assert');
+const fs = require('fs');
+const path = require('path');
 const h = require('./helpers');
 
 const root = h.tempProject();
@@ -21,6 +23,28 @@ assert.strictEqual(route.target, 'finish');
 assert.deepStrictEqual(route.steps, ['write:grill', 'plan', 'write:plan', 'ship', 'finish']);
 assert.deepStrictEqual(route.questions, ['ship-mode']);
 assert.deepStrictEqual(autoEvents()[0].detail, { target: 'finish', steps: 'write:grill → plan → write:plan → ship → finish' });
+
+// Target ship chains finish by default; ship.autoFinish false in .work/gps-config.json stops at ship.
+const configFile = path.join(root, '.work', 'gps-config.json');
+const setAutoFinish = (value) => {
+  const cfg = fs.existsSync(configFile) ? JSON.parse(fs.readFileSync(configFile, 'utf8')) : { version: 1 };
+  fs.writeFileSync(configFile, JSON.stringify({ ...cfg, ship: { autoFinish: value } }));
+};
+res = h.ok(root, 'auto-route.js', ['ship']);
+assert.match(res.out, /target ship\): write:grill → plan → write:plan → ship → finish/);
+assert.match(res.out, /finish follows ship because ship\.autoFinish is on\./);
+route = h.json(root, 'auto-route.js', ['ship']);
+assert.strictEqual(route.target, 'ship');
+assert.deepStrictEqual(route.steps, ['write:grill', 'plan', 'write:plan', 'ship', 'finish']);
+assert.strictEqual(autoEvents().pop().detail.steps, 'write:grill → plan → write:plan → ship → finish');
+setAutoFinish(false);
+res = h.ok(root, 'auto-route.js', ['ship']);
+assert.match(res.out, /target ship\): write:grill → plan → write:plan → ship$/m);
+assert.doesNotMatch(res.out, /finish follows ship/);
+assert.deepStrictEqual(h.json(root, 'auto-route.js', ['ship']).steps, ['write:grill', 'plan', 'write:plan', 'ship']);
+assert.deepStrictEqual(h.json(root, 'auto-route.js').steps, ['write:grill', 'plan', 'write:plan', 'ship', 'finish']);
+setAutoFinish(true);
+assert.deepStrictEqual(h.json(root, 'auto-route.js', ['ship']).steps, ['write:grill', 'plan', 'write:plan', 'ship', 'finish']);
 
 // --delegate presets the ship mode, wherever it sits among the arguments.
 route = h.json(root, 'auto-route.js', ['ship', '--delegate']);

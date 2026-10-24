@@ -8,7 +8,7 @@
 4. Run each step through its references file as if typed (`write:*` → `write.md`, `plan` → `plan.md`, `ship` → `ship.md`, `finish` → `finish.md`), except:
    - `plan`: writing-plans only drafts. Don't execute its plan or ask for a review or an execution method; tickets drafted in `plan.md` step 3 (with or without writing-plans and unslop) count as approved.
    - `ship`: use the mode from step 3 and the model and effort hints as drafted. After plan save, delegated modes run the whole-queue `dispatch-preflight.js` and runtime capability checks from ship.md before any ticket-start. Failure stops before implementation and finish; no automatic retry, mode switch or restart of completed tickets.
-   - `finish`: run as typed; its closing questions are still asked.
+   - `finish`: run it as a chained finish (`finish.md`): no closing questions. Target `ship` lists `finish` after `ship` when `ship.autoFinish` is on (the route says so); run it the same way.
 5. Relay each step's output, `⚠️` lines included, except its `Next:` line. A `⚠️` doesn't stop the run; repeat every one in the final report. The first `❌` (other than a write payload fix), BLOCKED ticket or failed `ticket-check.js` ends the run: report which step stopped it. Finish never runs after an incomplete ship.
 
 **Examples:** `/gps auto` · `/gps auto plan` · `/gps auto --delegate`

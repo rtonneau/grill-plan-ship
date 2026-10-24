@@ -5,7 +5,7 @@
 ## Before the loop
 
 1. **Save the plan if pending:** `write-prepare.js`. Plan phase pending: finish `references/write.md` steps 2–3 (only for tickets approved in this conversation) and relay its `✅`/`🌿` lines, not its `Next:`. Grill pending, or no plan started: stop and suggest `/gps plan`.
-2. **Queue:** `ticket-queue.js`. Relay it.
+2. **Queue:** `ticket-queue.js`. Relay it. If it says all tickets are done, skip to the loop's "All tickets are done" rule.
 3. **Mode:** ask "inline, subagent, or subagent + inline follow-up?" using the router's host question rule, putting the `Last ship mode` it printed first as "(Recommended)". Ask on every `/gps ship`, never mid-run. With `N`: inline, no question. Under `/gps auto`: the run gives it.
 4. **Model and effort hints** (subagent modes only): show the queue's hint lines (`<N>: <model>/<effort>`) and ask once: accept them (Recommended) or override (Other, as `<N>=<model>/<effort>`), with model `fast|medium|heavy|inherit` and effort `low|medium|high|xhigh|inherit` (either part alone works). GPS resolves the portable model tier at dispatch: Claude uses Haiku/Sonnet/Opus and Codex uses Luna/Sol/Astra. Optional `delegation.codex.models` entries in `.work/gps-config.json` override the Codex defaults and list supported `efforts`; `inheritEfforts` lists supported levels for the current session model. Unsupported effort: stop and ask for configuration or an explicit hint override; never guess. Inline: say once that hints are ignored (a running session can't switch its model or effort). Under `/gps auto`: take them as drafted, subject to the adapter validation.
 
@@ -15,7 +15,7 @@
 
 ## The loop, one ticket at a time
 
-Start each ticket with `ticket-start.js [N] --mode <inline|subagent|subagent+inline>` (the mode is recorded so the next `/gps ship` offers it). "All tickets are done": suggest `/gps finish` and stop (under `/gps auto`: back to `references/auto.md`). Then follow your mode:
+Start each ticket with `ticket-start.js [N] --mode <inline|subagent|subagent+inline>` (the mode is recorded so the next `/gps ship` offers it). "All tickets are done" (also when they were done before the loop): under `/gps auto`: back to `references/auto.md`. With `N`: suggest `/gps finish` and stop. Otherwise, if `config.js` shows `ship.autoFinish = true`, run `references/finish.md` as a chained finish; else suggest `/gps finish` and stop. Then follow your mode:
 
 **inline:** implement and debug it yourself, artifacts in the scratch dir, then run its Verification Step. Fill the log's Local Test Result, Review Notes and Blockers / Challenges, then `ticket-complete.js <N> --message "<type>: <summary> (ticket NN)" --file <path>...` with only the files this ticket touched, so each commit holds one ticket. It then commits the session record (`.work/`) on its own; relay its `🗂️` line.
 
@@ -29,6 +29,6 @@ With `N`: stop after this ticket. Otherwise continue with the next one.
 
 ## Stops
 
-On a stop, report which ticket and why. Don't retry automatically, dispatch a second subagent or switch to a stronger model or higher effort: a ticket that failed once usually needs a decision from the user, not more attempts. One implementer at a time, never two subagents live at once, because they would edit the same tree and each commit would pick up the other's changes.
+On a stop, report which ticket and why; a stopped ship never chains a finish. Don't retry automatically, dispatch a second subagent or switch to a stronger model or higher effort: a ticket that failed once usually needs a decision from the user, not more attempts. One implementer at a time, never two subagents live at once, because they would edit the same tree and each commit would pick up the other's changes.
 
 **Examples:** `/gps ship` · `/gps ship 3`
