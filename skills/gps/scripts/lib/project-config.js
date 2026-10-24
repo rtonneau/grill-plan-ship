@@ -57,7 +57,7 @@ function validate(config, filePath) {
   }
   // The file is <projectRoot>/.work/gps-config.json.
   const projectRoot = path.dirname(path.dirname(filePath));
-  const { changelog, release, scratch } = config;
+  const { changelog, release, scratch, ship } = config;
   if (changelog !== undefined) {
     if (!isObject(changelog)) throw invalid('"changelog" must be an object', filePath);
     if (changelog.enabled !== undefined && typeof changelog.enabled !== 'boolean') {
@@ -93,6 +93,12 @@ function validate(config, filePath) {
     const extra = scratch.extraDirs;
     if (extra !== undefined && !(Array.isArray(extra) && extra.every(isPlainName))) {
       throw invalid('"scratch.extraDirs" must be a list of plain directory names (no "/", "\\", "." or "..")', filePath);
+    }
+  }
+  if (ship !== undefined) {
+    if (!isObject(ship)) throw invalid('"ship" must be an object', filePath);
+    if (ship.autoFinish !== undefined && typeof ship.autoFinish !== 'boolean') {
+      throw invalid('"ship.autoFinish" must be true or false', filePath);
     }
   }
   return config;
@@ -207,6 +213,13 @@ function scratchSettings(projectRoot) {
   };
 }
 
+// Ship settings, defaults applied on read (never written). autoFinish: when
+// the last ticket of a session is done, /gps ship runs finish by itself.
+function shipSettings(projectRoot) {
+  const ship = (readConfig(projectRoot) || {}).ship || {};
+  return { autoFinish: ship.autoFinish === undefined ? true : ship.autoFinish };
+}
+
 function releaseSettings(projectRoot) {
   const release = (readConfig(projectRoot) || {}).release || {};
   return {
@@ -223,5 +236,5 @@ function saveVersionFiles(projectRoot, files) {
 module.exports = {
   CONFIG_FILENAME, readConfig, ensureProjectConfig, githubEnabled, rescanProjectConfig,
   jevEnabled, rescanJevConfig, changelogSettings, releaseSettings, saveVersionFiles,
-  scratchSettings, SCRATCH_POLICIES,
+  scratchSettings, shipSettings, SCRATCH_POLICIES,
 };

@@ -7,7 +7,7 @@ const { execFileSync } = require('child_process');
 const { GpsError } = require('../../skills/gps/scripts/lib/guard');
 const {
   CONFIG_FILENAME, ensureProjectConfig, githubEnabled, rescanProjectConfig, changelogSettings, releaseSettings, saveVersionFiles,
-  jevEnabled, rescanJevConfig, scratchSettings, SCRATCH_POLICIES,
+  jevEnabled, rescanJevConfig, scratchSettings, shipSettings, SCRATCH_POLICIES,
 } = require('../../skills/gps/scripts/lib/project-config');
 
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'gps-projcfg-'));
@@ -197,6 +197,29 @@ const scratchInvalid = [
 for (const [bad, re] of scratchInvalid) {
   fs.writeFileSync(configFile(scratchDir), JSON.stringify({ github: { enabled: false }, ...bad }));
   assert.throws(() => scratchSettings(scratchDir), (e) => e instanceof GpsError && re.test(e.message), JSON.stringify(bad));
+}
+
+// ship: autoFinish defaults to true on read (never written), validated.
+const shipDir = makeProject('ship');
+assert.deepStrictEqual(shipSettings(shipDir), { autoFinish: true });
+assert.ok(!fs.existsSync(configFile(shipDir)), 'a read never creates the file');
+ensureProjectConfig(shipDir);
+const shipBefore = fs.readFileSync(configFile(shipDir), 'utf-8');
+assert.deepStrictEqual(shipSettings(shipDir), { autoFinish: true });
+assert.strictEqual(fs.readFileSync(configFile(shipDir), 'utf-8'), shipBefore);
+fs.writeFileSync(configFile(shipDir), JSON.stringify({ github: { enabled: false }, ship: {} }));
+assert.deepStrictEqual(shipSettings(shipDir), { autoFinish: true });
+fs.writeFileSync(configFile(shipDir), JSON.stringify({ github: { enabled: false }, ship: { autoFinish: false } }));
+assert.deepStrictEqual(shipSettings(shipDir), { autoFinish: false });
+fs.writeFileSync(configFile(shipDir), JSON.stringify({ github: { enabled: false }, ship: { autoFinish: true } }));
+assert.deepStrictEqual(shipSettings(shipDir), { autoFinish: true });
+for (const [bad, re] of [
+  [{ ship: { autoFinish: 'yes' } }, /"ship.autoFinish" must be true or false/], [{ ship: { autoFinish: null } }, /"ship.autoFinish"/],
+  [{ ship: { autoFinish: 1 } }, /"ship.autoFinish"/], [{ ship: null }, /"ship" must be an object/],
+  [{ ship: [] }, /"ship" must be an object/], [{ ship: true }, /"ship" must be an object/],
+]) {
+  fs.writeFileSync(configFile(shipDir), JSON.stringify({ github: { enabled: false }, ...bad }));
+  assert.throws(() => shipSettings(shipDir), (e) => e instanceof GpsError && re.test(e.message), JSON.stringify(bad));
 }
 
 // jev: optional section, absent -> false, validated, independently rescanned.
