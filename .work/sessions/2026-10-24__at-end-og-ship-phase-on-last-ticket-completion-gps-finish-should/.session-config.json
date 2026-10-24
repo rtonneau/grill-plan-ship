@@ -108,9 +108,33 @@
         "ticket": "02-auto-route-ship-chains-finish",
         "commit": "0b4d8da"
       }
+    },
+    {
+      "at": "2026-10-24T07:03:44.446Z",
+      "event": "ticket_started",
+      "phase": "ship",
+      "files": [
+        "02-plan/tickets/03-references-chained-finish.md",
+        "03-implement/03-references-chained-finish/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "03-references-chained-finish"
+      }
+    },
+    {
+      "at": "2026-10-24T07:14:27.679Z",
+      "event": "ticket_done",
+      "phase": "finish-pending",
+      "files": [
+        "03-implement/03-references-chained-finish/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "03-references-chained-finish",
+        "commit": "32140e2"
+      }
     }
   ],
-  "current_phase": "ship",
+  "current_phase": "finish-pending",
   "git": {
     "branch": "feat/ship-chains-finish",
     "base_branch": "main",
