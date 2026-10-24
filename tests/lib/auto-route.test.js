@@ -23,6 +23,22 @@ assert.deepStrictEqual(computeRoute(dir, config, 'plan').steps, ['write:grill', 
 assert.deepStrictEqual(computeRoute(dir, config, 'ship').questions, ['ship-mode']);
 assert.deepStrictEqual(computeRoute(dir, config, 'plan').questions, []);
 
+// target ship chains finish by default (ship.autoFinish on), and stops at ship when off
+const shipOn = computeRoute(dir, config, 'ship');
+assert.deepStrictEqual(shipOn.steps, ['write:grill', 'plan', 'write:plan', 'ship', 'finish']);
+assert.strictEqual(shipOn.target, 'ship');
+assert.strictEqual(shipOn.chainedFinish, true);
+assert.deepStrictEqual(computeRoute(dir, config, 'ship', { autoFinish: true }).steps, shipOn.steps);
+const shipOff = computeRoute(dir, config, 'ship', { autoFinish: false });
+assert.deepStrictEqual(shipOff.steps, ['write:grill', 'plan', 'write:plan', 'ship']);
+assert.strictEqual(shipOff.target, 'ship');
+assert.strictEqual(shipOff.chainedFinish, undefined);
+assert.deepStrictEqual(shipOff.questions, ['ship-mode']);
+// targets plan and finish ignore the option
+assert.deepStrictEqual(computeRoute(dir, config, 'plan', { autoFinish: true }).steps, ['write:grill', 'plan', 'write:plan']);
+assert.deepStrictEqual(computeRoute(dir, config, 'finish', { autoFinish: false }).steps, ['write:grill', 'plan', 'write:plan', 'ship', 'finish']);
+assert.strictEqual(computeRoute(dir, config, 'finish').chainedFinish, undefined);
+
 // preset ship mode replaces the question, only when the route ships
 const delegated = computeRoute(dir, config, 'ship', { shipMode: 'subagent+inline' });
 assert.deepStrictEqual(delegated.questions, []);
@@ -40,13 +56,15 @@ assert.deepStrictEqual(computeRoute(dir, config).steps, ['plan', 'write:plan', '
 fs.mkdirSync(ticketsDir, { recursive: true });
 fs.writeFileSync(planPath, '# Plan\n\n<!-- gps:fill High-level approach -->\n');
 fs.writeFileSync(path.join(ticketsDir, '01-[slug].md'), '# Ticket 1\n');
-assert.deepStrictEqual(computeRoute(dir, config, 'ship').steps, ['write:plan', 'ship']);
+assert.deepStrictEqual(computeRoute(dir, config, 'ship').steps, ['write:plan', 'ship', 'finish']);
+assert.deepStrictEqual(computeRoute(dir, config, 'ship', { autoFinish: false }).steps, ['write:plan', 'ship']);
 
 // plan written: starts at ship; target plan is already done
 fs.writeFileSync(planPath, '# Plan\n\nActual strategy.\n');
 fs.rmSync(path.join(ticketsDir, '01-[slug].md'));
 fs.writeFileSync(path.join(ticketsDir, '01-add-login.md'), '# Ticket 1: add-login\n\nReal content.\n');
 assert.deepStrictEqual(computeRoute(dir, config).steps, ['ship', 'finish']);
+assert.deepStrictEqual(computeRoute(dir, config, 'ship', { autoFinish: false }).steps, ['ship']);
 assert.throws(() => computeRoute(dir, config, 'plan'), isGpsError(/Target "plan" is already done/, /ship, finish/));
 
 // invalid targets never fall back to a default
