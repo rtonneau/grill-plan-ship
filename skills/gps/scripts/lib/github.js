@@ -86,10 +86,49 @@ function findOpenPullRequest(projectRoot, branch) {
   }
 }
 
+function pullNumber(url) {
+  const match = /\/pull\/(\d+)/.exec(String(url));
+  return match ? Number(match[1]) : null;
+}
+
+// Details of an existing PR through `gh pr view`: { number, title, head,
+// base }. Never throws: when gh fails or prints no usable JSON, the number
+// comes from the URL and title/head/base are null.
+function viewPullRequest(projectRoot, url) {
+  const fallback = { number: pullNumber(url), title: null, head: null, base: null };
+  try {
+    const view = JSON.parse(runGh(projectRoot, [
+      'pr', 'view', url, '--json', 'number,title,headRefName,baseRefName,url',
+    ]));
+    return {
+      number: Number.isInteger(view.number) ? view.number : fallback.number,
+      title: typeof view.title === 'string' && view.title ? view.title : null,
+      head: typeof view.headRefName === 'string' && view.headRefName ? view.headRefName : null,
+      base: typeof view.baseRefName === 'string' && view.baseRefName ? view.baseRefName : null,
+    };
+  } catch (_err) {
+    return fallback;
+  }
+}
+
+// One-line description of an opened PR, shared by the finish output and
+// INDEX.md, without the "Pull request" label and the URL: "#12 (new): <title>
+// (<head> → <base>)", or "#12 (already open, updated by the push)" when the
+// title is unknown.
+function describePullRequest(pr) {
+  const status = pr.existing ? 'already open, updated by the push' : 'new';
+  const head = `${pr.number ? `#${pr.number} ` : ''}(${status})`;
+  if (!pr.title) return head;
+  const branches = pr.head && pr.base ? ` (${pr.head} → ${pr.base})` : '';
+  return `${head}: ${pr.title}${branches}`;
+}
+
 // Pushes the session branch and opens a PR, unless one is already known
 // (`gitInfo.pr_url`, saved by an earlier finish) or already open for the
 // branch: then the push just updates it. Never throws: returns
-// { ok: true, url, existing } or { ok: false, step, reason, commands }.
+// { ok: true, url, existing, number, title, head, base } (an existing PR's
+// details come from `gh pr view`, null when it fails) or
+// { ok: false, step, reason, commands }.
 function openPullRequest(projectRoot, gitInfo, { title, body }) {
   const commands = [
     `git push -u origin ${gitInfo.branch}`,
@@ -99,7 +138,7 @@ function openPullRequest(projectRoot, gitInfo, { title, body }) {
   if (!pushed.ok) return { ok: false, step: 'push', reason: pushed.reason, commands };
 
   const existingUrl = gitInfo.pr_url || findOpenPullRequest(projectRoot, gitInfo.branch);
-  if (existingUrl) return { ok: true, url: existingUrl, existing: true };
+  if (existingUrl) return { ok: true, url: existingUrl, existing: true, ...viewPullRequest(projectRoot, existingUrl) };
 
   return withBodyFile(body, (bodyFile) => {
     try {
@@ -109,7 +148,10 @@ function openPullRequest(projectRoot, gitInfo, { title, body }) {
         '--title', title, '--body-file', bodyFile,
       ]));
       if (!url) return { ok: false, step: 'gh', reason: 'gh printed no PR URL', commands: commands.slice(1) };
-      return { ok: true, url, existing: false };
+      return {
+        ok: true, url, existing: false,
+        number: pullNumber(url), title, head: gitInfo.branch, base: gitInfo.base_branch,
+      };
     } catch (err) {
       return { ok: false, step: 'gh', reason: failureReason(err), commands: commands.slice(1) };
     }
@@ -197,6 +239,7 @@ module.exports = {
   ghAuthenticated,
   diagnoseGithub,
   openPullRequest,
+  describePullRequest,
   buildIssueBody,
   createIssue,
   commentOnIssue,
