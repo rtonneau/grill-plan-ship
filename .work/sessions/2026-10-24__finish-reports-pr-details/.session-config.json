@@ -58,13 +58,38 @@
       "detail": {
         "tickets": 1
       }
+    },
+    {
+      "at": "2026-10-24T07:20:54.805Z",
+      "event": "ticket_started",
+      "phase": "ship",
+      "files": [
+        "02-plan/tickets/01-finish-reports-pr-details.md",
+        "03-implement/01-finish-reports-pr-details/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "01-finish-reports-pr-details"
+      }
+    },
+    {
+      "at": "2026-10-24T07:29:56.702Z",
+      "event": "ticket_done",
+      "phase": "finish-pending",
+      "files": [
+        "03-implement/01-finish-reports-pr-details/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "01-finish-reports-pr-details",
+        "commit": "1936552"
+      }
     }
   ],
-  "current_phase": "ship",
+  "current_phase": "finish-pending",
   "git": {
     "branch": "feat/finish-pr-details",
     "base_branch": "main",
     "branch_created_at": "2026-10-24T07:20:52.780Z",
     "pr_url": null
-  }
+  },
+  "ship_mode": "subagent+inline"
 }
