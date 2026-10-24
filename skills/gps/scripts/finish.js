@@ -64,7 +64,7 @@ const {
   currentBranch, branchType, commitsBetween, commitRemainingChanges, commitWorkDir, describeWorkCommit,
   pushBranch, switchBranch, readRecentCommits,
 } = require('./lib/git');
-const { PR_ATTRIBUTION, openPullRequest, commentOnIssue, closeIssue } = require('./lib/github');
+const { PR_ATTRIBUTION, openPullRequest, describePullRequest, commentOnIssue, closeIssue } = require('./lib/github');
 const { GpsError, UsageError, writeJsonAtomic } = require('./lib/guard');
 const { getHistory, hasEvent, renderTimeline, recordEvent } = require('./lib/history');
 const { FRAGMENTS_DIR } = require('./lib/changelog-fragments');
@@ -142,7 +142,7 @@ function branchSection(gitInfo, pr) {
     `- **Base:** \`${gitInfo.base_branch}\``,
   ];
   if (pr.ok) {
-    lines.push(`- **Pull request:** ${pr.url}`, '');
+    lines.push(`- **Pull request:** ${describePullRequest(pr)} — ${pr.url}`, '');
   } else {
     lines.push(
       `- **Pull request:** not opened (${pr.step === 'push' ? 'push' : 'gh pr create'} failed: ${pr.reason})`,
@@ -404,7 +404,7 @@ function finishSession({ options, projectRoot, warn }) {
     lines.push(`📝 Changelog: ${bump}${typeof bullets === 'number' ? ` (${bullets} bullet(s))` : ''}`);
   }
   if (pr && pr.ok) {
-    lines.push(`🔀 Pull request${pr.existing ? ' (already open, updated by the push)' : ''}: ${pr.url}`);
+    lines.push(`🔀 Pull request ${describePullRequest(pr)}`, pr.url);
   } else if (pr) {
     byHand(`Pull request not opened (${pr.step === 'push' ? 'git push' : 'gh pr create'} failed: ${pr.reason}).`, pr.commands);
   }

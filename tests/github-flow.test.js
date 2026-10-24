@@ -21,7 +21,9 @@ const ghLog = path.join(tmp, 'gh-args.jsonl');
 const ghStub = path.join(tmp, 'gh-stub.js');
 fs.mkdirSync(root);
 
-// Stub gh. Logs every call except auth and "pr list" (no PR is ever open).
+// Stub gh. Logs every call except auth, "pr list" (no PR is ever open) and
+// "pr view" (answers the details of the Search Filters PR; fails when
+// GH_STUB_VIEW_FAIL is set).
 // Issue numbers count up from 34. GH_STUB_FAIL_ISSUE / GH_STUB_FAIL_COMMENT
 // make the matching call fail (before it is logged).
 fs.writeFileSync(ghStub, `
@@ -29,6 +31,11 @@ const fs = require('fs');
 const args = process.argv.slice(2);
 if (args[0] === 'auth') process.exit(0);
 if (args[0] === 'pr' && args[1] === 'list') process.exit(0);
+if (args[0] === 'pr' && args[1] === 'view') {
+  if (process.env.GH_STUB_VIEW_FAIL) { console.error('gh: HTTP 502'); process.exit(1); }
+  console.log(JSON.stringify({ number: 12, title: 'feat: Search Filters', headRefName: 'feat/search-filters', baseRefName: 'develop', url: args[2] }));
+  process.exit(0);
+}
 if (process.env.GH_STUB_FAIL_ISSUE && args[0] === 'issue' && args[1] === 'create') { console.error('gh: HTTP 502'); process.exit(1); }
 if (process.env.GH_STUB_FAIL_COMMENT && args[0] === 'issue' && args[1] === 'comment') { console.error('gh: HTTP 403'); process.exit(1); }
 if (process.env.GH_STUB_FAIL_RELEASE && args[0] === 'release' && args[1] === 'create') { console.error('gh: HTTP 500'); process.exit(1); }
@@ -259,7 +266,8 @@ assert.ok(git('show', '--name-only', '--format=', 'feat/search-filters').include
 assert.strictEqual(
   execFileSync('git', ['--git-dir', bare, 'rev-parse', 'refs/heads/feat/search-filters'], { encoding: 'utf-8' }).trim(),
   git('rev-parse', 'feat/search-filters'), 'the final session record was pushed');
-assert.match(res.out, /Pull request: https:\/\/github\.com\/acme\/app\/pull\/12/);
+assert.match(res.out,
+  /🔀 Pull request #12 \(new\): feat: Search Filters \(feat\/search-filters → develop\)\nhttps:\/\/github\.com\/acme\/app\/pull\/12\r?\n/);
 assert.strictEqual(prCreates().length, 1);
 const call = prCreates()[0];
 assert.deepStrictEqual(call.args.slice(0, 8),
@@ -278,7 +286,8 @@ git('switch', '-q', 'feat/search-filters');
 const index = fs.readFileSync(path.join(sessionDir, 'INDEX.md'), 'utf-8');
 assert.match(index, /## Branch & PR/);
 assert.match(index, /\*\*Branch:\*\* `feat\/search-filters`/);
-assert.match(index, /\*\*Pull request:\*\* https:\/\/github\.com\/acme\/app\/pull\/12/);
+assert.match(index,
+  /- \*\*Pull request:\*\* #12 \(new\): feat: Search Filters \(feat\/search-filters → develop\) — https:\/\/github\.com\/acme\/app\/pull\/12\r?\n/);
 config = readConfig(configPath);
 assert.strictEqual(config.git.pr_url, 'https://github.com/acme/app/pull/12');
 
@@ -312,11 +321,30 @@ assert.strictEqual(git('branch', '--show-current'), 'feat/search-filters');
 assert.match(fs.readFileSync(path.join(sessionDir, 'INDEX.md'), 'utf-8'), /## Remaining changes\n\nNot committed \(lint failed\)/);
 fs.rmSync(preCommit);
 git('reset', '-q', '--hard');
-assert.match(res.out, /Pull request \(already open, updated by the push\): https:\/\/github\.com\/acme\/app\/pull\/12/);
+assert.match(res.out,
+  /🔀 Pull request #12 \(already open, updated by the push\): feat: Search Filters \(feat\/search-filters → develop\)\nhttps:\/\/github\.com\/acme\/app\/pull\/12\r?\n/);
 assert.strictEqual(prCreates().length, 1, 'no second PR');
 assert.strictEqual(readConfig(configPath).history.filter((e) => e.event === 'pr_opened').length, 1);
 assert.deepStrictEqual(readConfig(configPath).history.find((e) => e.event === 'pr_opened').detail,
   { url: 'https://github.com/acme/app/pull/12' });
+
+// Same interruption again, but "gh pr view" fails: the finish still succeeds,
+// with the number from the URL and no title, in the output, INDEX.md and --json.
+config = readConfig(configPath);
+delete config.finished_at;
+fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
+fs.writeFileSync(path.join(root, '.work', 'sessions', '.current-session'), sessionId);
+res = runWithEnv({ GH_STUB_VIEW_FAIL: '1' }, 'finish.js', '--json');
+assert.strictEqual(res.code, 0, res.err);
+const viewFailed = JSON.parse(res.out);
+assert.deepStrictEqual(viewFailed.pr, {
+  ok: true, url: 'https://github.com/acme/app/pull/12', existing: true,
+  number: 12, title: null, head: null, base: null,
+});
+assert.strictEqual(prCreates().length, 1, 'no second PR');
+git('switch', '-q', 'feat/search-filters');
+assert.match(fs.readFileSync(path.join(sessionDir, 'INDEX.md'), 'utf-8'),
+  /- \*\*Pull request:\*\* #12 \(already open, updated by the push\) — https:\/\/github\.com\/acme\/app\/pull\/12\r?\n/);
 
 // ------------------------------- C. issue session: the grill write files the issue
 git('switch', '-q', 'main');
@@ -497,7 +525,7 @@ assert.ok(!fs.existsSync(target.payloadPath), 'payload removed once written');
 // (the branchType prefix stays mechanical).
 markTicketDone(sessionDir, 'retryslug');
 res = ok('finish.js', '--title', 'Recover from a mid-write crash cleanly');
-assert.match(res.out, /Pull request:/);
+assert.match(res.out, /🔀 Pull request #12 \(new\): feat: Recover from a mid-write crash cleanly \(feat\/retry-branch → main\)/);
 const retryPr = prCreates()[prCreates().length - 1];
 assert.deepStrictEqual(retryPr.args.slice(0, 8),
   ['pr', 'create', '--base', 'main', '--head', 'feat/retry-branch', '--title', 'feat: Recover from a mid-write crash cleanly']);
