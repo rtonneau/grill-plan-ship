@@ -84,6 +84,30 @@
         "ticket": "01-ship-autofinish-setting",
         "commit": "1d1bed6"
       }
+    },
+    {
+      "at": "2026-10-24T06:55:51.879Z",
+      "event": "ticket_started",
+      "phase": "ship",
+      "files": [
+        "02-plan/tickets/02-auto-route-ship-chains-finish.md",
+        "03-implement/02-auto-route-ship-chains-finish/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "02-auto-route-ship-chains-finish"
+      }
+    },
+    {
+      "at": "2026-10-24T07:03:38.655Z",
+      "event": "ticket_done",
+      "phase": "ship",
+      "files": [
+        "03-implement/02-auto-route-ship-chains-finish/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "02-auto-route-ship-chains-finish",
+        "commit": "0b4d8da"
+      }
     }
   ],
   "current_phase": "ship",
