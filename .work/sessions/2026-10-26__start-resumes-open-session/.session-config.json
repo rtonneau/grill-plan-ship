@@ -60,6 +60,30 @@
       "detail": {
         "tickets": 3
       }
+    },
+    {
+      "at": "2026-10-26T09:16:57.310Z",
+      "event": "ticket_started",
+      "phase": "ship",
+      "files": [
+        "02-plan/tickets/01-start-resumes-unfinished.md",
+        "03-implement/01-start-resumes-unfinished/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "01-start-resumes-unfinished"
+      }
+    },
+    {
+      "at": "2026-10-26T09:24:06.489Z",
+      "event": "ticket_done",
+      "phase": "ship",
+      "files": [
+        "03-implement/01-start-resumes-unfinished/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "01-start-resumes-unfinished",
+        "commit": "945de74"
+      }
     }
   ],
   "current_phase": "ship",
@@ -68,5 +92,6 @@
     "base_branch": "main",
     "branch_created_at": "2026-10-26T09:16:40.002Z",
     "pr_url": null
-  }
+  },
+  "ship_mode": "subagent+inline"
 }
