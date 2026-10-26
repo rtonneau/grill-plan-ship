@@ -9,7 +9,12 @@
  * report (kind "issue"): on a GitHub project the grill write files it as
  * a GitHub issue; otherwise a warning says it stays local.
  *
- * A scouted idea whose slug matches the session's is consumed: printed as
+ * An unfinished session whose id is <any date>__<slug> (the newest, if
+ * several) is resumed instead: start writes nothing and prints where it
+ * stands (phase, tickets, idleness, whether it is current) and its next
+ * command; switching to it is left to set-current.js after the user agrees.
+ *
+ * A scouted seed whose slug matches the session's is consumed: printed as
  * the grill's starting context and removed from .pending-seeds.json.
  * Warns when .work/ is git-ignored (gps then commits none of its files),
  * and suggests /gps init while the project's gps setup is not committed.
@@ -19,10 +24,34 @@ const path = require('path');
 const { main } = require('./lib/cli');
 const { ensureProjectConfig } = require('./lib/project-config');
 const { initSession } = require('./lib/session-init');
+const { sessionsDirOf, findUnfinishedBySlug, readCurrentPointer } = require('./lib/session-store');
+const { computeSessionState } = require('./lib/phase');
+const { computeIdleness } = require('./lib/staleness');
 const { getSeed, removeSeed } = require('./lib/seeds-store');
 const { isWorkTree, isIgnored } = require('./lib/git');
 const { needsSetup } = require('./lib/setup');
-const { UsageError } = require('./lib/guard');
+const { UsageError, slugify } = require('./lib/guard');
+
+// The report for an unfinished session of the same name; reads only.
+function resumeReport(sessionsDir, found, wantIssue, warn) {
+  const { sessionId, config } = found;
+  const kind = (config && config.kind) || 'feature';
+  if (wantIssue && kind !== 'issue') warn(`--issue was given, but session ${sessionId} is a feature session; its kind is kept.`);
+  if (!wantIssue && kind === 'issue') warn(`Session ${sessionId} is an issue session (no --issue given); its kind is kept.`);
+
+  const { ticketQueue, phase, suggestedNext } = computeSessionState(path.join(sessionsDir, sessionId), config);
+  const { lastActivityAt, idleDays } = computeIdleness(sessionsDir, sessionId, config);
+  const isCurrent = readCurrentPointer(sessionsDir) === sessionId;
+  const tickets = { done: ticketQueue.tickets.filter((t) => t.done).length, total: ticketQueue.tickets.length };
+  const lines = [`↩️ Session ${sessionId} already exists and is not finished.`, `Phase: ${phase}`];
+  if (tickets.total > 0) lines.push(`Tickets: ${tickets.done}/${tickets.total} done`);
+  lines.push(`Last activity: ${lastActivityAt || 'unknown'}${idleDays === null ? '' : ` (idle ${idleDays} day(s))`}`,
+    `Current session: ${isCurrent ? 'yes' : 'no'}`, '', `Next: ${suggestedNext.command} — ${suggestedNext.why}`);
+  return {
+    text: lines.join('\n'),
+    data: { resumable: true, sessionId, kind, phase, isCurrent, suggestedNext, tickets, lastActivityAt, idleDays },
+  };
+}
 
 main({
   usage: 'start.js <feature-name...> [--issue] [--json]',
@@ -31,6 +60,10 @@ main({
   run({ positionals, options, projectRoot, warn }) {
     const featureName = positionals.join(' ').trim();
     if (!featureName) throw new UsageError('Missing feature name.');
+    // Before anything writes: an unfinished session of the same name is resumed, not duplicated.
+    const sessionsDir = sessionsDirOf(projectRoot);
+    const found = findUnfinishedBySlug(sessionsDir, slugify(featureName));
+    if (found) return resumeReport(sessionsDir, found, Boolean(options.issue), warn);
     // Detects GitHub once; a corrupt file aborts before anything is created.
     const github = ensureProjectConfig(projectRoot).github.enabled;
     const session = initSession(projectRoot, featureName, options.issue ? { kind: 'issue' } : {});
@@ -65,7 +98,7 @@ main({
 
     return {
       text: lines.join('\n'),
-      data: { ...session, kind: options.issue ? 'issue' : 'feature', github, seed, resumePath },
+      data: { ...session, resumable: false, kind: options.issue ? 'issue' : 'feature', github, seed, resumePath },
     };
   },
 });

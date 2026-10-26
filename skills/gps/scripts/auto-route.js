@@ -14,6 +14,7 @@ const { main } = require('./lib/cli');
 const { computeRoute } = require('./lib/auto-route');
 const { resolveSession } = require('./lib/session-store');
 const { recordEvent } = require('./lib/history');
+const { shipSettings } = require('./lib/project-config');
 
 const DELEGATE_SHIP_MODE = 'subagent+inline';
 
@@ -23,8 +24,8 @@ main({
   options: { delegate: 'boolean' },
   run({ positionals, options, projectRoot, warn }) {
     const { sessionId, sessionDir, configPath, config } = resolveSession(projectRoot);
-    const { target, steps, questions, shipMode } = computeRoute(sessionDir, config, positionals[0] || 'finish',
-      { shipMode: options.delegate ? DELEGATE_SHIP_MODE : undefined });
+    const { target, steps, questions, shipMode, chainedFinish } = computeRoute(sessionDir, config, positionals[0] || 'finish',
+      { shipMode: options.delegate ? DELEGATE_SHIP_MODE : undefined, autoFinish: shipSettings(projectRoot).autoFinish });
     if (options.delegate && !shipMode) warn('--delegate ignored: this route has no ship step.');
 
     recordEvent(configPath, config, sessionDir, {
@@ -33,6 +34,7 @@ main({
     });
 
     const lines = [`Route for ${sessionId} (target ${target}): ${steps.join(' → ')}`];
+    if (chainedFinish) lines.push('finish follows ship because ship.autoFinish is on.');
     if (questions.includes('ship-mode')) {
       lines.push('Ask once, before the first step: the ship mode (subagent + inline follow-up (Recommended), subagent, or inline).');
     } else if (shipMode) {
@@ -40,6 +42,6 @@ main({
     } else {
       lines.push('Ask nothing.');
     }
-    return { text: lines.join('\n'), data: { sessionId, target, steps, questions, ...(shipMode && { shipMode }) } };
+    return { text: lines.join('\n'), data: { sessionId, target, steps, questions, ...(chainedFinish && { chainedFinish }), ...(shipMode && { shipMode }) } };
   },
 });

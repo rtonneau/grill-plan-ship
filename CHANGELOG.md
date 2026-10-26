@@ -2,6 +2,26 @@
 
 All notable changes to grill-plan-ship. Versions follow [semantic versioning](https://semver.org/).
 
+## 2.11.0 (2026-10-26)
+
+- `/gps start <name>` on a session of the same name that is not finished (started today or on an earlier day) no longer fails or creates a duplicate: it reports the session's phase, tickets and last activity, asks whether to continue, and picks up from that phase.
+- `set-current.js` and the "nothing to write" messages of `/gps write` now name the next command (`/gps ship`, `/gps finish`, …) instead of sending you to `/gps status`.
+
+## 2.10.0 (2026-10-24)
+
+- A full `/gps ship` now runs `/gps finish` by itself once every ticket is done. Set `ship.autoFinish` to `false` in `.work/gps-config.json` to stop after the last ticket instead; `/gps config` shows the setting.
+- A finish run by `/gps ship` or `/gps auto` asks nothing: it keeps the issue open and offers no session switch. A typed `/gps finish` still asks both questions.
+- `/gps auto ship` now finishes the session too while `ship.autoFinish` is on.
+- `/gps finish` now reports the pull request's number, title and branch → base along with its URL, in its output and in the session's INDEX.md.
+
+## 2.9.0 (2026-10-23)
+
+- Add the `idea` skill (`/idea capture|start|plan|review|promote|drop|list|config`): a backlog for future work, kept apart from gps sessions, promoting into a fresh `/gps start` session when it's time to build. Global (not-repo-tied) Ideas live in a personal repo you name once with `/idea config --set-global-root <path>`.
+- Rename `/gps scout`'s "scouted idea(s)" to "seed(s)" in text and `--json` output (`ideas` -> `seeds`, `ideasProblem` -> `seedsProblem` on `clean.js` and `status.js`), freeing "Idea" for the new `idea` skill.
+- `/gps finish` now removes regenerable build trees (`build/`, `node_modules/`, CMake build dirs, caches…) from the session's `.scratch/tests/<session>/` dir and keeps logs and other evidence; set `scratch.cleanupOnFinish` to `none`, `build-artifacts` (default) or `all`, and add names with `scratch.extraDirs`.
+- `/gps clean` deletes a session's scratch dir along with the session, lists orphan scratch dirs (no matching session) so they can be deleted too, and shows each scratch dir's size in the dry run.
+- Ticket subagents are told to copy any log they cite into the scratch dir's `evidence/` folder, so it survives the cleanup at finish.
+
 ## 2.8.6 (2026-10-19)
 
 - Run every GPS Git subprocess with a process-local `safe.directory` for its containing worktree, so Codex can approve the stable direct GPS script command on Windows instead of a ticket-specific PowerShell environment wrapper; Claude Code behavior and global Git configuration remain unchanged.

@@ -114,4 +114,85 @@ const h = require('./helpers');
   assert.doesNotMatch(out, /CHANGELOG/);
 }
 
+{
+  // Scratch cleanup on finish, per scratch.cleanupOnFinish in .work/gps-config.json.
+  // A finished session with a build tree and an evidence file in its scratch dir.
+  const sessionConfig = (root, id) => JSON.parse(fs.readFileSync(path.join(h.sessionsDir(root), id, '.session-config.json'), 'utf-8'));
+  const finished = (name, scratch, args = []) => {
+    const root = h.gitProject(`gps-fin-sc-${name}-`);
+    h.shipReady(root, 'Scratchy', ['a']);
+    h.completeTicket(root, 1, 'a');
+    const id = h.currentSession(root);
+    const scratchDir = path.join(root, '.scratch', 'tests', id);
+    fs.mkdirSync(path.join(scratchDir, 'build'), { recursive: true });
+    fs.mkdirSync(path.join(scratchDir, 'evidence'), { recursive: true });
+    fs.writeFileSync(path.join(scratchDir, 'build', 'obj.bin'), 'x'.repeat(2048));
+    fs.writeFileSync(path.join(scratchDir, 'evidence', 'run.log'), 'ok\n');
+    if (scratch) {
+      fs.writeFileSync(path.join(root, '.work', 'gps-config.json'),
+        JSON.stringify({ github: { enabled: false }, scratch: { cleanupOnFinish: scratch } }));
+    }
+    const data = h.json(root, 'finish.js', args);
+    return { root, id, scratchDir, data, events: sessionConfig(root, id).history.map((e) => e.event) };
+  };
+
+  // Default policy (build-artifacts): the build tree goes, the evidence stays.
+  const def = finished('default');
+  assert.ok(!fs.existsSync(path.join(def.scratchDir, 'build')));
+  assert.strictEqual(fs.readFileSync(path.join(def.scratchDir, 'evidence', 'run.log'), 'utf-8'), 'ok\n');
+  assert.strictEqual(def.data.scratch.policy, 'build-artifacts');
+  assert.deepStrictEqual(def.data.scratch.removed, [`.scratch/tests/${def.id}/build`]);
+  assert.strictEqual(def.data.scratch.freedBytes, 2048);
+  assert.deepStrictEqual(def.data.scratch.failures, []);
+  assert.ok(def.events.indexOf('session_finished') < def.events.indexOf('scratch_cleaned'));
+  const cleaned = sessionConfig(def.root, def.id).history.find((e) => e.event === 'scratch_cleaned');
+  assert.deepStrictEqual(cleaned.detail, { policy: 'build-artifacts', removed: [`.scratch/tests/${def.id}/build`], freedBytes: 2048 });
+  assert.strictEqual(h.git(def.root, 'status', '--porcelain', '--', '.work'), '', 'the scratch_cleaned event is committed');
+  assert.match(h.git(def.root, 'show', 'HEAD:.work/sessions/' + def.id + '/.session-config.json'), /scratch_cleaned/);
+
+  // Human output: one line.
+  const text = finished('text');
+  assert.ok(text.data.scratch.removed.length === 1);
+  const again = h.gitProject('gps-fin-sc-out-');
+  h.shipReady(again, 'Out', ['a']);
+  h.completeTicket(again, 1, 'a');
+  const sid = h.currentSession(again);
+  fs.mkdirSync(path.join(again, '.scratch', 'tests', sid, 'build'), { recursive: true });
+  fs.writeFileSync(path.join(again, '.scratch', 'tests', sid, 'build', 'o'), 'x');
+  assert.match(h.ok(again, 'finish.js').out, /🧹 Scratch: removed 1 build tree\(s\), freed 1 B \(policy build-artifacts\)/);
+
+  // none: everything kept, no event, no line.
+  const none = finished('none', 'none');
+  assert.ok(fs.existsSync(path.join(none.scratchDir, 'build', 'obj.bin')));
+  assert.ok(!none.events.includes('scratch_cleaned'));
+  assert.deepStrictEqual(none.data.scratch.removed, []);
+
+  // all: the whole session scratch dir goes.
+  const all = finished('all', 'all');
+  assert.ok(!fs.existsSync(all.scratchDir));
+  assert.deepStrictEqual(all.data.scratch.removed, [`.scratch/tests/${all.id}`]);
+  assert.ok(all.events.includes('scratch_cleaned'));
+
+  // Nothing to remove (no scratch dir at all): no event.
+  const bare = h.gitProject('gps-fin-sc-bare-');
+  h.shipReady(bare, 'Bare', ['a']);
+  h.completeTicket(bare, 1, 'a');
+  fs.rmSync(path.join(bare, '.scratch'), { recursive: true, force: true });
+  const bareId = h.currentSession(bare);
+  const bareRes = h.json(bare, 'finish.js');
+  assert.deepStrictEqual(bareRes.scratch.removed, []);
+  assert.ok(!sessionConfig(bare, bareId).history.some((e) => e.event === 'scratch_cleaned'));
+
+  // A refused finish (ticket not Done) touches no scratch file.
+  const refused = h.gitProject('gps-fin-sc-refused-');
+  h.shipReady(refused, 'Refused', ['a', 'b']);
+  h.completeTicket(refused, 1, 'a');
+  const rid = h.currentSession(refused);
+  const rBuild = path.join(refused, '.scratch', 'tests', rid, 'build');
+  fs.mkdirSync(rBuild, { recursive: true });
+  fs.writeFileSync(path.join(rBuild, 'obj.bin'), 'x');
+  h.assertFails(h.run(refused, 'finish.js'), 1, /not Done/);
+  assert.ok(fs.existsSync(path.join(rBuild, 'obj.bin')));
+}
+
 h.done('finish.test.js');

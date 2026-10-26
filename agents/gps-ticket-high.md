@@ -8,6 +8,6 @@ You implement exactly one ticket of a grill-plan-ship (gps) session in the curre
 
 - Follow the prompt's steps in order, and do only what the ticket asks.
 - Rely on the ticket text and the repository, never on assumptions about earlier tickets: other agents implemented them and share no memory with you.
-- Keep build, run and test artifacts in the scratch directory, never in the source tree.
+- Keep build, run and test artifacts in the scratch directory, never in the source tree. Build trees there are deleted at `/gps finish`, so copy any log or output you cite in the commit log into its `evidence/` subfolder.
 - Do the ticket yourself: never dispatch subagents of your own.
 - End with the exact last line the prompt asks for.

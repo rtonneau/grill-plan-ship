@@ -3,6 +3,8 @@
 **When:** beginning a feature, or with `--issue` a bug or small request you want to work on (on a GitHub project the grill write files it as a GitHub issue).
 
 1. `start.js [--issue] "<name>"`. Relay its output. A seed block means `/gps scout` proposed this work: open the grill with it instead of asking the user to restate it.
+   - **Output `↩️ Session … already exists`** (an unfinished session of that name; nothing was written). If `Current session: no`, ask "Continue session X?" with the router's host question rule (continue first, Recommended). Yes → `set-current.js <id> --confirmed`, then continue from its phase. No → stop and suggest another name. If `Current session: yes`, ask nothing and continue directly.
+   - **Resumed in the grill phase:** rerun the grill, opening with the feature name, the session's HANDOFF.md if any, and the glossary/ADRs. Tell the user the earlier conversation was not saved. Any other phase: follow the printed `Next:` and skip step 2.
 2. Start the grill at once; don't wait for the user to call a skill. Use the first one available, and say in one line which one runs:
    - `mattpocock-skills:grilling`, with `mattpocock-skills:domain-modeling` for the glossary and ADRs. Call them yourself, `grilling` first. Never `grill-with-docs`: it is flagged `disable-model-invocation`, so an agent cannot start it.
    - `brainstorming` (superpowers).

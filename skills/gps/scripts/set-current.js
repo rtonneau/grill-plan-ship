@@ -16,7 +16,7 @@ const { main } = require('./lib/cli');
 const {
   CONFIG_FILENAME, sessionsDirOf, setCurrentSession, isSafeSessionName, listUnfinishedSessions,
 } = require('./lib/session-store');
-const { isFinished } = require('./lib/phase');
+const { isFinished, computeSessionState } = require('./lib/phase');
 const { GpsError, UsageError, readJson } = require('./lib/guard');
 
 main({
@@ -33,14 +33,16 @@ main({
     if (!isSafeSessionName(sessionId)) throw new UsageError(`Invalid session id: ${JSON.stringify(sessionId)}`, available());
     const configPath = path.join(sessionsDir, sessionId, CONFIG_FILENAME);
     if (!fs.existsSync(configPath)) throw new GpsError(`Session ${sessionId} not found.`, available());
-    if (isFinished(readJson(configPath, `${CONFIG_FILENAME} of ${sessionId}`))) {
+    const config = readJson(configPath, `${CONFIG_FILENAME} of ${sessionId}`);
+    if (isFinished(config)) {
       throw new GpsError(`Session ${sessionId} is already finished.`, available());
     }
 
     setCurrentSession(sessionsDir, sessionId);
+    const { phase, suggestedNext } = computeSessionState(path.join(sessionsDir, sessionId), config);
     return {
-      text: `✅ Current session is now ${sessionId}. Next: /gps status to see where it left off.`,
-      data: { sessionId },
+      text: `✅ Current session is now ${sessionId} (phase ${phase}).\nNext: ${suggestedNext.command} — ${suggestedNext.why}`,
+      data: { sessionId, phase, suggestedNext },
     };
   },
 });

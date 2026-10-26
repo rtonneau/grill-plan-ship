@@ -17,10 +17,13 @@ skills/gps/
 ├── scripts/<name>.js      one script per deterministic step
 │   └── lib/               shared helpers; cli.js is the script contract
 └── assets/                markdown templates only
+skills/idea/               Idea backlog skill, same shape (SKILL.md, references/<cmd>.md, scripts/<name>.js, scripts/lib/)
 agents/gps-ticket-<level>.md  one ticket subagent per TICKET_EFFORTS level but inherit (lib/ticket-model.js):
                            identical bodies, only name/description/effort differ (checked by tests/skill.test.js)
 docs/decisions/NNNN-*.md   design decisions with their reasons; 0001: effort hints stop at xhigh, no max; 0003: changelog fragments in .work/changelog/, version set only by /gps release;
-                           0002: gps commits only its own .work/ paths; 0004: model hints stay family-level (haiku/sonnet/opus/inherit), no version pinning
+                           0002: gps commits only its own .work/ paths; 0004: model hints stay family-level (haiku/sonnet/opus/inherit), no version pinning;
+                           0008: finish removes scratch build trees by name (`scratch.cleanupOnFinish`), warns on failure;
+                           0011: a full /gps ship chains a finish that asks nothing (`ship.autoFinish`, default on; keeps the issue, no session switch)
 docs/WORK-DIR.md           contract for other skills sharing .work/ (names every GPS_WORK_PATHS entry, checked by tests/skill.test.js)
 tests/                     <script>.test.js per script, lib/<lib>.test.js per lib, e2e, github-flow, skill
 docs/                      icon.png (listing icon) and gps-workflow.png (README diagram), rendered from the
@@ -28,6 +31,7 @@ docs/                      icon.png (listing icon) and gps-workflow.png (README 
 ```
 
 Commands: init, scout, start (`--issue`), status, clean, config, write, plan, ship (`[N]`), finish, auto, release, handoff, help.
+idea skill commands: capture, start, plan, review, promote, drop, list, config.
 
 ## Rules for scripts
 

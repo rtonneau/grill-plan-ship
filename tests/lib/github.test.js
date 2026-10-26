@@ -5,7 +5,7 @@ const os = require('os');
 const path = require('path');
 const { execFileSync } = require('child_process');
 const {
-  isGithubUrl, diagnoseGithub, openPullRequest, ghAuthenticated, createIssue, commentOnIssue, closeIssue, buildIssueBody, releaseExists, createRelease,
+  isGithubUrl, diagnoseGithub, openPullRequest, describePullRequest, ghAuthenticated, createIssue, commentOnIssue, closeIssue, buildIssueBody, releaseExists, createRelease,
 } = require('../../skills/gps/scripts/lib/github');
 const {
   originUrl, currentBranch, validateBranchName, createSessionBranch,
@@ -139,7 +139,8 @@ assert.strictEqual(currentBranch(linkedWorktree), 'feat/sqlite-table-engine');
 linkedGit('worktree', 'remove', '--force', linkedWorktree);
 
 // openPullRequest with a stub gh: every call is appended to ghLog;
-// "pr list" prints GH_STUB_OPEN_PR (an already-open PR) when set.
+// "pr list" prints GH_STUB_OPEN_PR (an already-open PR) when set; "pr view"
+// prints that PR's JSON, or fails when GH_STUB_VIEW_FAIL is set.
 const ghLog = path.join(tmp, 'gh-calls.jsonl');
 const ghStub = path.join(tmp, 'gh-stub.js');
 fs.writeFileSync(ghStub, `
@@ -159,6 +160,12 @@ if (args[0] === 'issue' && args[1] === 'create') {
 if (args[0] === 'issue') process.exit(0);
 if (args[0] === 'release' && args[1] === 'view') process.exit(process.env.GH_STUB_RELEASE ? 0 : 1);
 if (args[0] === 'release') { console.log(process.env.GH_STUB_NO_URL ? 'created' : 'https://github.com/acme/app/releases/tag/' + args[2]); process.exit(0); }
+if (args[0] === 'pr' && args[1] === 'view') {
+  if (process.env.GH_STUB_VIEW_FAIL) { console.error('gh: HTTP 502'); process.exit(1); }
+  const number = Number(args[2].split('/').pop());
+  console.log(JSON.stringify({ number, title: 'feat: Existing title', headRefName: 'feat/dark-mode', baseRefName: 'main', url: args[2] }));
+  process.exit(0);
+}
 if (args[1] === 'list') { if (process.env.GH_STUB_OPEN_PR) console.log(process.env.GH_STUB_OPEN_PR); process.exit(0); }
 console.log('Creating pull request...');
 console.log('https://github.com/acme/app/pull/7');
@@ -168,7 +175,12 @@ const ghCalls = () => (fs.existsSync(ghLog) ? fs.readFileSync(ghLog, 'utf-8').tr
 const creates = () => ghCalls().filter((c) => c.args[0] === 'pr' && c.args[1] === 'create');
 
 let pr = openPullRequest(repo, info, { title: 'feat: Dark mode', body: 'Body text\n' });
-assert.deepStrictEqual(pr, { ok: true, url: 'https://github.com/acme/app/pull/7', existing: false });
+assert.deepStrictEqual(pr, {
+  ok: true, url: 'https://github.com/acme/app/pull/7', existing: false,
+  number: 7, title: 'feat: Dark mode', head: 'feat/dark-mode', base: 'main',
+});
+assert.strictEqual(ghCalls().filter((c) => c.args[1] === 'view').length, 0, 'a new PR is not viewed');
+assert.strictEqual(describePullRequest(pr), '#7 (new): feat: Dark mode (feat/dark-mode → main)');
 assert.deepStrictEqual(ghCalls()[0].args.slice(0, 4), ['pr', 'list', '--head', 'feat/dark-mode']);
 assert.strictEqual(creates().length, 1);
 const call = creates()[0];
@@ -178,16 +190,35 @@ assert.strictEqual(call.body, 'Body text\n');
 assert.ok(execFileSync('git', ['--git-dir', bare, 'rev-parse', 'refs/heads/feat/dark-mode'], { encoding: 'utf-8' }).trim());
 assert.strictEqual(git('rev-parse', '--abbrev-ref', 'feat/dark-mode@{upstream}'), 'origin/feat/dark-mode');
 
-// Guard against a second PR: a known pr_url is reused without asking gh...
+// Guard against a second PR: a known pr_url is reused (no list, no create),
+// its details read with one "pr view"...
 fs.rmSync(ghLog);
 pr = openPullRequest(repo, { ...info, pr_url: 'https://github.com/acme/app/pull/7' }, { title: 't', body: 'b' });
-assert.deepStrictEqual(pr, { ok: true, url: 'https://github.com/acme/app/pull/7', existing: true });
-assert.deepStrictEqual(ghCalls(), []);
-// ...and a PR already open for the branch is found and reused.
+assert.deepStrictEqual(pr, {
+  ok: true, url: 'https://github.com/acme/app/pull/7', existing: true,
+  number: 7, title: 'feat: Existing title', head: 'feat/dark-mode', base: 'main',
+});
+assert.deepStrictEqual(ghCalls().map((c) => c.args.slice(0, 3)), [['pr', 'view', 'https://github.com/acme/app/pull/7']]);
+assert.deepStrictEqual(ghCalls()[0].args.slice(3), ['--json', 'number,title,headRefName,baseRefName,url']);
+assert.strictEqual(describePullRequest(pr),
+  '#7 (already open, updated by the push): feat: Existing title (feat/dark-mode → main)');
+// ...and a PR already open for the branch is found, reused and viewed.
 process.env.GH_STUB_OPEN_PR = 'https://github.com/acme/app/pull/9';
 pr = openPullRequest(repo, info, { title: 't', body: 'b' });
-assert.deepStrictEqual(pr, { ok: true, url: 'https://github.com/acme/app/pull/9', existing: true });
+assert.deepStrictEqual(pr, {
+  ok: true, url: 'https://github.com/acme/app/pull/9', existing: true,
+  number: 9, title: 'feat: Existing title', head: 'feat/dark-mode', base: 'main',
+});
 assert.strictEqual(creates().length, 0);
+// A failing "pr view" never fails the finish: number from the URL, no title.
+process.env.GH_STUB_VIEW_FAIL = '1';
+pr = openPullRequest(repo, info, { title: 't', body: 'b' });
+assert.deepStrictEqual(pr, {
+  ok: true, url: 'https://github.com/acme/app/pull/9', existing: true,
+  number: 9, title: null, head: null, base: null,
+});
+assert.strictEqual(describePullRequest(pr), '#9 (already open, updated by the push)');
+delete process.env.GH_STUB_VIEW_FAIL;
 delete process.env.GH_STUB_OPEN_PR;
 
 // gh failure -> not thrown, gh command left to run by hand.

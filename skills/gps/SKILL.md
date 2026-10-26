@@ -40,10 +40,10 @@ Grill (spec the work) → Plan (atomic tickets) → Ship (one commit per ticket)
 | Command | What it does | Instructions |
 |---|---|---|
 | `/gps init` | Check the project and commit gps's setup once (optional) | `references/init.md` |
-| `/gps scout [--from <review-file>] [direction]` | Review the codebase's architecture (or read a review file with `--from`) and turn the findings into ideas for `/gps start` | `references/scout.md` |
+| `/gps scout [--from <review-file>] [direction]` | Review the codebase's architecture (or read a review file with `--from`) and turn the findings into seeds for `/gps start` | `references/scout.md` |
 | `/gps start [--issue] <name>` | New session, then the grill (`--issue`: a report, filed as a GitHub issue) | `references/start.md` |
-| `/gps status` | Sessions, ideas, current phase and handoff, next command | `references/status.md` |
-| `/gps clean [id...]` | Delete sessions or drop ideas, after confirmation | `references/clean.md` |
+| `/gps status` | Sessions, seeds, current phase and handoff, next command | `references/status.md` |
+| `/gps clean [id...]` | Delete sessions or drop seeds, after confirmation | `references/clean.md` |
 | `/gps config [--rescan]` | Show or re-detect the project's GitHub flag | `references/config.md` |
 | `/gps write` | Save the approved grill or plan to disk | `references/write.md` |
 | `/gps plan` | Save the grill if pending, start the plan, draft tickets | `references/plan.md` |
@@ -72,5 +72,5 @@ This skill is shared by Claude Code and Codex. Use the host's available question
 - Never create, edit or delete session state by hand (`.session-config.json`, `.current-session`, `.pending-seeds.json`, session directories). The scripts validate that state and record each change in its history; a hand edit skips both, and `status`, `auto` and `finish` then disagree with what is on disk. The agent writes only the narrative a script points at: the write payload, a commit log's narrative sections, HANDOFF.md, the glossary and ADRs.
 - Scripts never overwrite work: re-running a command against existing output refuses (changing nothing) or resumes. So re-running is always safe; deleting output to force a fresh run is not.
 - **Host question rule:** In Claude Code use `AskUserQuestion`, at most 4 questions per call and 2-4 options each, recommended answer first marked "(Recommended)". In Codex inspect the available question tool, its schema and mode restrictions; never assume Claude batching or tool availability. If no suitable tool is available, ask concise numbered conversational questions. Wait for answers to required decisions; asynchronous invocation, preselected options and elapsed time are not confirmation. Preserve already authorized auto-run choices and approval gates. Question tools do not replace sandbox escalation. Apply this rule inside external grill skills too.
-- Switch the current session only after the user confirms it (`set-current.js <session-id>`): every later command acts on the current session.
+- Switch the current session only after the user confirms it (`set-current.js <session-id> --confirmed`): every later command acts on the current session.
 - On GitHub projects (flag in `.work/gps-config.json`), saving the plan creates the session branch and `/gps finish` opens its pull request; bounded work (no plan) gets neither.

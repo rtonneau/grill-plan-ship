@@ -9,7 +9,9 @@ const {
   pointerError,
   resolveSession,
   isSafeSessionName,
+  findUnfinishedBySlug,
 } = require('../../skills/gps/scripts/lib/session-store');
+const { initSession } = require('../../skills/gps/scripts/lib/session-init');
 const { GpsError } = require('../../skills/gps/scripts/lib/guard');
 
 const sessionsDir = fs.mkdtempSync(path.join(os.tmpdir(), 'gps-session-store-'));
@@ -67,6 +69,13 @@ assert.match(err.hint, /2026-09-16__a-feature/);
 assert.match(err.hint, /set-current\.js/);
 assert.doesNotMatch(err.hint, /b-feature/);
 
+// findUnfinishedBySlug skips finished sessions and other slugs
+assert.strictEqual(findUnfinishedBySlug(sessionsDir, 'a-feature').sessionId, '2026-09-16__a-feature');
+assert.strictEqual(findUnfinishedBySlug(sessionsDir, 'a-feature').config.created_at, '2026-09-16T10:00:00.000Z');
+assert.strictEqual(findUnfinishedBySlug(sessionsDir, 'b-feature'), null, 'finished');
+assert.strictEqual(findUnfinishedBySlug(sessionsDir, 'feature'), null);
+assert.strictEqual(findUnfinishedBySlug(sessionsDir, '2026-09-16__a-feature'), null, 'a slug, not a session id');
+
 // resolveSession throws the same error
 assert.throws(() => resolveSession(path.dirname(path.dirname(sessionsDir))), GpsError);
 
@@ -84,4 +93,18 @@ assert.strictEqual(resolveCurrentPointer(noMarkerDir).sessionId, null);
 fs.rmSync(noMarkerDir, { recursive: true, force: true });
 
 fs.rmSync(sessionsDir, { recursive: true, force: true });
+
+// Across days, the newest unfinished session of the slug wins (by created_at, not directory order).
+const project = fs.mkdtempSync(path.join(os.tmpdir(), 'gps-session-store-slug-'));
+const day = (d) => new Date(2026, 0, d, 12);
+initSession(project, 'feat', {}, day(5));
+initSession(project, 'feat', {}, day(20));
+initSession(project, 'feat', {}, day(12));
+initSession(project, 'feat-more', {}, day(25));
+const projectSessions = path.join(project, '.work', 'sessions');
+assert.strictEqual(findUnfinishedBySlug(projectSessions, 'feat').sessionId, '2026-01-20__feat');
+assert.strictEqual(findUnfinishedBySlug(projectSessions, 'missing'), null);
+assert.strictEqual(findUnfinishedBySlug(path.join(project, 'nowhere'), 'feat'), null);
+fs.rmSync(project, { recursive: true, force: true });
+
 console.log('session-store.test.js: all assertions passed');

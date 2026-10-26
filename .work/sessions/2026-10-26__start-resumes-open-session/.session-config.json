@@ -1,0 +1,178 @@
+{
+  "session_id": "2026-10-26__start-resumes-open-session",
+  "feature_name": "start-resumes-open-session",
+  "scratch_dir": ".scratch/tests/2026-10-26__start-resumes-open-session",
+  "created_at": "2026-10-26T09:10:29.337Z",
+  "template_version": 2,
+  "history": [
+    {
+      "at": "2026-10-26T09:10:29.337Z",
+      "event": "session_started",
+      "phase": "grill",
+      "files": [
+        "01-grill/resume.md"
+      ]
+    },
+    {
+      "at": "2026-10-26T09:14:58.824Z",
+      "event": "auto_started",
+      "phase": "grill",
+      "detail": {
+        "target": "finish",
+        "steps": "write:grill → plan → write:plan → ship → finish"
+      }
+    },
+    {
+      "at": "2026-10-26T09:15:33.546Z",
+      "event": "grill_written",
+      "phase": "plan-not-started",
+      "files": [
+        "01-grill/resume.md"
+      ]
+    },
+    {
+      "at": "2026-10-26T09:15:33.659Z",
+      "event": "plan_started",
+      "phase": "plan",
+      "files": [
+        "02-plan/plan.md"
+      ]
+    },
+    {
+      "at": "2026-10-26T09:16:40.002Z",
+      "event": "branch_created",
+      "phase": "plan",
+      "detail": {
+        "branch": "feat/start-resumes-open-session",
+        "base": "main"
+      }
+    },
+    {
+      "at": "2026-10-26T09:16:40.021Z",
+      "event": "plan_written",
+      "phase": "ship",
+      "files": [
+        "02-plan/plan.md",
+        "02-plan/tickets/01-start-resumes-unfinished.md",
+        "02-plan/tickets/02-start-reference-resume-flow.md",
+        "02-plan/tickets/03-next-command-not-status.md"
+      ],
+      "detail": {
+        "tickets": 3
+      }
+    },
+    {
+      "at": "2026-10-26T09:16:57.310Z",
+      "event": "ticket_started",
+      "phase": "ship",
+      "files": [
+        "02-plan/tickets/01-start-resumes-unfinished.md",
+        "03-implement/01-start-resumes-unfinished/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "01-start-resumes-unfinished"
+      }
+    },
+    {
+      "at": "2026-10-26T09:24:06.489Z",
+      "event": "ticket_done",
+      "phase": "ship",
+      "files": [
+        "03-implement/01-start-resumes-unfinished/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "01-start-resumes-unfinished",
+        "commit": "945de74"
+      }
+    },
+    {
+      "at": "2026-10-26T09:24:15.672Z",
+      "event": "ticket_started",
+      "phase": "ship",
+      "files": [
+        "02-plan/tickets/02-start-reference-resume-flow.md",
+        "03-implement/02-start-reference-resume-flow/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "02-start-reference-resume-flow"
+      }
+    },
+    {
+      "at": "2026-10-26T09:25:26.624Z",
+      "event": "ticket_done",
+      "phase": "ship",
+      "files": [
+        "03-implement/02-start-reference-resume-flow/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "02-start-reference-resume-flow",
+        "commit": "1bb5d4f"
+      }
+    },
+    {
+      "at": "2026-10-26T09:25:33.264Z",
+      "event": "ticket_started",
+      "phase": "ship",
+      "files": [
+        "02-plan/tickets/03-next-command-not-status.md",
+        "03-implement/03-next-command-not-status/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "03-next-command-not-status"
+      }
+    },
+    {
+      "at": "2026-10-26T09:34:26.717Z",
+      "event": "ticket_done",
+      "phase": "finish-pending",
+      "files": [
+        "03-implement/03-next-command-not-status/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "03-next-command-not-status",
+        "commit": "a39a2b2"
+      }
+    },
+    {
+      "at": "2026-10-26T09:34:45.468Z",
+      "event": "changelog_written",
+      "phase": "finish-pending",
+      "detail": {
+        "bump": "minor"
+      }
+    },
+    {
+      "at": "2026-10-26T09:34:51.801Z",
+      "event": "pr_opened",
+      "phase": "finish-pending",
+      "detail": {
+        "url": "https://github.com/rtonneau/grill-plan-ship/pull/50"
+      }
+    },
+    {
+      "at": "2026-10-26T09:34:51.803Z",
+      "event": "session_finished",
+      "phase": "finished",
+      "files": [
+        "INDEX.md"
+      ]
+    }
+  ],
+  "current_phase": "finished",
+  "git": {
+    "branch": "feat/start-resumes-open-session",
+    "base_branch": "main",
+    "branch_created_at": "2026-10-26T09:16:40.002Z",
+    "pr_url": "https://github.com/rtonneau/grill-plan-ship/pull/50"
+  },
+  "ship_mode": "subagent+inline",
+  "changelog": {
+    "bump": "minor",
+    "floor": "minor",
+    "reason": null,
+    "bullets": 2,
+    "path": ".work/changelog/2026-10-26__start-resumes-open-session.md",
+    "written_at": "2026-10-26T09:34:45.463Z"
+  },
+  "finished_at": "2026-10-26T09:34:51.803Z"
+}

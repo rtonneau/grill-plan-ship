@@ -1,0 +1,244 @@
+{
+  "session_id": "2026-10-23__scratch-cleanup",
+  "feature_name": "scratch-cleanup",
+  "scratch_dir": ".scratch/tests/2026-10-23__scratch-cleanup",
+  "created_at": "2026-10-23T16:09:47.722Z",
+  "template_version": 2,
+  "history": [
+    {
+      "at": "2026-10-23T16:09:47.722Z",
+      "event": "session_started",
+      "phase": "grill",
+      "files": [
+        "01-grill/resume.md"
+      ]
+    },
+    {
+      "at": "2026-10-23T16:16:34.996Z",
+      "event": "grill_written",
+      "phase": "plan-not-started",
+      "files": [
+        "01-grill/resume.md"
+      ]
+    },
+    {
+      "at": "2026-10-23T16:16:35.100Z",
+      "event": "plan_started",
+      "phase": "plan",
+      "files": [
+        "02-plan/plan.md"
+      ]
+    },
+    {
+      "at": "2026-10-23T16:18:17.642Z",
+      "event": "branch_created",
+      "phase": "plan",
+      "detail": {
+        "branch": "feat/scratch-cleanup",
+        "base": "main"
+      }
+    },
+    {
+      "at": "2026-10-23T16:18:17.668Z",
+      "event": "plan_written",
+      "phase": "ship",
+      "files": [
+        "02-plan/plan.md",
+        "02-plan/tickets/01-scratch-build-tree-rule.md",
+        "02-plan/tickets/02-scratch-config-settings.md",
+        "02-plan/tickets/03-finish-cleans-scratch.md",
+        "02-plan/tickets/04-clean-removes-scratch.md",
+        "02-plan/tickets/05-brief-evidence-line.md",
+        "02-plan/tickets/06-docs-scratch-cleanup.md"
+      ],
+      "detail": {
+        "tickets": 6
+      }
+    },
+    {
+      "at": "2026-10-23T16:19:06.428Z",
+      "event": "ticket_started",
+      "phase": "ship",
+      "files": [
+        "02-plan/tickets/01-scratch-build-tree-rule.md",
+        "03-implement/01-scratch-build-tree-rule/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "01-scratch-build-tree-rule"
+      }
+    },
+    {
+      "at": "2026-10-23T16:20:45.666Z",
+      "event": "ticket_done",
+      "phase": "ship",
+      "files": [
+        "03-implement/01-scratch-build-tree-rule/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "01-scratch-build-tree-rule",
+        "commit": "d2eb61c"
+      }
+    },
+    {
+      "at": "2026-10-23T16:20:51.619Z",
+      "event": "ticket_started",
+      "phase": "ship",
+      "files": [
+        "02-plan/tickets/02-scratch-config-settings.md",
+        "03-implement/02-scratch-config-settings/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "02-scratch-config-settings"
+      }
+    },
+    {
+      "at": "2026-10-23T16:24:10.875Z",
+      "event": "ticket_done",
+      "phase": "ship",
+      "files": [
+        "03-implement/02-scratch-config-settings/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "02-scratch-config-settings",
+        "commit": "f625950"
+      }
+    },
+    {
+      "at": "2026-10-23T16:24:15.592Z",
+      "event": "ticket_started",
+      "phase": "ship",
+      "files": [
+        "02-plan/tickets/03-finish-cleans-scratch.md",
+        "03-implement/03-finish-cleans-scratch/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "03-finish-cleans-scratch"
+      }
+    },
+    {
+      "at": "2026-10-23T16:27:27.072Z",
+      "event": "ticket_done",
+      "phase": "ship",
+      "files": [
+        "03-implement/03-finish-cleans-scratch/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "03-finish-cleans-scratch",
+        "commit": "784d1e5"
+      }
+    },
+    {
+      "at": "2026-10-23T16:27:27.850Z",
+      "event": "ticket_started",
+      "phase": "ship",
+      "files": [
+        "02-plan/tickets/04-clean-removes-scratch.md",
+        "03-implement/04-clean-removes-scratch/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "04-clean-removes-scratch"
+      }
+    },
+    {
+      "at": "2026-10-23T16:33:55.549Z",
+      "event": "ticket_done",
+      "phase": "ship",
+      "files": [
+        "03-implement/04-clean-removes-scratch/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "04-clean-removes-scratch",
+        "commit": "eb85b56"
+      }
+    },
+    {
+      "at": "2026-10-23T16:33:56.325Z",
+      "event": "ticket_started",
+      "phase": "ship",
+      "files": [
+        "02-plan/tickets/05-brief-evidence-line.md",
+        "03-implement/05-brief-evidence-line/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "05-brief-evidence-line"
+      }
+    },
+    {
+      "at": "2026-10-23T16:34:55.358Z",
+      "event": "ticket_done",
+      "phase": "ship",
+      "files": [
+        "03-implement/05-brief-evidence-line/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "05-brief-evidence-line",
+        "commit": "2fb96ff"
+      }
+    },
+    {
+      "at": "2026-10-23T16:34:58.071Z",
+      "event": "ticket_started",
+      "phase": "ship",
+      "files": [
+        "02-plan/tickets/06-docs-scratch-cleanup.md",
+        "03-implement/06-docs-scratch-cleanup/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "06-docs-scratch-cleanup"
+      }
+    },
+    {
+      "at": "2026-10-23T16:42:42.056Z",
+      "event": "ticket_done",
+      "phase": "finish-pending",
+      "files": [
+        "03-implement/06-docs-scratch-cleanup/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "06-docs-scratch-cleanup",
+        "commit": "4608193"
+      }
+    },
+    {
+      "at": "2026-10-23T17:04:08.940Z",
+      "event": "changelog_written",
+      "phase": "finish-pending",
+      "detail": {
+        "bump": "minor"
+      }
+    },
+    {
+      "at": "2026-10-23T17:04:18.034Z",
+      "event": "pr_opened",
+      "phase": "finish-pending",
+      "detail": {
+        "url": "https://github.com/rtonneau/grill-plan-ship/pull/47"
+      }
+    },
+    {
+      "at": "2026-10-23T17:04:18.036Z",
+      "event": "session_finished",
+      "phase": "finished",
+      "files": [
+        "INDEX.md"
+      ]
+    }
+  ],
+  "current_phase": "finished",
+  "git": {
+    "branch": "feat/scratch-cleanup",
+    "base_branch": "main",
+    "branch_created_at": "2026-10-23T16:18:17.642Z",
+    "pr_url": "https://github.com/rtonneau/grill-plan-ship/pull/47"
+  },
+  "ship_mode": "subagent+inline",
+  "changelog": {
+    "bump": "minor",
+    "floor": "minor",
+    "reason": null,
+    "bullets": 3,
+    "path": ".work/changelog/2026-10-23__scratch-cleanup.md",
+    "written_at": "2026-10-23T17:04:08.925Z"
+  },
+  "finished_at": "2026-10-23T17:04:18.036Z"
+}
