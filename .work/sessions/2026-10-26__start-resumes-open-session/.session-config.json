@@ -108,9 +108,33 @@
         "ticket": "02-start-reference-resume-flow",
         "commit": "1bb5d4f"
       }
+    },
+    {
+      "at": "2026-10-26T09:25:33.264Z",
+      "event": "ticket_started",
+      "phase": "ship",
+      "files": [
+        "02-plan/tickets/03-next-command-not-status.md",
+        "03-implement/03-next-command-not-status/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "03-next-command-not-status"
+      }
+    },
+    {
+      "at": "2026-10-26T09:34:26.717Z",
+      "event": "ticket_done",
+      "phase": "finish-pending",
+      "files": [
+        "03-implement/03-next-command-not-status/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "03-next-command-not-status",
+        "commit": "a39a2b2"
+      }
     }
   ],
-  "current_phase": "ship",
+  "current_phase": "finish-pending",
   "git": {
     "branch": "feat/start-resumes-open-session",
     "base_branch": "main",
