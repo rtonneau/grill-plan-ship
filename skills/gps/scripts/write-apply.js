@@ -46,18 +46,24 @@ const {
 const { validateBranchName, createSessionBranch, commitWorkDir, describeWorkCommit } = require('./lib/git');
 const { createIssue, buildIssueBody } = require('./lib/github');
 const { githubEnabled } = require('./lib/project-config');
+const { computeSessionState } = require('./lib/phase');
 const { GpsError, writeJsonAtomic } = require('./lib/guard');
 
 const NOTHING_PENDING_HINT = {
   'plan-not-started': 'Run /gps plan first.',
-  complete: 'Both phases are written. Run /gps status for the next command.',
 };
+
+function nothingPendingHint(reason, sessionDir, config) {
+  if (NOTHING_PENDING_HINT[reason]) return NOTHING_PENDING_HINT[reason];
+  const { command, why } = computeSessionState(sessionDir, config).suggestedNext;
+  return `Both phases are written. Next: ${command} — ${why}`;
+}
 
 function apply({ projectRoot, warn }) {
   const { sessionId, sessionDir, configPath, config } = resolveSession(projectRoot);
   const { target, reason } = resolveWriteTarget(sessionDir);
   if (target === 'none') {
-    throw new GpsError('Nothing to write for this session.', NOTHING_PENDING_HINT[reason]);
+    throw new GpsError('Nothing to write for this session.', nothingPendingHint(reason, sessionDir, config));
   }
 
   const payloadPath = path.join(sessionDir, PAYLOAD_FILENAME);

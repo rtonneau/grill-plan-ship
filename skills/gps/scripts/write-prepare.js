@@ -20,11 +20,18 @@ const { resolveSession } = require('./lib/session-store');
 const { PAYLOAD_FILENAME, loadPhaseFile, expectedHeadings, expectedFields, buildSkeleton } = require('./lib/write-payload');
 const { BRANCH_TYPES, BRANCH_PATTERN } = require('./lib/git');
 const { githubEnabled } = require('./lib/project-config');
+const { computeSessionState } = require('./lib/phase');
 
 const NOTHING_PENDING = {
   'plan-not-started': 'Nothing to write: the grill is saved and no plan is started. Next: /gps plan (bounded work: implement it, then /gps finish).',
-  complete: 'Nothing to write: the grill and the plan are saved. Next: /gps status.',
 };
+
+// 'complete' has no fixed next command: it depends on the tickets left.
+function nothingPending(reason, sessionDir, config) {
+  if (NOTHING_PENDING[reason]) return NOTHING_PENDING[reason];
+  const { command, why } = computeSessionState(sessionDir, config).suggestedNext;
+  return `Nothing to write: the grill and the plan are saved. Next: ${command} — ${why}`;
+}
 
 main({
   usage: 'write-prepare.js [--json]',
@@ -32,7 +39,7 @@ main({
     const { sessionId, sessionDir, config } = resolveSession(projectRoot);
     const result = resolveWriteTarget(sessionDir);
     if (result.target === 'none') {
-      return { text: NOTHING_PENDING[result.reason], data: { sessionId, sessionDir, ...result } };
+      return { text: nothingPending(result.reason, sessionDir, config), data: { sessionId, sessionDir, ...result } };
     }
 
     const phaseFile = loadPhaseFile(sessionDir, result.target, config);

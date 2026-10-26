@@ -73,4 +73,17 @@ const GRILL_SECTIONS = [
   h.assertFails(h.run(root, 'write-prepare.js', ['x']), 2);
 }
 
+{
+  // Plan saved: the message names the real next command, never /gps status.
+  const root = h.gitProject();
+  h.shipReady(root, 'complete-prep', ['a']);
+  const pending = h.ok(root, 'write-prepare.js');
+  assert.match(pending.out, /Nothing to write.*Next: \/gps ship — /);
+  assert.doesNotMatch(pending.out, /\/gps status/);
+  h.completeTicket(root, 1, 'a');
+  const finished = h.ok(root, 'write-prepare.js');
+  assert.match(finished.out, /Nothing to write.*Next: \/gps finish — /);
+  assert.doesNotMatch(finished.out, /\/gps status/);
+}
+
 h.done('write-prepare.test.js');
