@@ -3,6 +3,7 @@ const assert = require('assert');
 const fs = require('fs');
 const path = require('path');
 const h = require('./helpers');
+const { initSession } = require('../skills/gps/scripts/lib/session-init');
 
 {
   // Creates the session, its scratch dir, the .scratch/ .gitignore entry and the pointer; .work/ is not ignored.
@@ -22,13 +23,120 @@ const h = require('./helpers');
   assert.strictEqual(h.readConfig(root).current_phase, 'grill');
   assert.strictEqual(JSON.parse(fs.readFileSync(path.join(root, '.work', 'gps-config.json'), 'utf-8')).github.enabled, false);
 
-  // Re-running never touches the existing session.
+  // Re-running the same day resumes the session and never touches it.
   const resume = path.join(h.sessionDir(root), '01-grill', 'resume.md');
   fs.writeFileSync(resume, 'FILLED');
   const before = fs.readFileSync(h.configPath(root), 'utf-8');
-  h.assertFails(h.run(root, 'start.js', ['feat']), 1, /already exists/);
+  const again = h.ok(root, 'start.js', ['feat']);
+  assert.match(again.out, new RegExp(`^↩️ Session ${id} already exists and is not finished\\.\\nPhase: plan-not-started\\n`));
+  assert.match(again.out, /\nLast activity: .+ \(idle 0 day\(s\)\)\nCurrent session: yes\n\nNext: \/gps plan — /);
+  assert.doesNotMatch(again.out, /Tickets:|\/gps status/);
+  assert.strictEqual(again.err, '');
   assert.strictEqual(fs.readFileSync(resume, 'utf-8'), 'FILLED');
   assert.strictEqual(fs.readFileSync(h.configPath(root), 'utf-8'), before);
+}
+
+// Every file under the project, with its content: what "writes nothing" compares.
+function snapshot(root) {
+  const files = {};
+  const walk = (dir) => {
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      const full = path.join(dir, entry.name);
+      if (entry.name === '.git') continue;
+      if (entry.isDirectory()) walk(full);
+      else files[path.relative(root, full)] = fs.readFileSync(full, 'utf-8');
+    }
+  };
+  walk(root);
+  return files;
+}
+
+const daysAgo = (n) => new Date(Date.now() - n * 86400000);
+
+{
+  // Resuming writes nothing: no dir, no history event, no pointer change, no seed consumed, no .gitignore edit.
+  const root = h.tempProject();
+  h.ok(root, 'start.js', ['feat']);
+  const id = h.currentSession(root);
+  h.ok(root, 'start.js', ['other']);
+  fs.writeFileSync(path.join(root, '.gitignore'), 'node_modules/\n');
+  fs.writeFileSync(path.join(h.sessionsDir(root), '.pending-seeds.json'),
+    JSON.stringify({ feat: { strength: 'Strong', problem: 'p', solution: 's' } }));
+  const before = snapshot(root);
+  const data = h.json(root, 'start.js', ['Feat']);
+  assert.deepStrictEqual(snapshot(root), before);
+  assert.strictEqual(data.resumable, true);
+  assert.strictEqual(data.sessionId, id);
+  assert.strictEqual(data.phase, 'grill');
+  assert.strictEqual(data.kind, 'feature');
+  assert.strictEqual(data.isCurrent, false);
+  assert.deepStrictEqual(data.suggestedNext.command, '/gps write');
+  const text = h.ok(root, 'start.js', ['feat']).out;
+  assert.match(text, /\nCurrent session: no\n/);
+  assert.deepStrictEqual(snapshot(root), before);
+}
+
+{
+  // Cross-day: the newest unfinished session of that slug is resumed, with its tickets and idleness.
+  const root = h.gitProject('gps-start-resume-');
+  initSession(root, 'Feat X', {}, daysAgo(40));
+  initSession(root, 'feat-x', {}, daysAgo(10));
+  const newest = h.currentSession(root);
+  h.writeGrill(root);
+  h.writePlan(root, ['a', 'b']);
+  h.completeTicket(root, 1, 'a');
+  initSession(root, 'feat-x', {}, daysAgo(20));
+  initSession(root, 'feat-x-more', {}, daysAgo(1));
+  const before = snapshot(root);
+  const res = h.ok(root, 'start.js', ['feat x']);
+  assert.match(res.out, new RegExp(`^↩️ Session ${newest} already exists`));
+  assert.match(res.out, /\nPhase: ship\nTickets: 1\/2 done\nLast activity: .+ \(idle \d+ day\(s\)\)\nCurrent session: no\n\nNext: \/gps ship — Ticket 02 \(b\) is next/);
+  const data = h.json(root, 'start.js', ['feat-x']);
+  assert.strictEqual(data.sessionId, newest);
+  assert.deepStrictEqual(data.tickets, { done: 1, total: 2 });
+  assert.deepStrictEqual(snapshot(root), before);
+}
+
+{
+  // A finished session with today's id still refuses, pointing at another name rather than /gps status.
+  const root = h.tempProject();
+  h.ok(root, 'start.js', ['done']);
+  h.writeGrill(root);
+  h.ok(root, 'finish.js');
+  const res = h.run(root, 'start.js', ['done']);
+  h.assertFails(res, 1, /Session \d{4}-\d{2}-\d{2}__done already exists; nothing was changed/);
+  assert.match(res.err, /Pick a different feature name/);
+  assert.doesNotMatch(res.err, /\/gps status/);
+  assert.ok(!fs.existsSync(path.join(h.sessionsDir(root), '.current-session')));
+
+  // Finished on another day: today's session is created next to it.
+  const other = h.tempProject();
+  initSession(other, 'old', {}, daysAgo(5));
+  const oldId = h.currentSession(other);
+  h.writeGrill(other);
+  h.ok(other, 'finish.js');
+  const data = h.json(other, 'start.js', ['old']);
+  assert.strictEqual(data.resumable, false);
+  assert.notStrictEqual(data.sessionId, oldId);
+  assert.match(data.sessionId, /__old$/);
+  assert.strictEqual(h.currentSession(other), data.sessionId);
+}
+
+{
+  // A kind mismatch resumes the session as it is, with a warning.
+  const root = h.tempProject();
+  h.ok(root, 'start.js', ['feat']);
+  h.ok(root, 'start.js', ['--issue', 'Crash']);
+  const before = snapshot(root);
+  const asIssue = h.ok(root, 'start.js', ['--issue', 'feat']);
+  assert.match(asIssue.err, /⚠️ {2}--issue was given, but session \S+__feat is a feature session; its kind is kept\./);
+  assert.match(asIssue.out, /^↩️ Session \S+__feat already exists/);
+  const asFeature = h.run(root, 'start.js', ['crash', '--json']);
+  assert.strictEqual(asFeature.code, 0);
+  assert.match(asFeature.err, /⚠️ {2}Session \S+__crash is an issue session \(no --issue given\); its kind is kept\./);
+  assert.strictEqual(JSON.parse(asFeature.out).kind, 'issue');
+  assert.doesNotMatch(h.ok(root, 'start.js', ['--issue', 'crash']).err, /kind is kept/);
+  assert.deepStrictEqual(snapshot(root), before);
 }
 
 {
