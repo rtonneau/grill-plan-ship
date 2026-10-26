@@ -2,6 +2,11 @@
 
 All notable changes to grill-plan-ship. Versions follow [semantic versioning](https://semver.org/).
 
+## 2.11.0 (2026-10-26)
+
+- `/gps start <name>` on a session of the same name that is not finished (started today or on an earlier day) no longer fails or creates a duplicate: it reports the session's phase, tickets and last activity, asks whether to continue, and picks up from that phase.
+- `set-current.js` and the "nothing to write" messages of `/gps write` now name the next command (`/gps ship`, `/gps finish`, …) instead of sending you to `/gps status`.
+
 ## 2.10.0 (2026-10-24)
 
 - A full `/gps ship` now runs `/gps finish` by itself once every ticket is done. Set `ship.autoFinish` to `false` in `.work/gps-config.json` to stop after the last ticket instead; `/gps config` shows the setting.
