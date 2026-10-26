@@ -84,6 +84,30 @@
         "ticket": "01-start-resumes-unfinished",
         "commit": "945de74"
       }
+    },
+    {
+      "at": "2026-10-26T09:24:15.672Z",
+      "event": "ticket_started",
+      "phase": "ship",
+      "files": [
+        "02-plan/tickets/02-start-reference-resume-flow.md",
+        "03-implement/02-start-reference-resume-flow/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "02-start-reference-resume-flow"
+      }
+    },
+    {
+      "at": "2026-10-26T09:25:26.624Z",
+      "event": "ticket_done",
+      "phase": "ship",
+      "files": [
+        "03-implement/02-start-reference-resume-flow/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "02-start-reference-resume-flow",
+        "commit": "1bb5d4f"
+      }
     }
   ],
   "current_phase": "ship",
