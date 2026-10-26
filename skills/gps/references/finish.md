@@ -6,7 +6,7 @@
 2. Write the PR title's descriptive part: a short, clean one-line summary of what the session ended up doing (its resume's Problem Statement and finished tickets, not the raw text typed into `/gps start`, which may have drifted). Ask nothing.
 3. `finish.js --title "<title>"`. If it stops on an issue question, ask the user "Close issue #N as well?" using the router's host question rule and run it again with `--close-issue` (yes) or `--keep-issue` (no), keeping `--title`.
 4. Relay its output, `⚠️` lines included. When it lists commands to run by hand, relay them; don't run or retry them yourself.
-5. If it lists unfinished sessions, ask using the router's host question rule whether to switch to one; only on yes, `set-current.js <session-id>`.
+5. If it lists unfinished sessions, ask using the router's host question rule whether to switch to one; only on yes, `set-current.js <session-id> --confirmed`.
 
 It commits leftover changes to tracked files, pushes the branch and opens (or reuses) the pull request for a GitHub session, writes INDEX.md, commits `.work/` (the session record and its changelog fragment; CHANGELOG.md is left for `/gps release`) and pushes it, then switches back to the base branch. Running `/gps finish` is the go-ahead: ask nothing else, except the issue question of step 2 and the switch of step 4.
 

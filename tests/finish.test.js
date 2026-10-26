@@ -38,7 +38,7 @@ const h = require('./helpers');
   assert.match(res.err, /--keep-issue ignored: this session has no GitHub issue/);
   assert.match(res.out, /✅ Session complete: .*fin/);
   assert.match(res.out, /📦 Committed 1 remaining file\(s\) \([0-9a-f]+\): app\.js/);
-  assert.match(res.out, new RegExp(`Unfinished sessions: ${olderId}\\. Next: ask the user whether to switch to one \\(set-current\\.js <session-id>\\)`));
+  assert.match(res.out, new RegExp(`Unfinished sessions: ${olderId}\\. Next: ask the user whether to switch to one \\(set-current\\.js <session-id> --confirmed\\)`));
   assert.strictEqual(h.git(root, 'log', '-2', '--format=%s'), `chore(gps): finish ${id}\nchore: commit remaining changes (gps finish ${id})`);
   assert.strictEqual(h.git(root, 'status', '--porcelain', '--', '.work'), '', 'INDEX.md and the finished state are committed');
   const index = fs.readFileSync(indexPath, 'utf-8');
@@ -55,7 +55,7 @@ const h = require('./helpers');
   // A finished session is never picked again.
   fs.writeFileSync(path.join(h.sessionsDir(root), '.current-session'), id);
   h.assertFails(h.run(root, 'finish.js'), 1, /already finished/);
-  h.ok(root, 'set-current.js', [olderId]);
+  h.ok(root, 'set-current.js', [olderId, '--confirmed']);
 }
 
 {

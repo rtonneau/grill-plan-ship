@@ -14,7 +14,7 @@ const CURRENT_SESSION_FILENAME = '.current-session';
 const CONFIG_FILENAME = '.session-config.json';
 // Script names in hints follow the references' convention: SKILL.md maps
 // `<name>.js` to the full node command.
-const SET_CURRENT = 'set-current.js <session-id>';
+const SET_CURRENT = 'set-current.js <session-id> --confirmed';
 
 function sessionsDirOf(projectRoot) {
   return path.join(projectRoot, '.work', 'sessions');
