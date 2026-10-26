@@ -135,4 +135,17 @@ const sections = (headings) => headings.map((x) => `## ${x}\n\n${x} content.\n`)
   assert.strictEqual(h.readConfig(root).issue, undefined);
 }
 
+{
+  // Plan saved: the "nothing to write" hint names the real next command, never /gps status.
+  const root = h.gitProject();
+  h.shipReady(root, 'complete-apply', ['a']);
+  const pending = h.run(root, 'write-apply.js');
+  h.assertFails(pending, 1, /Nothing to write[\s\S]*Next: \/gps ship — /);
+  assert.doesNotMatch(pending.err, /\/gps status/);
+  h.completeTicket(root, 1, 'a');
+  const finished = h.run(root, 'write-apply.js');
+  h.assertFails(finished, 1, /Nothing to write[\s\S]*Next: \/gps finish — /);
+  assert.doesNotMatch(finished.err, /\/gps status/);
+}
+
 h.done('write-apply.test.js');

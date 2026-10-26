@@ -44,7 +44,7 @@ Or, once the direction is clear, `/gps auto` runs from wherever the session is t
 |---|---|
 | `/gps init` | Optional first-run setup: check the project (git, GitHub, helper skills) and commit gps's `.gitignore` entries, config and (when missing) CHANGELOG.md on their own |
 | `/gps scout [--from <review-file>] [direction]` | Turn an architecture review, or an existing review file, into seeds for `/gps start` |
-| `/gps start [--issue] <name>` | New session, then the grill (`--issue`: a bug report, filed as a GitHub issue) |
+| `/gps start [--issue] <name>` | New session, then the grill (`--issue`: a bug report, filed as a GitHub issue). An unfinished session of the same name is resumed, not duplicated |
 | `/gps status` | Every session, scouted seeds, the current phase, a saved handoff, the next command |
 | `/gps clean [id...]` | Delete old sessions or drop seeds, after showing exactly what goes |
 | `/gps config [--rescan]` | Show GitHub/Jev flags, changelog/release and declared delegation settings, or rescan flags |

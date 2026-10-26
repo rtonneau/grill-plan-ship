@@ -16,7 +16,12 @@ h.ok(root, 'finish.js');
 const res = h.ok(root, 'set-current.js', [older]);
 assert.match(res.out, /✅ Current session is now .*older/);
 assert.strictEqual(h.currentSession(root), older);
-assert.deepStrictEqual(h.json(root, 'set-current.js', [older]), { sessionId: older });
+assert.match(res.out, /\(phase grill\)\.\nNext: \/gps write — /);
+const data = h.json(root, 'set-current.js', [older]);
+assert.strictEqual(data.sessionId, older);
+assert.strictEqual(data.phase, 'grill');
+assert.strictEqual(data.suggestedNext.command, '/gps write');
+assert.doesNotMatch(res.out, /\/gps status/);
 
 // Finished, missing and unsafe ids are refused; the pointer stays.
 h.assertFails(h.run(root, 'set-current.js', [bounded]), 1, /already finished/);
@@ -30,5 +35,20 @@ fs.writeFileSync(path.join(h.sessionsDir(root), '.current-session'), 'zzz');
 h.assertFails(h.run(root, 'ticket-queue.js'), 1, /current session zzz no longer exists[\s\S]*set-current\.js/);
 h.ok(root, 'set-current.js', [older]);
 h.ok(root, 'write-prepare.js');
+
+// The next command follows the session's phase: ship while tickets are pending, finish when all are done.
+{
+  const proj = h.gitProject();
+  h.shipReady(proj, 'shipping', ['a']);
+  const shipping = h.currentSession(proj);
+  h.ok(proj, 'start.js', ['other']);
+  const pending = h.ok(proj, 'set-current.js', [shipping]);
+  assert.match(pending.out, /\(phase ship\)\.\nNext: \/gps ship — Ticket 01 \(a\)/);
+  h.completeTicket(proj, 1, 'a');
+  const doneRes = h.ok(proj, 'set-current.js', [shipping, '--json']);
+  const info = JSON.parse(doneRes.out);
+  assert.strictEqual(info.phase, 'finish-pending');
+  assert.strictEqual(info.suggestedNext.command, '/gps finish');
+}
 
 h.done('set-current.test.js');

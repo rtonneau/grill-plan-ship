@@ -64,6 +64,14 @@ function listUnfinishedSessions(sessionsDir) {
     .sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
 }
 
+// The newest unfinished session whose id is <any date>__<slug>, or null.
+// /gps start resumes it instead of creating a duplicate.
+function findUnfinishedBySlug(sessionsDir, slug) {
+  const match = listUnfinishedSessions(sessionsDir)
+    .find(({ sessionId }) => (/^\d{4}-\d{2}-\d{2}__(.+)$/.exec(sessionId) || [])[1] === slug);
+  return match ? { ...match, config: readConfigOrNull(sessionsDir, match.sessionId) } : null;
+}
+
 // A session id must be a single plain directory name (no separators, not
 // "." or ".."). Sessions created before slug cleaning may not match the
 // strict slug rule, so this only rules out path tricks.
@@ -147,6 +155,7 @@ module.exports = {
   setCurrentSession,
   clearCurrentSession,
   listUnfinishedSessions,
+  findUnfinishedBySlug,
   listSessionDirs,
   readConfigOrNull,
   readCurrentPointer,

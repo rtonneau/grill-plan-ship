@@ -7,7 +7,8 @@
 // only the per-machine files below stay out of git.
 // <slug> is the feature name cleaned by slugify(); the date is the local
 // date. If the session already exists, nothing is written and it throws a
-// GpsError.
+// GpsError (start.js resumes an unfinished one before calling this, so the
+// error is left for a finished session of the same name and day).
 
 const fs = require('fs');
 const path = require('path');
@@ -22,9 +23,9 @@ const { GpsError, localDate, slugify, writeJsonAtomic } = require('./guard');
 
 // `extraConfig` is merged into .session-config.json (e.g. { kind: 'issue' });
 // the session starts with an empty history and a `session_started` event.
+// `now` sets the session's date and created_at (tests create older sessions).
 // Returns what was created, for the caller to report.
-function initSession(projectRoot, featureName, extraConfig = {}) {
-  const now = new Date();
+function initSession(projectRoot, featureName, extraConfig = {}, now = new Date()) {
   const slug = slugify(featureName, now);
   const sessionId = `${localDate(now)}__${slug}`;
 
@@ -35,7 +36,7 @@ function initSession(projectRoot, featureName, extraConfig = {}) {
   if (fs.existsSync(workDir)) {
     throw new GpsError(
       `Session ${sessionId} already exists; nothing was changed.`,
-      'Run /gps status to see where it left off, or pick a different feature name.'
+      'Pick a different feature name: a session id is the day plus the name, so this one is taken today.'
     );
   }
 
