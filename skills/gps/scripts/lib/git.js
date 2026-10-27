@@ -265,13 +265,19 @@ function commitRemainingChanges(projectRoot, message) {
   const untracked = nulList(tryGit(projectRoot, ['ls-files', '--others', '--exclude-standard', '-z']))
     .filter((f) => !f.startsWith('.work/'));
   try {
-    git(projectRoot, ['add', '-u', '--', '.', ':(exclude).work']);
-    const files = nulList(git(projectRoot, ['diff', '--cached', '--name-only', '-z']));
+    // `add -u` also updates staged additions, so exclude them before staging.
+    const added = nulList(git(projectRoot, ['diff', '--cached', '--name-only', '--relative', '--no-renames',
+      '--diff-filter=A', '-z', '--', '.']));
+    git(projectRoot, ['add', '-u', '--', '.', ':(exclude).work', ...added.map((f) => `:(exclude,literal)${f}`)]);
+    // Only paths tracked by HEAD belong here. Staged additions and other
+    // skills' .work files remain in the index for their owner.
+    const files = nulList(git(projectRoot, ['diff', '--cached', '--name-only', '--relative', '--no-renames',
+      '--diff-filter=DMT', '-z', '--', '.', ':(exclude).work']));
     if (files.length === 0) return { ok: true, sha: null, files, untracked };
-    git(projectRoot, ['commit', '-q', '-m', message]);
+    git(projectRoot, ['commit', '-q', '-m', message, '--', ...files.map((f) => `:(literal)${f}`)]);
     return { ok: true, sha: git(projectRoot, ['rev-parse', '--short', 'HEAD']), files, untracked };
   } catch (err) {
-    return { ok: false, reason: failureReason(err), untracked, commands: ['git add -u -- . ":(exclude).work"', `git commit -m ${quote(message)}`] };
+    return { ok: false, reason: failureReason(err), untracked, commands: [] };
   }
 }
 

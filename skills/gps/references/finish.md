@@ -12,4 +12,6 @@
 
 It commits leftover changes to tracked files, pushes the branch and opens (or reuses) the pull request for a GitHub session, writes INDEX.md, commits `.work/` (the session record and its changelog fragment; CHANGELOG.md is left for `/gps release`) and pushes it, then switches back to the base branch. Running `/gps finish` is the go-ahead: ask nothing else, except the issue question of step 3 and the switch of step 5.
 
+If the remaining-changes commit fails, finish stops before publishing or closing the session. Fix the Git error and retry; changes may have been staged.
+
 **Example:** `/gps finish`

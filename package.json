@@ -1,6 +1,6 @@
 {
   "name": "grill-plan-ship",
-  "version": "2.11.0",
+  "version": "2.11.1",
   "description": "Grill → plan → ship → finish: a local coding agent plugin whose deterministic steps are Node.js scripts",
   "keywords": [
     "claude-code",

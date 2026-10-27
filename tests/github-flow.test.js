@@ -303,26 +303,26 @@ assert.match(res.err, /No current session/);
 assert.strictEqual(prCreates().length, 1);
 // ...and a finish interrupted after the PR was opened (simulated: the
 // config keeps pr_url but not finished_at) reuses that PR on its re-run.
-// Here a pre-commit hook rejects the leftover and record commits: finish
-// still succeeds, but stays on the session branch so the changes are not
-// carried away.
+// A failing hook stops before publishing; retry reuses the existing PR.
 delete config.finished_at;
 fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
 fs.writeFileSync(path.join(root, '.work', 'sessions', '.current-session'), sessionId);
 const preCommit = path.join(root, '.git', 'hooks', 'pre-commit');
 fs.writeFileSync(preCommit, '#!/bin/sh\necho "lint failed" >&2\nexit 1\n', { mode: 0o755 });
 fs.appendFileSync(path.join(root, 'app.js'), '// another hook log line\n');
-res = ok('finish.js');
-assert.match(res.err, /⚠️ {2}Remaining changes not committed \(lint failed\)\. Run by hand:\n {3}git add -u -- \. ":\(exclude\)\.work"\n {3}git commit -m "chore: commit remaining changes/);
-assert.match(res.err, /⚠️ {2}Session record not committed \(lint failed\)\. Run by hand: git add -- \.work\/gps-config\.json \.work\/sessions && git commit/);
-assert.match(res.err, /⚠️ {2}Still on feat\/search-filters: commit the remaining changes, then git switch develop\./);
-assert.doesNotMatch(res.out, /Back on/);
+const remoteBeforeFailure = execFileSync('git', ['--git-dir', bare, 'rev-parse', 'refs/heads/feat/search-filters'], { encoding: 'utf-8' }).trim();
+res = run('finish.js');
+assert.strictEqual(res.code, 1);
+assert.match(res.err, /Remaining changes could not be committed \(lint failed\); the session remains open/);
 assert.strictEqual(git('branch', '--show-current'), 'feat/search-filters');
-assert.match(fs.readFileSync(path.join(sessionDir, 'INDEX.md'), 'utf-8'), /## Remaining changes\n\nNot committed \(lint failed\)/);
+assert.strictEqual(currentSession().sessionId, sessionId);
+assert.strictEqual(readConfig(configPath).finished_at, undefined);
+assert.strictEqual(execFileSync('git', ['--git-dir', bare, 'rev-parse', 'refs/heads/feat/search-filters'], { encoding: 'utf-8' }).trim(), remoteBeforeFailure);
 fs.rmSync(preCommit);
-git('reset', '-q', '--hard');
+res = ok('finish.js');
 assert.match(res.out,
   /🔀 Pull request #12 \(already open, updated by the push\): feat: Search Filters \(feat\/search-filters → develop\)\nhttps:\/\/github\.com\/acme\/app\/pull\/12\r?\n/);
+git('switch', '-q', 'feat/search-filters');
 assert.strictEqual(prCreates().length, 1, 'no second PR');
 assert.strictEqual(readConfig(configPath).history.filter((e) => e.event === 'pr_opened').length, 1);
 assert.deepStrictEqual(readConfig(configPath).history.find((e) => e.event === 'pr_opened').detail,
