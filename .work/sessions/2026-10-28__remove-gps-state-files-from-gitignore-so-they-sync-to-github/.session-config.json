@@ -108,9 +108,33 @@
         "ticket": "02-ignore-this-repo-and-commit-semantics",
         "commit": "2cbf666"
       }
+    },
+    {
+      "at": "2026-10-28T08:48:57.919Z",
+      "event": "ticket_started",
+      "phase": "ship",
+      "files": [
+        "02-plan/tickets/03-docs-and-decision-0012.md",
+        "03-implement/03-docs-and-decision-0012/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "03-docs-and-decision-0012"
+      }
+    },
+    {
+      "at": "2026-10-28T08:50:44.382Z",
+      "event": "ticket_done",
+      "phase": "finish-pending",
+      "files": [
+        "03-implement/03-docs-and-decision-0012/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "03-docs-and-decision-0012",
+        "commit": "018b148"
+      }
     }
   ],
-  "current_phase": "ship",
+  "current_phase": "finish-pending",
   "git": {
     "branch": "feat/sync-gps-state-files",
     "base_branch": "main",
