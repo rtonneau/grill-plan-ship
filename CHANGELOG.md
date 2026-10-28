@@ -2,6 +2,11 @@
 
 All notable changes to grill-plan-ship. Versions follow [semantic versioning](https://semver.org/).
 
+## 2.12.0 (2026-10-28)
+
+- The session pointer, scouted seeds and in-flight write and changelog payloads are no longer git-ignored. They are committed in the `chore(gps)` commits with the rest of `.work/`, so a session can be resumed from another machine. Only `.scratch/` stays ignored.
+- `/gps init` removes the four `.gitignore` lines older versions added for those files and reports it; `/gps start` leaves an existing `.gitignore` alone.
+
 ## 2.11.1 (2026-10-27)
 
 - `/gps finish` leaves staged new files and other skills' `.work/` files out of its remaining-changes commit, preserving their staged and unstaged contents.
