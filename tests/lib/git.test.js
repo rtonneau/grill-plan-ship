@@ -176,7 +176,7 @@ fs.rmSync(notRepo, { recursive: true, force: true });
 
 fs.rmSync(projectRoot, { recursive: true, force: true });
 // commitWorkDir: .work/ in its own commit; other staged files stay staged,
-// git-ignored per-machine files stay out.
+// a path the user git-ignores stays out.
 {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'gps-workdir-'));
   assert.deepStrictEqual(commitWorkDir(root, 'm'), { ok: true, sha: null, files: [], skipped: 'not a git repository' });
@@ -293,6 +293,36 @@ fs.rmSync(projectRoot, { recursive: true, force: true });
   record = commitWorkDir(root, 'chore(gps): tracked ignored adr');
   assert.ok(record.ok, JSON.stringify(record));
   assert.deepStrictEqual(record.files.sort(), ['.work/adr/0001-x.md', '.work/gps-config.json']);
+  fs.rmSync(root, { recursive: true, force: true });
+}
+
+// commitWorkDir commits the session pointer, the seeds file and the write
+// payloads when .gitignore no longer ignores them.
+{
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'gps-state-'));
+  const sh = (cmd) => execSync(cmd, { cwd: root, encoding: 'utf-8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
+  sh('git init -q -b main');
+  sh('git config user.email "test@example.com"');
+  sh('git config user.name "Test"');
+  fs.writeFileSync(path.join(root, 'app.js'), '1\n');
+  fs.writeFileSync(path.join(root, '.gitignore'), '.scratch/\n');
+  sh('git add app.js .gitignore');
+  sh('git commit -q -m initial');
+  const sessions = path.join(root, '.work', 'sessions');
+  fs.mkdirSync(path.join(sessions, 's1'), { recursive: true });
+  fs.writeFileSync(path.join(sessions, '.current-session'), 's1');
+  fs.writeFileSync(path.join(sessions, '.pending-seeds.json'), '{}\n');
+  fs.writeFileSync(path.join(sessions, 's1', '.write-payload.md'), 'write\n');
+  fs.writeFileSync(path.join(sessions, 's1', '.changelog-payload.md'), 'changelog\n');
+  const record = commitWorkDir(root, 'chore(gps): state');
+  assert.ok(record.ok && record.sha, JSON.stringify(record));
+  assert.deepStrictEqual(record.files.sort(), [
+    '.work/sessions/.current-session',
+    '.work/sessions/.pending-seeds.json',
+    '.work/sessions/s1/.changelog-payload.md',
+    '.work/sessions/s1/.write-payload.md',
+  ]);
+  assert.strictEqual(sh('git status --porcelain'), '', 'nothing is left uncommitted');
   fs.rmSync(root, { recursive: true, force: true });
 }
 

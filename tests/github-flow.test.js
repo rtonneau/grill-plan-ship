@@ -225,16 +225,24 @@ markTicketDone(sessionDir, 'filters');
 commit('filters.js', 'feat: add filters');
 
 // Finish refuses on the wrong branch, changing nothing. The session record
-// is committed on its branch, so main doesn't even hold the session: the
-// error names the branch to switch to.
+// and its pointer (.current-session) are committed on the branch, so main
+// holds neither: with no pointer finish says so; with a pointer to the
+// session (here a stale one) the error names the branch to switch to.
 assert.strictEqual(git('status', '--porcelain', '--', '.work'), '', 'ticket-complete.js committed the record');
 const configBefore = fs.readFileSync(configPath, 'utf-8');
 git('switch', '-q', 'main');
 assert.ok(!fs.existsSync(configPath), 'the session lives on its branch');
 res = run('finish.js');
 assert.strictEqual(res.code, 1);
+assert.match(res.err, /No current session is selected/);
+const pointerPath = path.join(path.dirname(sessionDir), '.current-session');
+assert.ok(!fs.existsSync(pointerPath), 'the pointer lives on the session branch too');
+fs.writeFileSync(pointerPath, path.basename(sessionDir));
+res = run('finish.js');
+assert.strictEqual(res.code, 1);
 assert.match(res.err, /session .*search-filters is on branch feat\/search-filters, which is not checked out/);
 assert.match(res.err, /git switch feat\/search-filters/);
+fs.rmSync(pointerPath);
 git('switch', '-q', 'feat/search-filters');
 assert.ok(!fs.existsSync(path.join(sessionDir, 'INDEX.md')));
 // Parsed, not byte-compared: the checkout may turn LF into CRLF (core.autocrlf on Windows).

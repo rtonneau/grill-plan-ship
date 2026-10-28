@@ -281,8 +281,9 @@ const GPS_WORK_PATHS = ['.work/gps-config.json', '.work/GLOSSARY.md', '.work/adr
 
 // Commits gps's record (GPS_WORK_PATHS: sessions, glossary, ADRs, project
 // config, changelog fragments) as its own commit; anything else that is staged stays staged, and
-// other skills' files in .work/ stay out. Files git ignores (.current-session,
-// .pending-seeds.json, a write payload) stay out too.
+// other skills' files in .work/ stay out. The session pointer (.current-session),
+// the seeds file and the write payloads are committed with the rest; only a
+// path the user's own .gitignore covers stays out.
 // Never throws: { ok: true, sha, files, skipped } (sha null: nothing to
 // commit; skipped: why nothing was tried) or { ok: false, reason, commands }.
 function commitWorkDir(projectRoot, message) {
