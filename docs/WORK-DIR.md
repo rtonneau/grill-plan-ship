@@ -26,7 +26,7 @@ Write only inside `.work/<skill-name>/`, using a name that is not one of the pat
 ## What your skill must do
 
 - **Commit your own files.** gps doesn't commit them.
-- **Keep per-machine files out of git.** Add them to `.gitignore` yourself.
+- **Keep per-machine files out of git.** Add them to `.gitignore` yourself. gps's own per-machine path is `.scratch/` only; its session pointer, seeds and payloads are committed (decision 0012).
 - **Read session state from the files before acting on a session.** Don't infer it from folder names. The files to read:
   - `.work/sessions/.current-session`: the current session's id. It is absent when there is none.
   - `.work/sessions/<id>/.session-config.json`
@@ -41,6 +41,8 @@ Write only inside `.work/<skill-name>/`, using a name that is not one of the pat
 - **Expect sessions on other branches.** `.work/` is committed with the code, so a session's files live on its branch. Sessions on a branch that isn't checked out are not on disk.
 
 If `.work/` is git-ignored (older gps versions added that line), gps commits none of its own files. `/gps init` offers to remove the line.
+
+Older gps versions also git-ignored `.work/sessions/.current-session`, `.work/sessions/.pending-seeds.json*` and the two payloads (`.write-payload.md`, `.changelog-payload.md`) in each session. They are committed now, with the rest of `.work/sessions/`, so these lines are stale: `/gps init` removes them from `.gitignore`, and `/gps start` leaves them alone (decision 0012).
 
 ## Outside .work/
 
