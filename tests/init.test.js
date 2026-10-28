@@ -12,7 +12,7 @@ const { NEW_FILE_HEADER } = require('../skills/gps/scripts/lib/changelog');
   const res = h.ok(root, 'init.js');
   assert.match(res.out, /- \*\*Git:\*\* repository, on branch main/);
   assert.match(res.out, /- \*\*GitHub:\*\* detected off \(no "origin" remote\); not stored yet/);
-  assert.match(res.out, /- \*\*\.gitignore:\*\* missing \.scratch\/, \.work\/sessions\/\.current-session/);
+  assert.match(res.out, /- \*\*\.gitignore:\*\* missing \.scratch\/$/m);
   assert.match(res.out, /- \*\*Changelog:\*\* CHANGELOG\.md missing/);
   assert.match(res.out, /- \*\*Setup commit:\*\* not made yet/);
   assert.match(res.out, /Next: confirm with the user, then run init\.js --apply\.$/m);
@@ -75,6 +75,32 @@ const { NEW_FILE_HEADER } = require('../skills/gps/scripts/lib/changelog');
 }
 
 {
+  // Stale ignores from an older gps: reported by the check, removed and committed by --apply; start leaves them alone.
+  const root = h.gitProject();
+  const stale = '.work/sessions/.current-session\n.work/sessions/.pending-seeds.json*\n.work/sessions/*/.write-payload.md\n.work/sessions/*/.changelog-payload.md\n';
+  fs.writeFileSync(path.join(root, '.gitignore'), `.scratch/\n${stale}dist/\n`);
+  h.git(root, 'add', '.gitignore');
+  h.git(root, 'commit', '-q', '-m', 'old ignores');
+  const res = h.ok(root, 'init.js');
+  assert.match(res.out, /- \*\*\.gitignore:\*\* stale \.work\/sessions\/\.current-session, /);
+  assert.strictEqual(h.json(root, 'init.js').ready, false);
+  const applied = h.ok(root, 'init.js', ['--apply']);
+  assert.match(applied.out, /✅ Removed from \.gitignore \(\.work\/ is committed whole\): \.work\/sessions\/\.current-session, /);
+  assert.doesNotMatch(applied.out, /Nothing to change/);
+  assert.strictEqual(fs.readFileSync(path.join(root, '.gitignore'), 'utf-8'), '.scratch/\ndist/\n');
+  assert.match(h.git(root, 'show', '--name-only', '--format=', 'HEAD'), /^\.gitignore$/m);
+  assert.strictEqual(h.json(root, 'init.js').ready, true);
+
+  // /gps start never removes them (and does not write them).
+  const other = h.gitProject();
+  fs.writeFileSync(path.join(other, '.gitignore'), '.work/sessions/.current-session\n');
+  h.ok(other, 'start.js', ['feat']);
+  const after = fs.readFileSync(path.join(other, '.gitignore'), 'utf-8');
+  assert.match(after, /^\.work\/sessions\/\.current-session$/m);
+  assert.doesNotMatch(after, /\.pending-seeds|\.write-payload|\.changelog-payload/);
+}
+
+{
   // An existing CHANGELOG is never touched; a disabled changelog gets none.
   const root = h.gitProject();
   fs.writeFileSync(path.join(root, 'CHANGELOG.md'), '# Mine\n');
@@ -113,7 +139,7 @@ const { NEW_FILE_HEADER } = require('../skills/gps/scripts/lib/changelog');
   const res = h.ok(root, 'init.js', ['--apply']);
   assert.doesNotMatch(res.out, /Committed/);
   assert.ok(fs.existsSync(path.join(root, '.work', 'gps-config.json')));
-  assert.match(fs.readFileSync(path.join(root, '.gitignore'), 'utf-8'), /^\.work\/sessions\/\.current-session$/m);
+  assert.match(fs.readFileSync(path.join(root, '.gitignore'), 'utf-8'), /^\.scratch\/$/m);
   assert.strictEqual(h.json(root, 'init.js').ready, true);
   h.assertFails(h.run(root, 'init.js', ['--unignore-work']), 2, /--unignore-work only goes with --apply/);
 }

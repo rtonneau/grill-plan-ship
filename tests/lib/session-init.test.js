@@ -15,7 +15,7 @@ assert.strictEqual(session.slug, 'add-dark-mode');
 assert.strictEqual(session.cleaned, true);
 assert.strictEqual(session.sessionId, `${localDate()}__add-dark-mode`);
 assert.deepStrictEqual(session.gitignoreAdded, LOCAL_ONLY);
-assert.ok(LOCAL_ONLY.includes('.work/sessions/.current-session'));
+assert.deepStrictEqual(LOCAL_ONLY, ['.scratch/']);
 assert.ok(!LOCAL_ONLY.includes('.work/'), '.work/ itself is committed');
 assert.strictEqual(session.scratchDir, `.scratch/tests/${session.sessionId}`);
 assert.strictEqual(fs.readFileSync(path.join(projectRoot, '.gitignore'), 'utf-8'), `node_modules/\n${LOCAL_ONLY.join('\n')}\n`);

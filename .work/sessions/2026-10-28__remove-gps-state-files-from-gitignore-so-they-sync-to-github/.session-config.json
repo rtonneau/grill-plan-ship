@@ -1,0 +1,178 @@
+{
+  "session_id": "2026-10-28__remove-gps-state-files-from-gitignore-so-they-sync-to-github",
+  "feature_name": "Remove gps state files from .gitignore so they sync to GitHub",
+  "scratch_dir": ".scratch/tests/2026-10-28__remove-gps-state-files-from-gitignore-so-they-sync-to-github",
+  "created_at": "2026-10-28T08:21:25.161Z",
+  "template_version": 2,
+  "history": [
+    {
+      "at": "2026-10-28T08:21:25.161Z",
+      "event": "session_started",
+      "phase": "grill",
+      "files": [
+        "01-grill/resume.md"
+      ]
+    },
+    {
+      "at": "2026-10-28T08:33:37.906Z",
+      "event": "grill_written",
+      "phase": "plan-not-started",
+      "files": [
+        "01-grill/resume.md"
+      ]
+    },
+    {
+      "at": "2026-10-28T08:33:38.006Z",
+      "event": "plan_started",
+      "phase": "plan",
+      "files": [
+        "02-plan/plan.md"
+      ]
+    },
+    {
+      "at": "2026-10-28T08:36:46.381Z",
+      "event": "auto_started",
+      "phase": "plan",
+      "detail": {
+        "target": "finish",
+        "steps": "write:plan → ship → finish"
+      }
+    },
+    {
+      "at": "2026-10-28T08:37:28.193Z",
+      "event": "branch_created",
+      "phase": "plan",
+      "detail": {
+        "branch": "feat/sync-gps-state-files",
+        "base": "main"
+      }
+    },
+    {
+      "at": "2026-10-28T08:37:28.212Z",
+      "event": "plan_written",
+      "phase": "ship",
+      "files": [
+        "02-plan/plan.md",
+        "02-plan/tickets/01-setup-stale-ignores.md",
+        "02-plan/tickets/02-ignore-this-repo-and-commit-semantics.md",
+        "02-plan/tickets/03-docs-and-decision-0012.md"
+      ],
+      "detail": {
+        "tickets": 3
+      }
+    },
+    {
+      "at": "2026-10-28T08:37:34.880Z",
+      "event": "ticket_started",
+      "phase": "ship",
+      "files": [
+        "02-plan/tickets/01-setup-stale-ignores.md",
+        "03-implement/01-setup-stale-ignores/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "01-setup-stale-ignores"
+      }
+    },
+    {
+      "at": "2026-10-28T08:43:50.731Z",
+      "event": "ticket_done",
+      "phase": "ship",
+      "files": [
+        "03-implement/01-setup-stale-ignores/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "01-setup-stale-ignores",
+        "commit": "659b759"
+      }
+    },
+    {
+      "at": "2026-10-28T08:43:51.490Z",
+      "event": "ticket_started",
+      "phase": "ship",
+      "files": [
+        "02-plan/tickets/02-ignore-this-repo-and-commit-semantics.md",
+        "03-implement/02-ignore-this-repo-and-commit-semantics/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "02-ignore-this-repo-and-commit-semantics"
+      }
+    },
+    {
+      "at": "2026-10-28T08:48:57.043Z",
+      "event": "ticket_done",
+      "phase": "ship",
+      "files": [
+        "03-implement/02-ignore-this-repo-and-commit-semantics/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "02-ignore-this-repo-and-commit-semantics",
+        "commit": "2cbf666"
+      }
+    },
+    {
+      "at": "2026-10-28T08:48:57.919Z",
+      "event": "ticket_started",
+      "phase": "ship",
+      "files": [
+        "02-plan/tickets/03-docs-and-decision-0012.md",
+        "03-implement/03-docs-and-decision-0012/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "03-docs-and-decision-0012"
+      }
+    },
+    {
+      "at": "2026-10-28T08:50:44.382Z",
+      "event": "ticket_done",
+      "phase": "finish-pending",
+      "files": [
+        "03-implement/03-docs-and-decision-0012/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "03-docs-and-decision-0012",
+        "commit": "018b148"
+      }
+    },
+    {
+      "at": "2026-10-28T08:51:00.944Z",
+      "event": "changelog_written",
+      "phase": "finish-pending",
+      "detail": {
+        "bump": "minor"
+      }
+    },
+    {
+      "at": "2026-10-28T08:51:10.815Z",
+      "event": "pr_opened",
+      "phase": "finish-pending",
+      "detail": {
+        "url": "https://github.com/rtonneau/grill-plan-ship/pull/52"
+      }
+    },
+    {
+      "at": "2026-10-28T08:51:10.818Z",
+      "event": "session_finished",
+      "phase": "finished",
+      "files": [
+        "INDEX.md"
+      ]
+    }
+  ],
+  "current_phase": "finished",
+  "git": {
+    "branch": "feat/sync-gps-state-files",
+    "base_branch": "main",
+    "branch_created_at": "2026-10-28T08:37:28.193Z",
+    "pr_url": "https://github.com/rtonneau/grill-plan-ship/pull/52"
+  },
+  "ship_mode": "subagent+inline",
+  "changelog": {
+    "bump": "minor",
+    "floor": "minor",
+    "reason": "Changes which files gps ignores in every project; /gps init migrates old projects",
+    "bullets": 2,
+    "path": ".work/changelog/2026-10-28__remove-gps-state-files-from-gitignore-so-they-sync-to-github.md",
+    "written_at": "2026-10-28T08:51:00.927Z"
+  },
+  "finished_at": "2026-10-28T08:51:10.818Z"
+}

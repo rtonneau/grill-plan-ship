@@ -2,9 +2,9 @@
 //
 // /gps start: creates .work/sessions/YYYY-MM-DD__<slug>/ (01-grill/resume.md
 // and .session-config.json), the session's scratch directory, the
-// .gitignore entries (LOCAL_ONLY in setup.js) and .current-session. .work/ itself is
+// .gitignore entry (LOCAL_ONLY in setup.js) and .current-session. .work/ itself is
 // committed: gps commits it at the plan write, each ticket and the finish;
-// only the per-machine files below stay out of git.
+// only .scratch/ stays out of git.
 // <slug> is the feature name cleaned by slugify(); the date is the local
 // date. If the session already exists, nothing is written and it throws a
 // GpsError (start.js resumes an unfinished one before calling this, so the
