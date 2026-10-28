@@ -15,11 +15,11 @@ const { NEW_FILE_HEADER } = require('./changelog');
 const { diagnoseGithub } = require('./github');
 const { isWorkTree, currentBranch, isIgnored, isTracked, pathHasChanges, commitFiles } = require('./git');
 
-// Files under .work/ (and .scratch/) that must never be shared: the
-// current session pointer, scouted seeds not started yet (and their
-// corrupt backups) and the /gps write and changelog payloads in progress.
-const LOCAL_ONLY = [
-  '.scratch/',
+// Per-machine paths git must ignore: the session scratch directory only.
+// .work/ is committed whole (session pointer, seeds and payloads included),
+// so those lines older gps versions added to .gitignore are stale.
+const LOCAL_ONLY = ['.scratch/'];
+const STALE_IGNORES = [
   '.work/sessions/.current-session',
   '.work/sessions/.pending-seeds.json*',
   '.work/sessions/*/.write-payload.md',
@@ -31,6 +31,11 @@ const SETUP_MESSAGE = 'chore(gps): set up gps';
 // Adds the missing LOCAL_ONLY entries to .gitignore; returns those added.
 function ensureLocalIgnores(projectRoot) {
   return LOCAL_ONLY.filter((entry) => ensureGitignoreEntry(projectRoot, entry));
+}
+
+// Removes the STALE_IGNORES lines from .gitignore; returns those removed.
+function removeStaleIgnores(projectRoot) {
+  return STALE_IGNORES.filter((entry) => removeGitignoreEntry(projectRoot, entry));
 }
 
 // The CHANGELOG path init must create (changelog enabled, file missing), else null.
@@ -59,16 +64,17 @@ function inspectSetup(projectRoot) {
     workIgnored: gitRepo && isIgnored(projectRoot, '.work/'),
     missingChangelog: missingChangelog(projectRoot),
     missingIgnores: LOCAL_ONLY.filter((entry) => !gitignoreCovers(projectRoot, entry)),
+    staleIgnores: STALE_IGNORES.filter((entry) => gitignoreCovers(projectRoot, entry)),
     gitignoreDirty: gitRepo && pathHasChanges(projectRoot, '.gitignore'),
   };
-  state.ready = stored !== null && state.missingIgnores.length === 0 && state.missingChangelog === null && !state.workIgnored
+  state.ready = stored !== null && state.missingIgnores.length === 0 && state.staleIgnores.length === 0 && state.missingChangelog === null && !state.workIgnored
     && (!gitRepo || (state.configTracked && !state.gitignoreDirty));
   return state;
 }
 
 // Writes the setup and commits it on the checked-out branch. Never commits
 // changes to .gitignore the user made before (they are left for the user).
-// Returns { configCreated, changelogCreated, unignored, added, commit } where commit is null
+// Returns { configCreated, changelogCreated, unignored, removed, added, commit } where commit is null
 // outside a git repo, else { ok, sha, files, skipped } or a failed
 // commitFiles result.
 function applySetup(projectRoot, { unignoreWork = false } = {}) {
@@ -77,6 +83,7 @@ function applySetup(projectRoot, { unignoreWork = false } = {}) {
   const unignored = unignoreWork && removeGitignoreEntry(projectRoot, '.work/');
   const configCreated = !fs.existsSync(path.join(projectRoot, CONFIG_REL));
   ensureProjectConfig(projectRoot);
+  const removed = removeStaleIgnores(projectRoot);
   const added = ensureLocalIgnores(projectRoot);
   const changelogCreated = missingChangelog(projectRoot);
   if (changelogCreated) {
@@ -95,7 +102,7 @@ function applySetup(projectRoot, { unignoreWork = false } = {}) {
       : commitFiles(projectRoot, files, SETUP_MESSAGE);
     if (userEdits) commit.skipped = '.gitignore has changes of your own: commit it yourself';
   }
-  return { configCreated, changelogCreated, unignored, added, commit };
+  return { configCreated, changelogCreated, unignored, removed, added, commit };
 }
 
-module.exports = { LOCAL_ONLY, SETUP_MESSAGE, ensureLocalIgnores, needsSetup, inspectSetup, applySetup };
+module.exports = { LOCAL_ONLY, STALE_IGNORES, SETUP_MESSAGE, ensureLocalIgnores, needsSetup, inspectSetup, applySetup };

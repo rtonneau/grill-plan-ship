@@ -17,7 +17,7 @@ const { initSession } = require('../skills/gps/scripts/lib/session-init');
   const gitignore = fs.readFileSync(path.join(root, '.gitignore'), 'utf-8');
   assert.doesNotMatch(gitignore, /^\.work\/$/m);
   assert.match(gitignore, /^\.scratch\/$/m);
-  assert.match(gitignore, /^\.work\/sessions\/\.current-session$/m, 'the pointer stays per machine');
+  assert.doesNotMatch(gitignore, /\.current-session|\.pending-seeds|\.write-payload|\.changelog-payload/, 'the state files are committed, not ignored');
   assert.deepStrictEqual(fs.readdirSync(h.sessionDir(root)).sort(), ['.session-config.json', '01-grill']);
   assert.deepStrictEqual(h.history(root).map((e) => [e.event, e.phase]), [['session_started', 'grill']]);
   assert.strictEqual(h.readConfig(root).current_phase, 'grill');
