@@ -84,6 +84,30 @@
         "ticket": "01-setup-stale-ignores",
         "commit": "659b759"
       }
+    },
+    {
+      "at": "2026-10-28T08:43:51.490Z",
+      "event": "ticket_started",
+      "phase": "ship",
+      "files": [
+        "02-plan/tickets/02-ignore-this-repo-and-commit-semantics.md",
+        "03-implement/02-ignore-this-repo-and-commit-semantics/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "02-ignore-this-repo-and-commit-semantics"
+      }
+    },
+    {
+      "at": "2026-10-28T08:48:57.043Z",
+      "event": "ticket_done",
+      "phase": "ship",
+      "files": [
+        "03-implement/02-ignore-this-repo-and-commit-semantics/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "02-ignore-this-repo-and-commit-semantics",
+        "commit": "2cbf666"
+      }
     }
   ],
   "current_phase": "ship",
