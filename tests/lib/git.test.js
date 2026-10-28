@@ -6,7 +6,7 @@ const path = require('path');
 const { execSync } = require('child_process');
 const {
   readRecentCommits, readGitStatus, commitFiles, restoreFromHead, commitExists, describeCommit,
-  commitWorkDir, describeWorkCommit, branchesHolding, isIgnored, GPS_WORK_PATHS,
+  commitWorkDir, commitRemainingChanges, describeWorkCommit, branchesHolding, isIgnored, GPS_WORK_PATHS,
   failureReason, commitMessages, defaultBranch, isCleanTree, tagExists, createTag, headCommit, pushWithTags, remoteHasTag, remoteBranchAt, headSha, fetchBehind,
   safeGitArgs,
 } = require('../../skills/gps/scripts/lib/git');
@@ -175,6 +175,35 @@ assert.strictEqual(commitFiles(notRepo, ['a'], 'x').reason, 'not a git repositor
 fs.rmSync(notRepo, { recursive: true, force: true });
 
 fs.rmSync(projectRoot, { recursive: true, force: true });
+// Finish commits tracked changes only, leaving staged additions and .work alone.
+{
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'gps-leftovers-'));
+  const sh = (cmd) => execSync(cmd, { cwd: root, encoding: 'utf-8' }).trim();
+  sh('git init -q -b main');
+  sh('git config user.email test@example.com');
+  sh('git config user.name Test');
+  fs.writeFileSync(path.join(root, 'tracked.txt'), 'old\n');
+  fs.writeFileSync(path.join(root, 'deleted.txt'), 'old\n');
+  sh('git add tracked.txt deleted.txt');
+  sh('git commit -q -m initial');
+  fs.writeFileSync(path.join(root, 'tracked.txt'), 'new\n');
+  fs.unlinkSync(path.join(root, 'deleted.txt'));
+  fs.writeFileSync(path.join(root, 'new.txt'), 'new\n');
+  fs.mkdirSync(path.join(root, '.work', 'other'), { recursive: true });
+  fs.writeFileSync(path.join(root, '.work', 'other', 'state'), 'foreign\n');
+  sh('git add new.txt .work/other/state');
+  fs.appendFileSync(path.join(root, 'new.txt'), 'unstaged\n');
+  const result = commitRemainingChanges(root, 'remaining');
+  assert.strictEqual(result.ok, true, result.reason);
+  assert.deepStrictEqual(result.files.sort(), ['deleted.txt', 'tracked.txt']);
+  assert.deepStrictEqual(sh('git show --name-only --format= HEAD').split('\n').sort(), ['deleted.txt', 'tracked.txt']);
+  assert.deepStrictEqual(sh('git diff --cached --name-only').split('\n').sort(), ['.work/other/state', 'new.txt']);
+  assert.strictEqual(sh('git show :new.txt'), 'new', 'the staged addition was not updated');
+  assert.match(sh('git status --porcelain -- new.txt'), /^AM/);
+  assert.strictEqual(commitRemainingChanges(root, 'nothing').sha, null, 'staged additions alone do not create a commit');
+  assert.strictEqual(sh('git show :new.txt'), 'new');
+  fs.rmSync(root, { recursive: true, force: true });
+}
 // commitWorkDir: .work/ in its own commit; other staged files stay staged,
 // a path the user git-ignores stays out.
 {

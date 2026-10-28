@@ -6,6 +6,55 @@ const path = require('path');
 const h = require('./helpers');
 
 {
+  // A failed commit must not push, close the session, or prevent a retry.
+  const root = h.gitProject('gps-fin-failed-');
+  h.ok(root, 'start.js', ['failure']);
+  h.writeGrill(root);
+  const id = h.currentSession(root);
+  const sessionDir = h.sessionDir(root);
+  const before = fs.readFileSync(h.configPath(root), 'utf-8');
+  const head = h.git(root, 'rev-parse', 'HEAD');
+  fs.appendFileSync(path.join(root, 'app.js'), '// remaining\n');
+  const hook = path.join(root, '.git', 'hooks', 'pre-commit');
+  fs.writeFileSync(hook, '#!/bin/sh\necho "blocked commit" >&2\nexit 1\n', { mode: 0o755 });
+  const failed = h.run(root, 'finish.js', ['--json']);
+  h.assertFails(failed, 1, /Remaining changes could not be committed.*session remains open/);
+  assert.match(failed.err, /Fix the Git error.*finish again/);
+  assert.strictEqual(h.currentSession(root), id);
+  assert.strictEqual(fs.readFileSync(h.configPath(root), 'utf-8'), before);
+  assert.strictEqual(h.git(root, 'rev-parse', 'HEAD'), head);
+  assert.ok(!fs.existsSync(path.join(sessionDir, 'INDEX.md')));
+  fs.unlinkSync(hook);
+  h.ok(root, 'finish.js');
+  assert.ok(fs.existsSync(path.join(sessionDir, 'INDEX.md')));
+  assert.match(h.git(root, 'log', '-2', '--format=%s'), /commit remaining changes/);
+}
+
+{
+  // On a GitHub-style session a failed commit must not push the branch.
+  const root = h.gitProject('gps-fin-no-push-');
+  const remote = h.tempProject('gps-fin-origin-');
+  h.git(remote, 'init', '--bare', '-q');
+  h.git(root, 'remote', 'add', 'origin', remote);
+  h.ok(root, 'start.js', ['no-push']);
+  h.writeGrill(root);
+  h.git(root, 'switch', '-q', '-c', 'feat/no-push');
+  const config = h.readConfig(root);
+  config.git = { branch: 'feat/no-push', base_branch: 'main', pr_url: null };
+  fs.writeFileSync(h.configPath(root), JSON.stringify(config));
+  const before = fs.readFileSync(h.configPath(root), 'utf-8');
+  const id = h.currentSession(root);
+  fs.appendFileSync(path.join(root, 'app.js'), '// remaining\n');
+  fs.writeFileSync(path.join(root, '.git', 'hooks', 'pre-commit'), '#!/bin/sh\nexit 1\n', { mode: 0o755 });
+  h.assertFails(h.run(root, 'finish.js'), 1, /session remains open/);
+  assert.strictEqual(h.git(remote, 'for-each-ref', '--format=%(refname)', 'refs/heads'), '');
+  assert.strictEqual(h.git(root, 'branch', '--show-current'), 'feat/no-push');
+  assert.strictEqual(h.currentSession(root), id);
+  assert.strictEqual(fs.readFileSync(h.configPath(root), 'utf-8'), before);
+  assert.ok(!fs.existsSync(path.join(h.sessionDir(root), 'INDEX.md')));
+}
+
+{
   const root = h.gitProject();
   h.ok(root, 'start.js', ['older']);
   const olderId = h.currentSession(root);

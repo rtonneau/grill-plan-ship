@@ -30,9 +30,10 @@
  * and the finished state are written and .work/ is committed on its own
  * (the session record, glossary and ADRs), pushed again for a branch
  * session, and the base branch is checked out again (not after a failed
- * commit, which would leave changes behind). A failed commit, push, gh call
- * or switch does not fail the finish: the output lists the commands to run
- * by hand.
+ * commit, which would leave changes behind). A failed record commit, push,
+ * gh call or switch is reported with commands to run by hand. A failed
+ * remaining-changes commit stops before publishing and leaves the session
+ * open for retry.
  *
  * When the session wrote its changelog fragment (`changelog` in the config,
  * set by changelog-apply.js), INDEX.md gets a Changelog section linking the
@@ -322,6 +323,10 @@ function finishSession({ options, projectRoot, warn }) {
 
   // Before the push, so the leftovers are in the pull request.
   const leftover = commitRemainingChanges(projectRoot, `chore: commit remaining changes (gps finish ${sessionId})`);
+  if (!leftover.ok) {
+    throw new GpsError(`Remaining changes could not be committed (${leftover.reason}); the session remains open.`,
+      'Fix the Git error, then run /gps finish again. Changes may be staged.');
+  }
 
   let pr = null;
   if (config.git) {

@@ -2,6 +2,11 @@
 
 All notable changes to grill-plan-ship. Versions follow [semantic versioning](https://semver.org/).
 
+## 2.11.1 (2026-10-27)
+
+- `/gps finish` leaves staged new files and other skills' `.work/` files out of its remaining-changes commit, preserving their staged and unstaged contents.
+- If that commit fails, `/gps finish` leaves the session open and stops before pushing or opening a pull request, so the user can fix the Git error and retry.
+
 ## 2.11.0 (2026-10-26)
 
 - `/gps start <name>` on a session of the same name that is not finished (started today or on an earlier day) no longer fails or creates a duplicate: it reports the session's phase, tickets and last activity, asks whether to continue, and picks up from that phase.
