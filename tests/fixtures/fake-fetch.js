@@ -27,6 +27,12 @@ globalThis.fetch = async (url, init = {}) => {
   fakeFetch.calls.push({ url: String(url), init });
   const b = behavior();
   if (b.refuse) throw new TypeError('fetch failed');
+  if (b.bodyHang) {
+    return { ok: true, json: () => new Promise((resolve, reject) => {
+      if (init.signal.aborted) return reject(init.signal.reason);
+      init.signal.addEventListener('abort', () => reject(init.signal.reason), { once: true });
+    }) };
+  }
   if (b.hang) {
     return new Promise((_, reject) => {
       if (!init.signal) return;

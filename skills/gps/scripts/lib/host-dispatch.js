@@ -1,8 +1,8 @@
-// Host adapters over one shared ticket brief. Tiers stay portable in session
+// Host adapters over shared role briefs. Tiers stay portable in session
 // files. Claude has stable family aliases. Codex has none, and its spawn tool
 // lists the models and efforts this account can use, so the parent resolves
 // the tier against that list unless the project pinned a model (decision 0014).
-const { UsageError } = require('./guard');
+const { GpsError, UsageError } = require('./guard');
 
 const CLAUDE_MODELS = Object.freeze({ fast: 'haiku', medium: 'sonnet', heavy: 'opus' });
 const TIER_INTENT = Object.freeze({
@@ -20,9 +20,10 @@ function pinnedCodexModel(tier, config = {}) {
   return { model, efforts: entry && Array.isArray(entry.efforts) ? entry.efforts : null };
 }
 
-// { call, notes }: `call` holds the host tool's parameters, `notes` what the
-// parent must resolve or tell the user. A hint never fails a dispatch.
-function buildDispatch(host, { model, effort, description, prompt, taskName }, config = {}) {
+// { call, notes, lifecycle }: `call` holds only the host tool's parameters, `notes` what the
+// parent must resolve or tell the user. Hints are preferences; explicit overrides
+// are requirements and must not be downgraded.
+function buildDispatch(host, { model, effort, description, prompt, taskName, requiredModel = false, requiredEffort = false }, config = {}) {
   const effortSet = effort !== 'inherit';
   if (host === 'claude') {
     return {
@@ -34,6 +35,7 @@ function buildDispatch(host, { model, effort, description, prompt, taskName }, c
         prompt,
       },
       notes: [],
+      lifecycle: 'Use Agent with general-purpose in fresh context, not a fork or worktree. Inspect the live schema before calling. If it returns a background ID, wait for its completion notification and read the final result; a launch acknowledgment is not completion. Use only the host-supported result/wait mechanism. Children inherit host permissions; these briefs do not enforce a read-only sandbox.',
     };
   }
   if (host !== 'codex') throw new UsageError('--host must be one of: claude, codex.');
@@ -41,14 +43,17 @@ function buildDispatch(host, { model, effort, description, prompt, taskName }, c
   const pinned = model === 'inherit' ? null : pinnedCodexModel(model, config);
   let keepEffort = effortSet;
   if (pinned && effortSet && pinned.efforts && !pinned.efforts.includes(effort)) {
+    if (requiredEffort) throw new GpsError(`Required effort ${effort} is not listed for ${pinned.model}.`, 'Choose a model that supports it or ask the user to change the requirement.');
     keepEffort = false;
     notes.push(`Effort ${effort} is not listed for ${pinned.model} in delegation.codex: left out, tell the user.`);
   }
   if (model !== 'inherit' && !pinned) {
-    notes.push(`Set model to ${TIER_INTENT[model]} by your spawn tool (tier ${model}). If it offers no such choice, leave model out and tell the user.`);
+    notes.push(`Set model to ${TIER_INTENT[model]} by your spawn tool (tier ${model}). ${requiredModel ? 'This is required: if unavailable, report BLOCKED rather than substitute.' : 'If it offers no such choice, leave model out and tell the user.'}`);
   }
   if (keepEffort && !pinned) {
-    notes.push(`If the chosen model does not list effort ${effort}, use its nearest lower level and tell the user.`);
+    notes.push(requiredEffort
+      ? `Effort ${effort} is required: verify it against the live tool; if unavailable, report BLOCKED rather than lower or omit it.`
+      : `If the chosen model does not list effort ${effort}, use its nearest lower level and tell the user.`);
   }
   return {
     call: {
@@ -59,6 +64,7 @@ function buildDispatch(host, { model, effort, description, prompt, taskName }, c
       ...(keepEffort && { reasoning_effort: effort }),
     },
     notes,
+    lifecycle: 'Use spawn_agent with fork_turns none; model and reasoning_effort overrides require this fresh context. Suffix task_name if already used so each fresh child, including recovery and re-review, has a unique name. Retain the returned identity, use wait_agent and completion messages to obtain the final result; an ID, progress message or timeout is not completion. Inspect the live schema for available models and permissions; no per-call sandbox override is assumed. These briefs do not enforce a read-only sandbox.',
   };
 }
 

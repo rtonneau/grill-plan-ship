@@ -28,7 +28,7 @@ const { listTickets } = require('./lib/ticket-queue');
 const { unfilledSections, completeLog } = require('./lib/commit-log');
 const { commitFiles, describeCommit, commitWorkDir, describeWorkCommit } = require('./lib/git');
 const { getHistory, hasEvent, recordEvent, sessionPath } = require('./lib/history');
-const { GpsError, UsageError } = require('./lib/guard');
+const { GpsError, UsageError, replaceFile } = require('./lib/guard');
 const { allDoneNext } = require('./lib/project-config');
 
 const OFF_LIMITS = ['.work/', '.scratch/'];
@@ -103,11 +103,16 @@ main({
 
     const finishedAt = new Date().toISOString();
     const started = getHistory(config).find((e) => e.event === 'ticket_started' && e.detail && e.detail.ticket === key);
-    fs.writeFileSync(ticket.commitLogPath, completeLog(log, {
-      commits: [describeCommit(projectRoot, sha) || sha],
-      startedAt: started ? started.at : null,
-      finishedAt,
-    }));
+    try {
+      replaceFile(ticket.commitLogPath, completeLog(log, {
+        commits: [describeCommit(projectRoot, sha) || sha],
+        startedAt: started ? started.at : null,
+        finishedAt,
+      }));
+    } catch (err) {
+      throw new GpsError(`Commit ${sha} exists, but the ticket log could not be saved (${err.message}). The previous log is intact.`,
+        `Fix the write failure, then run ticket-complete.js ${Number(ticket.num)} --commit ${sha}; do not create another implementation commit.`);
+    }
     recordEvent(configPath, config, sessionDir, {
       event: 'ticket_done',
       files: [sessionPath(sessionDir, ticket.commitLogPath)],

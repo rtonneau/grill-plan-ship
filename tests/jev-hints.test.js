@@ -1,5 +1,6 @@
 // tests/jev-hints.test.js — jev-hints.js (/gps plan ticket Model/Effort judging)
 const assert = require('assert');
+const fs = require('fs');
 const path = require('path');
 const h = require('./helpers');
 
@@ -13,11 +14,31 @@ function fakeEnv(behavior) {
   return { TYPESAFE_API_KEY: 'k', NODE_OPTIONS: `--require "${FAKE_FETCH}"`, GPS_FAKE_FETCH: JSON.stringify(behavior) };
 }
 
+// A credential is availability, not consent: neither new nor old auto-enabled
+// projects may transmit tickets until an explicit enable operation.
+for (const legacy of [false, true]) {
+  const root = h.tempProject();
+  const file = path.join(root, '.work', 'gps-config.json');
+  if (legacy) {
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    fs.writeFileSync(file, JSON.stringify({ github: { enabled: false }, jev: { enabled: true } }));
+  }
+  const env = fakeEnv({ refuse: true });
+  const before = legacy ? fs.readFileSync(file, 'utf8') : null;
+  const res = h.ok(root, 'jev-hints.js', ['--json'], env, TICKETS);
+  assert.strictEqual(JSON.parse(res.out).used, false);
+  assert.strictEqual(res.err, '', 'no request attempted without consent');
+  if (legacy) assert.strictEqual(fs.readFileSync(file, 'utf8'), before, 'legacy config stays readable and unchanged');
+  h.ok(root, 'config.js', ['--rescan', '--apply'], env);
+  assert.notStrictEqual(JSON.parse(fs.readFileSync(file, 'utf8')).jev.consent, true, 'generic rescan cannot authorize transmission');
+  assert.strictEqual(h.ok(root, 'jev-hints.js', ['--json'], env, TICKETS).err, '');
+}
+
 // Not enabled: no warning, same shape as a failed call.
 {
   const root = h.tempProject();
   const res = h.ok(root, 'jev-hints.js', ['--json'], { TYPESAFE_API_KEY: '' }, TICKETS);
-  assert.deepStrictEqual(JSON.parse(res.out), { used: false, reason: 'jev.enabled is false', tickets: {} });
+  assert.deepStrictEqual(JSON.parse(res.out), { used: false, reason: 'Jev is disabled or ticket transmission is not authorized', tickets: {} });
   assert.strictEqual(res.err, '');
 }
 
@@ -34,7 +55,7 @@ function fakeEnv(behavior) {
   const root = h.tempProject();
   h.json(root, 'config.js', [], { TYPESAFE_API_KEY: '' }); // seeds jev.enabled: false
   const res = h.ok(root, 'jev-hints.js', ['--json'], { TYPESAFE_API_KEY: 'k' }, TICKETS);
-  assert.deepStrictEqual(JSON.parse(res.out), { used: false, reason: 'jev.enabled is false', tickets: {} });
+  assert.deepStrictEqual(JSON.parse(res.out), { used: false, reason: 'Jev is disabled or ticket transmission is not authorized', tickets: {} });
   assert.strictEqual(res.err, '');
 }
 
@@ -53,13 +74,19 @@ function fakeEnv(behavior) {
     },
   });
   // jev.enabled must be true in gps-config.json for the script to try at all.
-  h.json(root, 'config.js', ['--rescan', '--apply'], env);
+  h.json(root, 'config.js', ['--enable-jev'], env);
   const res = h.ok(root, 'jev-hints.js', ['--json'], env, TICKETS);
   const data = JSON.parse(res.out);
   assert.strictEqual(data.used, true);
   assert.deepStrictEqual(data.tickets['01-a'], { model: 'medium', modelRaw: 'sonnet-5.5', modelConfidence: 0.8, effort: 'high', effortConfidence: 0.7 });
   const text = h.ok(root, 'jev-hints.js', [], env, TICKETS).out;
   assert.match(text, /01-a: Model medium \(sonnet-5\.5, confidence 0\.8\) · Effort high \(confidence 0\.7\)/);
+  const file = path.join(root, '.work', 'gps-config.json');
+  const config = JSON.parse(fs.readFileSync(file, 'utf8'));
+  fs.writeFileSync(file, JSON.stringify({ ...config, jev: { ...config.jev, enabled: false } }));
+  const disabled = h.ok(root, 'jev-hints.js', ['--json'], fakeEnv({ refuse: true }), TICKETS);
+  assert.strictEqual(JSON.parse(disabled.out).used, false);
+  assert.strictEqual(disabled.err, '', 'explicit opt-out still prevents requests after consent');
 }
 
 // Enabled but the call fails (connection refused) -> one
@@ -67,7 +94,7 @@ function fakeEnv(behavior) {
 {
   const root = h.tempProject();
   const env = fakeEnv({ refuse: true });
-  h.json(root, 'config.js', ['--rescan', '--apply'], env);
+  h.json(root, 'config.js', ['--enable-jev'], env);
   const res = h.ok(root, 'jev-hints.js', ['--json'], env, TICKETS);
   assert.deepStrictEqual(JSON.parse(res.out).used, false);
   assert.deepStrictEqual(JSON.parse(res.out).tickets, {});
@@ -78,7 +105,7 @@ function fakeEnv(behavior) {
 // same as "not enabled" (no warning), not a surprise failure warning.
 {
   const root = h.tempProject();
-  h.json(root, 'config.js', ['--rescan', '--apply'], { TYPESAFE_API_KEY: 'k' }); // seeds jev.enabled: true
+  h.json(root, 'config.js', ['--enable-jev'], { TYPESAFE_API_KEY: 'k' });
   const res = h.ok(root, 'jev-hints.js', ['--json'], { TYPESAFE_API_KEY: '' }, TICKETS);
   assert.deepStrictEqual(JSON.parse(res.out), { used: false, reason: 'TYPESAFE_API_KEY is not set.', tickets: {} });
   assert.strictEqual(res.err, '');

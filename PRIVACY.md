@@ -13,6 +13,7 @@ The plugin contains no analytics, tracking or update checks and sends no data to
 - **Your git history:** besides the ticket and `chore(gps)` commits, the changelog fragment is committed with the session record at `/gps finish`, and the release (CHANGELOG, version files and fragment deletions) as `chore(release): X.Y.Z` with an annotated tag `vX.Y.Z` at `/gps release`. The idea skill commits each saved Idea as its own `idea(<slug>): <action>` commit — in the project you ran it from (Project scope), or in your configured Global repo (Global scope) — and never pushes it.
 - **Nothing else:** outside your project, gps reads only a file a command is explicitly given (such as the review for `/gps scout --from`, which it archives under `.work/`). Other than the idea skill's `~/.gps/idea-config.json` above, it doesn't read host transcripts or your home directory. Jev reads `TYPESAFE_API_KEY` from the environment for authentication.
 - **Temporary files:** a pull request, issue or GitHub Release body is written to a temporary file in your system's temp directory for `gh` to read, and deleted right after. When `gh release create` fails, its notes file is kept there so the printed by-hand command can use it; delete it once the release is published.
+- **Local recovery records:** GPS writes finish checkpoints and pending commit-scope checks in the worktree's Git-private directory. They contain session/branch identifiers, delivery choices, commit identifiers and file paths, not file contents or credentials. An interrupted non-Git finish keeps its checkpoint under `.scratch/`. These records are not published or copied by a clone.
 
 ## What leaves your machine
 
@@ -28,7 +29,7 @@ Only on GitHub projects (an `origin` on github.com with `gh` logged in):
 
 - `git push` of the session branch at `/gps finish`;
 - `gh pr create` for the session's pull request, and `gh pr list` to find one already open;
-- `gh issue create`, `gh issue comment` and `gh issue close` for `/gps start --issue` sessions;
+- `gh issue create`, `gh issue comment` and `gh issue close` for `/gps start --issue` sessions; `gh issue view` reads comments when reconciling an interrupted finish;
 - `gh release view` and `gh release create` at `/gps release --push`, when `release.githubRelease` allows a GitHub Release;
 - `gh auth status`, to detect whether the project uses GitHub.
 
@@ -36,7 +37,7 @@ These run with your own git and gh credentials, which gps never reads. The [READ
 
 When Jev is enabled and `TYPESAFE_API_KEY` is present, planning sends drafted ticket names and complete bodies, plus model/effort classification instructions, to TypeSafe at `https://api.typesafe.ai/v1/systemone`. The key authenticates the request. This code does not upload arbitrary repository files, but ticket bodies can contain project details or code included during drafting. This policy makes no guarantees about TypeSafe's retention or training practices.
 
-Initial project configuration derives `jev.enabled` from key presence. Subsequent calls consult the saved flag and the key. Set `jev.enabled` to `false` in `.work/gps-config.json` to stop Jev requests. `/gps config --rescan` can propose changing that flag; applying the rescan can enable it again when the key is present. Activation behavior is unchanged.
+Jev starts disabled, even when a key is present. `/gps config --enable-jev` explicitly authorizes the transmission described above and records both `jev.enabled: true` and `jev.consent: true` in `.work/gps-config.json`. Older auto-detected `enabled: true` settings do not establish consent and remain inactive until authorized. Set `jev.enabled` to `false` to stop requests or `jev.consent` to `false` to revoke authorization. Key detection and rescans never grant consent.
 
 Your conversation is governed by the selected host's terms and privacy policy: Anthropic for Claude Code, OpenAI for Codex. Claude Code's `allowed-tools` declarations preapprove script commands in that host; Codex applies its own configured sandbox and approval rules.
 

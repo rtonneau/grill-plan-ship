@@ -66,11 +66,11 @@ assert.strictEqual(listFragments(root)[0].bump, 'major');
 const originalRename = fs.renameSync;
 fs.renameSync = () => { const err = new Error('denied'); err.code = 'EPERM'; throw err; };
 try {
-  writeFragment(root, '2026-10-05__a', mk('minor'));
+  assert.throws(() => writeFragment(root, '2026-10-05__a', mk('minor')), (err) => err.code === 'EPERM');
 } finally {
   fs.renameSync = originalRename;
 }
-assert.strictEqual(listFragments(root)[0].bump, 'minor');
+assert.strictEqual(listFragments(root)[0].bump, 'major');
 assert.strictEqual(fs.readdirSync(dir).filter((n) => n.includes('.tmp-')).length, 0);
 
 fs.writeFileSync(path.join(dir, '2026-10-05__bad.md'), 'nope');

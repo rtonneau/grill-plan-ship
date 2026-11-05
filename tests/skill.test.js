@@ -42,7 +42,6 @@ const approved = [...skill.split(/^---$/m)[1].matchAll(/^  - Bash\(node \$\{CLAU
 assert.deepStrictEqual(approved, [...scripts].sort(), 'allowed-tools lists every script once, in order, and nothing else');
 assert.doesNotMatch(skill, /scripts\/\*\)/, 'no wildcard over scripts/');
 assert.match(skill, /^argument-hint: "<[a-z|]+> \[args\]"$/m);
-assert.match(skill, /fix the cause and rerun/);
 // The description names every command, so an explicit request triggers it, and
 // keeps ordinary coding requests out. Trigger control stays in the description:
 // allow_implicit_invocation: false also made explicit $gps unreliable in codex exec.

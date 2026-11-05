@@ -2,7 +2,7 @@
 //
 // TypeSafe's Jev, used to judge a ticket's Model/Effort hints (/gps plan).
 // Fully optional: gated by TYPESAFE_API_KEY and .work/gps-config.json's
-// jev.enabled (lib/project-config.js). One POST /v1/systemone per /gps
+// jev.enabled plus explicit jev.consent (lib/project-config.js). One POST /v1/systemone per /gps
 // plan run, judging every ticket's Model and Effort together.
 //
 // GPS_JEV_TIMEOUT_MS overrides the timeout for tests; read fresh on every
@@ -114,29 +114,31 @@ async function classifyTickets(tickets) {
   const controller = new AbortController();
   const ms = timeoutMs();
   const timer = setTimeout(() => controller.abort(), ms);
-  let response;
   try {
-    response = await fetch(ENDPOINT, {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify(buildRequestBody(tickets)),
-      signal: controller.signal,
-    });
-  } catch (err) {
-    throw new JevError(`Jev request failed: ${err.name === 'AbortError' ? `timed out after ${ms}ms` : err.message}`);
+    let response;
+    try {
+      response = await fetch(ENDPOINT, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify(buildRequestBody(tickets)),
+        signal: controller.signal,
+      });
+    } catch (err) {
+      throw new JevError(`Jev request failed: ${controller.signal.aborted ? `timed out after ${ms}ms` : err.message}`);
+    }
+    if (!response.ok) throw new JevError(`Jev request failed: HTTP ${response.status}`);
+    let json;
+    try {
+      json = await response.json();
+    } catch (err) {
+      throw new JevError(controller.signal.aborted
+        ? `Jev request timed out after ${ms}ms`
+        : `Jev response was not valid JSON: ${err.message}`);
+    }
+    return parseAnswers(tickets, json);
   } finally {
     clearTimeout(timer);
   }
-
-  if (!response.ok) throw new JevError(`Jev request failed: HTTP ${response.status}`);
-
-  let json;
-  try {
-    json = await response.json();
-  } catch (err) {
-    throw new JevError(`Jev response was not valid JSON: ${err.message}`);
-  }
-  return parseAnswers(tickets, json);
 }
 
 module.exports = {

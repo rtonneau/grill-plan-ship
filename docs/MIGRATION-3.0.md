@@ -25,7 +25,16 @@ Nothing needs doing to keep working. Existing sessions, configs, backlogs and se
 | `delegation.codex.models.<tier>.efforts` | Still read. An effort it rules out is dropped with a note instead of failing |
 | `delegation.codex.inheritEfforts` | No longer read. `/gps config` tells you it can go |
 
-All other keys are unchanged, and `ship.autoFinish` behaves as before.
+`ship.autoFinish` behaves as before. The second-pass hardening adds `jev.consent`: older `jev.enabled: true` settings remain readable but cannot transmit tickets until `/gps config --enable-jev` explicitly authorizes complete ticket names and bodies to TypeSafe. Ordinary rescans never grant consent.
+
+## Second-pass hardening
+
+- Finish refuses tracked leftovers instead of sweeping them into a commit. Review ownership and commit only the intended files before retrying. Ticket commits reject directories, pathspec expansion and partially staged files.
+- A hook that adds unexpected paths to a GPS commit leaves the commit intact and blocks GPS pushes until it is reviewed. The error names the local publication marker to remove after review.
+- Failed delivery stays retryable with `/gps finish`. A local recovery journal covers interruption during final record delivery; it belongs to that worktree and is not copied by cloning the repository.
+- Explicit dispatch overrides are requirements. Unsupported ticket hints may still fall back with disclosure; an unsupported user requirement blocks delegation.
+- High-risk tickets still require approval under `/gps auto`. For interrupted small work, resume with `/gps start <same-name>` or finish after verifying and committing it; auto routes a saved resume through planning because task size is not stored.
+- Atomic replacement failures preserve the previous file and report the error. A Windows host that denies rename must grant the required operation; GPS no longer falls back to truncating the destination.
 
 ## Persistent state
 

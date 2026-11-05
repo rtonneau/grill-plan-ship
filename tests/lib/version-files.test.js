@@ -45,11 +45,11 @@ assert.strictEqual(get('CMakeLists.txt'), 'cmake_minimum_required(VERSION 3.20)\
 const originalRename = fs.renameSync;
 fs.renameSync = () => { const err = new Error('denied'); err.code = 'EPERM'; throw err; };
 try {
-  writeVersion(tmp, 'plugin.json', '1.4.0');
+  assert.throws(() => writeVersion(tmp, 'plugin.json', '1.4.0'), (err) => err.code === 'EPERM');
 } finally {
   fs.renameSync = originalRename;
 }
-assert.strictEqual(JSON.parse(get('plugin.json')).version, '1.4.0');
+assert.strictEqual(JSON.parse(get('plugin.json')).version, '1.3.0');
 assert.strictEqual(fs.readdirSync(tmp).filter((n) => n.includes('.tmp-')).length, 0);
 
 // pyproject: only the project table; a dependency version elsewhere is untouched.

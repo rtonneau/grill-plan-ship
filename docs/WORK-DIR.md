@@ -46,4 +46,4 @@ Older gps versions also git-ignored `.work/sessions/.current-session`, `.work/se
 
 ## Outside .work/
 
-gps also uses `.scratch/`, which is git-ignored and holds per-machine test scratch folders. Leave it alone.
+gps also uses `.scratch/`, which is git-ignored and holds per-machine test scratch folders and non-Git finish recovery. Leave it alone. Git worktrees keep `gps-finish.json` and `gps-unreviewed-commit.json` in their own Git-private directory (resolved by `git rev-parse --git-path`). These local delivery/commit guards are not portable `.work/` session state; leave them in place until the named recovery or explicit commit review completes.

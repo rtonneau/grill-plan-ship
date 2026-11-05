@@ -148,4 +148,62 @@ const sections = (headings) => headings.map((x) => `## ${x}\n\n${x} content.\n`)
   assert.doesNotMatch(finished.err, /\/gps status/);
 }
 
+// The old phase remains pending after an interrupted write or denied rename.
+// Fault injection is confined to a disposable process, not session data.
+for (const phase of ['grill', 'plan']) {
+  for (const failure of ['partial-write', 'EPERM', 'EACCES']) {
+    const root = h.tempProject();
+    h.ok(root, 'start.js', [`interrupt-${phase}-${failure}`]);
+    if (phase === 'plan') {
+      h.writeGrill(root);
+      h.ok(root, 'plan.js');
+    }
+    const prep = h.json(root, 'write-prepare.js');
+    const target = path.join(h.sessionDir(root), phase === 'grill' ? '01-grill/resume.md' : '02-plan/plan.md');
+    const before = fs.readFileSync(target, 'utf-8');
+    const configBefore = fs.readFileSync(h.configPath(root), 'utf-8');
+    const unrelated = path.join(root, 'user-notes.txt');
+    fs.writeFileSync(unrelated, 'User work stays intact.');
+    fs.writeFileSync(prep.payloadPath, phase === 'grill'
+      ? sections(prep.sections) : h.planPayload(prep, [{ slug: 'a' }]));
+    const payloadBefore = fs.readFileSync(prep.payloadPath, 'utf-8');
+    const injector = path.join(root, 'interrupt.cjs');
+    fs.writeFileSync(injector, `
+      const fs = require('fs');
+      const write = fs.writeFileSync, rename = fs.renameSync;
+      const target = process.env.GPS_TEST_WRITE_TARGET;
+      const failure = process.env.GPS_TEST_WRITE_FAILURE;
+      fs.writeFileSync = function(file, content, ...args) {
+        if (failure === 'partial-write' && (String(file) === target || String(file).startsWith(target + '.tmp-'))) {
+          write.call(this, file, '# Partial phase', ...args);
+          throw new Error('injected interrupted write');
+        }
+        return write.call(this, file, content, ...args);
+      };
+      fs.renameSync = function(from, to) {
+        if (String(to) === target && failure !== 'partial-write') {
+          const error = new Error('injected denied rename');
+          error.code = failure;
+          throw error;
+        }
+        return rename.call(this, from, to);
+      };
+    `);
+    h.assertFails(h.run(root, 'write-apply.js', [], {
+      NODE_OPTIONS: `--require ${JSON.stringify(injector)}`,
+      GPS_TEST_WRITE_TARGET: target,
+      GPS_TEST_WRITE_FAILURE: failure,
+    }), 1, /injected/);
+    assert.strictEqual(fs.readFileSync(target, 'utf-8'), before);
+    assert.strictEqual(fs.readFileSync(h.configPath(root), 'utf-8'), configBefore);
+    assert.strictEqual(fs.readFileSync(prep.payloadPath, 'utf-8'), payloadBefore);
+    assert.strictEqual(fs.readFileSync(unrelated, 'utf-8'), 'User work stays intact.');
+    assert.strictEqual(h.json(root, 'write-prepare.js').target, phase);
+    assert.ok(!fs.readdirSync(path.dirname(target)).some((name) => name.includes('.tmp-')));
+    h.ok(root, 'write-apply.js');
+    assert.doesNotMatch(fs.readFileSync(target, 'utf-8'), /gps:fill/);
+    assert.ok(!fs.existsSync(prep.payloadPath));
+  }
+}
+
 h.done('write-apply.test.js');

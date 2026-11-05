@@ -4,9 +4,8 @@ const { buildDispatch, pinnedCodexModel } = require('../../skills/gps/scripts/li
 const brief = { model: 'medium', effort: 'high', description: 'ticket', prompt: 'complete brief', taskName: 'gps_ticket_01' };
 
 // Claude: family alias and effort on the call, one subagent type for every level.
-assert.deepStrictEqual(buildDispatch('claude', brief), {
-  call: { subagent_type: 'general-purpose', model: 'sonnet', effort: 'high', description: 'ticket', prompt: 'complete brief' },
-  notes: [],
+assert.deepStrictEqual(buildDispatch('claude', brief).call, {
+  subagent_type: 'general-purpose', model: 'sonnet', effort: 'high', description: 'ticket', prompt: 'complete brief',
 });
 assert.strictEqual(buildDispatch('claude', { ...brief, model: 'fast' }).call.model, 'haiku');
 assert.strictEqual(buildDispatch('claude', { ...brief, model: 'heavy' }).call.model, 'opus');
@@ -22,9 +21,21 @@ assert.match(buildDispatch('codex', { ...brief, model: 'heavy' }).notes[0], /mos
 assert.match(buildDispatch('codex', { ...brief, model: 'fast' }).notes[0], /most efficient/);
 
 // Codex inherit: nothing to set, nothing to resolve.
-assert.deepStrictEqual(buildDispatch('codex', { ...brief, model: 'inherit', effort: 'inherit' }), {
-  call: { task_name: 'gps_ticket_01', message: 'complete brief', fork_turns: 'none' }, notes: [],
+assert.deepStrictEqual(buildDispatch('codex', { ...brief, model: 'inherit', effort: 'inherit' }).call, {
+  task_name: 'gps_ticket_01', message: 'complete brief', fork_turns: 'none',
 });
+// Host-specific lifecycle guidance must not invent per-call permission fields.
+const claudeLifecycle = buildDispatch('claude', brief).lifecycle;
+const codexLifecycle = buildDispatch('codex', brief).lifecycle;
+assert.match(claudeLifecycle, /Agent.*general-purpose/);
+assert.match(claudeLifecycle, /notification/);
+assert.match(codexLifecycle, /spawn_agent.*wait_agent/);
+assert.match(codexLifecycle, /final/);
+for (const host of ['claude', 'codex']) {
+  const dispatch = buildDispatch(host, brief);
+  assert.match(dispatch.lifecycle, /permissions/);
+  assert.ok(!('permissionMode' in dispatch.call) && !('sandbox' in dispatch.call));
+}
 // A mapped-looking tier with inherited effort omits the effort: the host applies the model's default.
 assert.ok(!('reasoning_effort' in buildDispatch('codex', { ...brief, effort: 'inherit' }).call));
 
@@ -39,6 +50,9 @@ assert.deepStrictEqual(codex.notes, []);
 codex = buildDispatch('codex', { ...brief, effort: 'xhigh' }, pin({ model: 'my-model', efforts: ['low'] }));
 assert.ok(!('reasoning_effort' in codex.call));
 assert.match(codex.notes[0], /Effort xhigh is not listed for my-model.*tell the user/);
+// An explicit user requirement must not be downgraded like a ticket preference.
+assert.throws(() => buildDispatch('codex', { ...brief, effort: 'xhigh', requiredEffort: true },
+  pin({ model: 'my-model', efforts: ['low'] })), /required.*xhigh|xhigh.*required/i);
 // Pre-3.0 keys that are no longer read change nothing.
 const legacy = { delegation: { codex: { inheritEfforts: ['medium'] } } };
 assert.deepStrictEqual(buildDispatch('codex', brief, legacy), buildDispatch('codex', brief));

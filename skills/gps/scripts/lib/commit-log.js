@@ -15,13 +15,18 @@ const BLOCKERS_HEADING = 'Blockers / Challenges';
 // gps:fill markers there). Token Usage is only in logs from older versions,
 // and ticket-complete.js removes it.
 const SCRIPT_SECTIONS = ['Commits', 'Time Spent', 'Token Usage'];
+const REQUIRED_SECTIONS = ['Local Test Result', 'Review Notes', BLOCKERS_HEADING];
 const FILL_RE = /<!--\s*gps:fill\b/;
 
 // Headings of the sections Claude still has to fill before completing.
 function unfilledSections(text) {
-  return splitSections(text).sections
+  const { sections } = splitSections(text);
+  const missing = REQUIRED_SECTIONS.filter((heading) => !sections.some((s) => s.heading === heading));
+  const unfilled = sections
     .filter((s) => !SCRIPT_SECTIONS.includes(s.heading) && (FILL_RE.test(s.body) || !s.body))
     .map((s) => s.heading);
+  const required = REQUIRED_SECTIONS.filter((heading) => missing.includes(heading) || unfilled.includes(heading));
+  return [...required, ...unfilled.filter((heading) => !REQUIRED_SECTIONS.includes(heading))];
 }
 
 // Replaces the body of `heading` (appending the section when it is

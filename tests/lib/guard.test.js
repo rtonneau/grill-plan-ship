@@ -64,20 +64,33 @@ writeJsonAtomic(file, { a: 2 });
 assert.deepStrictEqual(readJson(file), { a: 2 });
 assert.deepStrictEqual(fs.readdirSync(dir), ['x.json']); // no temp file left behind
 
-// replaceFile falls back to a direct write when a Windows sandbox denies
-// replacement-by-rename, without leaving its sibling temp file behind.
+// A denied replacement preserves the destination and propagates the denial.
 for (const code of ['EPERM', 'EACCES']) {
   const existing = path.join(dir, `existing-${code}.txt`);
   fs.writeFileSync(existing, 'old');
   const deniedRename = { ...fs, renameSync() { const err = new Error(code); err.code = code; throw err; } };
-  replaceFile(existing, `new-${code}`, deniedRename);
-  assert.strictEqual(fs.readFileSync(existing, 'utf-8'), `new-${code}`);
+  assert.throws(() => replaceFile(existing, `new-${code}`, deniedRename), (err) => err.code === code);
+  assert.strictEqual(fs.readFileSync(existing, 'utf-8'), 'old');
 
   const missing = path.join(dir, `missing-${code}.txt`);
-  replaceFile(missing, `created-${code}`, deniedRename);
-  assert.strictEqual(fs.readFileSync(missing, 'utf-8'), `created-${code}`);
+  assert.throws(() => replaceFile(missing, `created-${code}`, deniedRename), (err) => err.code === code);
+  assert.ok(!fs.existsSync(missing));
   assert.ok(!fs.readdirSync(dir).some((name) => name.includes('.tmp-')));
 }
+
+// An interrupted temp write preserves the destination and removes partial output.
+const partial = path.join(dir, 'partial.txt');
+fs.writeFileSync(partial, 'original');
+const interruptedWrite = {
+  ...fs,
+  writeFileSync(filePath) {
+    fs.writeFileSync(filePath, 'partial');
+    throw new Error('interrupted write');
+  },
+};
+assert.throws(() => replaceFile(partial, 'replacement', interruptedWrite), /interrupted write/);
+assert.strictEqual(fs.readFileSync(partial, 'utf-8'), 'original');
+assert.ok(!fs.readdirSync(dir).some((name) => name.includes('.tmp-')));
 
 // Unexpected rename failures propagate, preserve the destination, and clean up.
 const unchanged = path.join(dir, 'unchanged.txt');

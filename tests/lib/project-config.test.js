@@ -7,7 +7,7 @@ const { execFileSync } = require('child_process');
 const { GpsError } = require('../../skills/gps/scripts/lib/guard');
 const {
   CONFIG_FILENAME, ensureProjectConfig, githubEnabled, rescanProjectConfig, changelogSettings, releaseSettings, saveVersionFiles,
-  jevEnabled, rescanJevConfig, scratchSettings, shipSettings, SCRATCH_POLICIES,
+  jevEnabled, rescanJevConfig, enableJev, scratchSettings, shipSettings, SCRATCH_POLICIES,
 } = require('../../skills/gps/scripts/lib/project-config');
 
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'gps-projcfg-'));
@@ -236,12 +236,16 @@ process.env.TYPESAFE_API_KEY = 'k';
 let jevResult = rescanJevConfig(jevProject, { check: true });
 assert.deepStrictEqual(
   [jevResult.status, jevResult.stored, jevResult.storedAt, jevResult.detected],
-  ['differs', false, null, { enabled: true, reason: 'TYPESAFE_API_KEY is set' }],
+  ['unchanged', false, null, { enabled: false, reason: 'TYPESAFE_API_KEY is set; ticket transmission is not authorized (config.js --enable-jev)' }],
 );
 
 jevResult = rescanJevConfig(jevProject, { apply: true });
-assert.strictEqual(jevResult.status, 'updated');
+assert.strictEqual(jevResult.status, 'unchanged');
+assert.strictEqual(readFile(jevProject).jev.enabled, false);
+enableJev(jevProject);
 assert.strictEqual(readFile(jevProject).jev.enabled, true);
+assert.strictEqual(readFile(jevProject).jev.consent, true);
+assert.strictEqual(jevEnabled(jevProject), true);
 assert.strictEqual(readFile(jevProject).github.enabled, false, 'github section is untouched by a jev rescan');
 
 // Hand-forced false sticks even though the env var is set.
@@ -251,6 +255,8 @@ assert.strictEqual(jevEnabled(jevProject), false);
 // Invalid jev section is a readable error, like changelog/release.
 fs.writeFileSync(configFile(jevProject), JSON.stringify({ version: 1, github: { enabled: false, detected_at: 'x' }, jev: { enabled: 'yes' } }));
 assert.throws(() => ensureProjectConfig(jevProject), (err) => err instanceof GpsError && /"jev\.enabled" must be true or false/.test(err.message));
+fs.writeFileSync(configFile(jevProject), JSON.stringify({ github: { enabled: false }, jev: { enabled: true, consent: 'yes' } }));
+assert.throws(() => jevEnabled(jevProject), (err) => err instanceof GpsError && /"jev\.consent" must be true or false/.test(err.message));
 delete process.env.TYPESAFE_API_KEY;
 
 delete process.env.GPS_GH_BIN;

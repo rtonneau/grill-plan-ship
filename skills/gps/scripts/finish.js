@@ -22,18 +22,19 @@
  *   (the user's answer to "close issue #N as well?").
  * A bounded session (resume written, no plan) may finish with no tickets.
  *
- * Changes to tracked files outside .work/ still uncommitted (e.g. a log a
- * hook appends to) are committed first, on the checked-out branch;
- * untracked files are only listed. Sessions with a branch (`git` in the
+ * Tracked changes outside .work/ block delivery until their owner reviews
+ * and commits them; finish never sweeps them up. Untracked files are only
+ * listed. Sessions with a branch (`git` in the
  * config, set by the plan write in a GitHub project) are pushed and get a
  * PR against their base branch (an existing one is reused). Then INDEX.md
  * and the finished state are written and .work/ is committed on its own
  * (the session record, glossary and ADRs), pushed again for a branch
  * session, and the base branch is checked out again (not after a failed
- * commit, which would leave changes behind). A failed record commit, push,
- * gh call or switch is reported with commands to run by hand. A failed
- * remaining-changes commit stops before publishing and leaves the session
- * open for retry.
+ * commit, which would leave changes behind). Delivery failures exit 1 and
+ * preserve a private, per-worktree gps-finish.json recovery journal. Retry
+ * resolves this exact session even after its pointer was removed or its
+ * finished record committed. The journal is removed only after the record
+ * reaches origin and the base switch succeeds. It is not cloned/published.
  *
  * When the session wrote its changelog fragment (`changelog` in the config,
  * set by changelog-apply.js), INDEX.md gets a Changelog section linking the
@@ -56,17 +57,17 @@
 const fs = require('fs');
 const path = require('path');
 const { main } = require('./lib/cli');
-const { resolveSession, clearCurrentSession, listUnfinishedSessions, sessionsDirOf, SET_CURRENT } = require('./lib/session-store');
+const { resolveSession, clearCurrentSession, listUnfinishedSessions, sessionsDirOf, readCurrentPointer, isSafeSessionName, SET_CURRENT } = require('./lib/session-store');
 const { isFinished } = require('./lib/phase');
 const { resolveWriteTarget } = require('./lib/write-target');
 const { listTickets } = require('./lib/ticket-queue');
 const { splitSections } = require('./lib/write-payload');
 const {
   currentBranch, branchType, commitsBetween, commitRemainingChanges, commitWorkDir, describeWorkCommit,
-  pushBranch, switchBranch, readRecentCommits,
+  pushBranch, switchBranch, readRecentCommits, gitPrivatePath,
 } = require('./lib/git');
-const { PR_ATTRIBUTION, openPullRequest, describePullRequest, commentOnIssue, closeIssue } = require('./lib/github');
-const { GpsError, UsageError, writeJsonAtomic } = require('./lib/guard');
+const { PR_ATTRIBUTION, openPullRequest, describePullRequest, commentOnIssue, findIssueComment, closeIssue } = require('./lib/github');
+const { GpsError, UsageError, writeJsonAtomic, readJson, replaceFile } = require('./lib/guard');
 const { getHistory, hasEvent, renderTimeline, recordEvent } = require('./lib/history');
 const { FRAGMENTS_DIR } = require('./lib/changelog-fragments');
 const { scratchSettings } = require('./lib/project-config');
@@ -242,14 +243,23 @@ function buildIssueComment(projectRoot, sessionDir, config) {
 }
 
 // Bounded issue session: comments once and (on request) closes the issue.
-// Each success is saved at once, so an interrupted finish never repeats it.
+// Persist intent before commenting and reconcile an ambiguous result using
+// the session marker, then save each success before continuing.
 // Returns { commented, closed, failures: [{ step, reason, commands }] }.
-function wrapUpIssue(projectRoot, sessionDir, configPath, config, close) {
+function wrapUpIssue(projectRoot, sessionDir, configPath, config, close, journal, journalPath) {
   const issue = config.issue;
   const result = { commented: Boolean(issue.commented), closed: Boolean(issue.closed), failures: [] };
 
   if (!result.commented) {
-    const commented = commentOnIssue(projectRoot, issue.number, buildIssueComment(projectRoot, sessionDir, config));
+    let found = false;
+    if (journal.commentPending) {
+      const lookup = findIssueComment(projectRoot, issue.number, `gps session: \`${config.session_id}\``);
+      if (!lookup.ok) throw new GpsError(`Cannot reconcile the previous issue comment: ${lookup.reason}.`, 'Retry /gps finish after GitHub lookup works; no comment was repeated.');
+      found = lookup.found;
+    }
+    journal.commentPending = true;
+    writeJsonAtomic(journalPath, journal);
+    const commented = found ? { ok: true } : commentOnIssue(projectRoot, issue.number, buildIssueComment(projectRoot, sessionDir, config));
     if (commented.ok) {
       issue.commented = true;
       result.commented = true;
@@ -274,8 +284,8 @@ function wrapUpIssue(projectRoot, sessionDir, configPath, config, close) {
 }
 
 // Refuses, changing nothing, unless the session can be finished.
-function checkFinishable(projectRoot, sessionId, sessionDir, config, options) {
-  if (isFinished(config)) {
+function checkFinishable(projectRoot, sessionId, sessionDir, config, options, recovering = false) {
+  if (isFinished(config) && !recovering) {
     throw new GpsError(`Session ${sessionId} is already finished; nothing was changed.`,
       'Run /gps status to pick another session, or /gps start <feature-name>.');
   }
@@ -312,8 +322,52 @@ function checkFinishable(projectRoot, sessionId, sessionDir, config, options) {
 
 function finishSession({ options, projectRoot, warn }) {
   if (options['close-issue'] && options['keep-issue']) throw new UsageError('Use --close-issue or --keep-issue, not both.');
-  const { sessionsDir, sessionId, sessionDir, configPath, config } = resolveSession(projectRoot);
-  const { tickets, bounded } = checkFinishable(projectRoot, sessionId, sessionDir, config, options);
+  // Local transaction journal survives a missing pointer, a committed finished
+  // record, and a process interruption. It is per worktree, never published.
+  const journalPath = gitPrivatePath(projectRoot, 'gps-finish.json')
+    || path.join(projectRoot, '.scratch', 'gps-finish.json');
+  let journal = fs.existsSync(journalPath) ? readJson(journalPath, 'finish recovery journal') : null;
+  let session;
+  if (journal) {
+    if (!isSafeSessionName(journal.sessionId) || typeof journal.finishedAt !== 'string') {
+      throw new GpsError('Invalid finish recovery journal.', `Inspect ${journalPath}; no session was selected.`);
+    }
+    const selected = readCurrentPointer(sessionsDirOf(projectRoot));
+    if (selected && selected !== journal.sessionId) {
+      throw new GpsError(`Another session (${selected}) is selected; finish recovery for ${journal.sessionId} was not run.`,
+        'Resolve the selected session first; the recovery journal and pointer were preserved.');
+    }
+    const onBranch = currentBranch(projectRoot);
+    if (journal.recordPushed && journal.base && onBranch === journal.base) {
+      fs.unlinkSync(journalPath);
+      return { text: `✅ Session complete: ${journal.sessionId}\nBack on ${journal.base}.\nNext: /gps start <feature-name>.`,
+        data: { sessionId: journal.sessionId, finishedAt: journal.finishedAt, recovered: true } };
+    }
+    if (journal.branch && onBranch !== journal.branch) {
+      throw new GpsError(`Finish recovery belongs to branch ${journal.branch}; no changes made.`,
+        `Switch to ${journal.branch}, then run /gps finish again.`);
+    }
+    const sessionsDir = sessionsDirOf(projectRoot);
+    const sessionDir = path.join(sessionsDir, journal.sessionId);
+    const configPath = path.join(sessionDir, '.session-config.json');
+    const config = readJson(configPath);
+    if (!config || typeof config !== 'object' || Array.isArray(config) || config.session_id !== journal.sessionId) {
+      throw new GpsError('Finish journal does not match a valid session config object.');
+    }
+    session = { sessionsDir, sessionDir, configPath, config, sessionId: journal.sessionId };
+    const previous = journal.options || {};
+    options = {
+      ...options,
+      title: options.title === null ? previous.title : options.title,
+      ...(!options['close-issue'] && !options['keep-issue'] && {
+        'close-issue': Boolean(previous['close-issue']), 'keep-issue': Boolean(previous['keep-issue']),
+      }),
+    };
+  } else {
+    session = resolveSession(projectRoot);
+  }
+  const { sessionsDir, sessionId, sessionDir, configPath, config } = session;
+  const { tickets, bounded } = checkFinishable(projectRoot, sessionId, sessionDir, config, options, Boolean(journal));
   const boundedIssue = Boolean(config.issue) && !config.git;
   if (!boundedIssue && (options['close-issue'] || options['keep-issue'])) {
     warn(`--${options['close-issue'] ? 'close' : 'keep'}-issue ignored: ${config.issue
@@ -325,12 +379,23 @@ function finishSession({ options, projectRoot, warn }) {
   const leftover = commitRemainingChanges(projectRoot, `chore: commit remaining changes (gps finish ${sessionId})`);
   if (!leftover.ok) {
     throw new GpsError(`Remaining changes could not be committed (${leftover.reason}); the session remains open.`,
-      'Fix the Git error, then run /gps finish again. Changes may be staged.');
+      'Review and commit only the intended files yourself, then run /gps finish again. Existing changes were preserved.');
+  }
+
+  if (!journal) {
+    journal = { sessionId, branch: currentBranch(projectRoot), base: config.git && config.git.base_branch,
+      finishedAt: new Date().toISOString(), options };
+    fs.mkdirSync(path.dirname(journalPath), { recursive: true });
+    writeJsonAtomic(journalPath, journal);
+  } else {
+    journal.options = options;
+    writeJsonAtomic(journalPath, journal);
   }
 
   let pr = null;
   if (config.git) {
     pr = openSessionPr(projectRoot, sessionDir, config, tickets, bounded, options.title && options.title.trim());
+    if (!pr.ok) throw new GpsError(`Delivery ${pr.step} failed: ${pr.reason}. The session remains recoverable.`, 'Run /gps finish again after fixing the cause.');
     if (pr.ok) {
       // Saved at once, so a finish interrupted after this point reuses the
       // PR on its next run instead of opening a second one.
@@ -342,19 +407,23 @@ function finishSession({ options, projectRoot, warn }) {
     }
   }
 
-  const issueResult = boundedIssue ? wrapUpIssue(projectRoot, sessionDir, configPath, config, options['close-issue']) : null;
+  const issueResult = boundedIssue ? wrapUpIssue(projectRoot, sessionDir, configPath, config, options['close-issue'], journal, journalPath) : null;
+  if (issueResult && issueResult.failures.length) {
+    throw new GpsError(`Issue delivery failed: ${issueResult.failures.map(f => `${f.step}: ${f.reason}`).join('; ')}.`,
+      'The session remains open. Fix the cause, then run /gps finish again.');
+  }
 
-  const finishedAt = new Date().toISOString();
+  const finishedAt = config.finished_at || journal.finishedAt;
   const events = [
     ...getHistory(config),
-    { at: finishedAt, event: 'session_finished', phase: 'finished', files: ['INDEX.md'] },
+    ...(!hasEvent(config, 'session_finished') ? [{ at: finishedAt, event: 'session_finished', phase: 'finished', files: ['INDEX.md'] }] : []),
   ];
   const indexPath = path.join(sessionDir, 'INDEX.md');
-  fs.writeFileSync(indexPath, buildIndex(config, finishedAt, tickets, bounded, pr, events, issueResult, leftover));
+  replaceFile(indexPath, buildIndex(config, finishedAt, tickets, bounded, pr, events, issueResult, leftover));
 
   config.finished_at = finishedAt;
   writeJsonAtomic(configPath, config);
-  recordEvent(configPath, config, sessionDir, { event: 'session_finished', files: ['INDEX.md'], at: finishedAt });
+  if (!hasEvent(config, 'session_finished')) recordEvent(configPath, config, sessionDir, { event: 'session_finished', files: ['INDEX.md'], at: finishedAt });
   clearCurrentSession(sessionsDir);
 
   // Before the .work/ commit, so the scratch_cleaned event is in the record.
@@ -369,8 +438,14 @@ function finishSession({ options, projectRoot, warn }) {
 
   // The final record goes in its own commit, then to the pull request.
   const record = commitWorkDir(projectRoot, `chore(gps): finish ${sessionId}`);
+  if (!record.ok) throw new GpsError(`Session record commit failed: ${record.reason}.`, 'The finish journal is retained. Fix the cause, then run /gps finish again.');
   let repushed = null;
-  if (config.git && pr && pr.step !== 'push' && record.sha) repushed = pushBranch(projectRoot, config.git.branch);
+  if (config.git) {
+    repushed = pushBranch(projectRoot, config.git.branch);
+    if (!repushed.ok) throw new GpsError(`Session record push failed: ${repushed.reason}.`, 'The finish journal is retained. Fix the cause, then run /gps finish again.');
+  }
+  journal.recordPushed = true;
+  writeJsonAtomic(journalPath, journal);
 
   // Last, once every session file is committed. Not after a failed commit:
   // the changes it left would be carried over to (or block) the switch.
@@ -381,6 +456,9 @@ function finishSession({ options, projectRoot, warn }) {
       ? { base, ...switchBranch(projectRoot, base) }
       : { base, ok: false, reason: 'no base branch was recorded', commands: [] };
   }
+  if (back && !back.ok) throw new GpsError(`Session delivered, but switching to ${back.base} failed: ${back.reason}.`,
+    'The finish journal is retained. Fix the cause, then run /gps finish again.');
+  fs.unlinkSync(journalPath);
 
   const lines = [`✅ Session complete: ${sessionId}`, `Summary: ${indexPath}`];
   const byHand = (message, commands) => {

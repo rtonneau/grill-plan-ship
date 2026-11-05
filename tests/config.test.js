@@ -12,6 +12,8 @@ const stored = () => JSON.parse(fs.readFileSync(file, 'utf-8'));
 h.assertFails(h.run(root, 'config.js', ['--apply']), 2, /--apply only goes with --rescan/);
 h.assertFails(h.run(root, 'config.js', ['extra']), 2);
 assert.ok(!fs.existsSync(file), 'usage errors create nothing');
+h.assertFails(h.run(root, 'config.js', ['--enable-jev'], { TYPESAFE_API_KEY: '' }), 1, /TYPESAFE_API_KEY/);
+assert.ok(!fs.existsSync(file), 'missing credentials do not create configuration');
 
 // First run creates the file (not a git repo -> GitHub off).
 let res = h.ok(root, 'config.js');
@@ -59,9 +61,9 @@ res = h.ok(root, 'config.js', [], {});
 assert.match(res.out, /jev\.enabled = false/);
 assert.match(res.out, /Jev detected now: off \(TYPESAFE_API_KEY is not set\)/);
 
-res = h.ok(root, 'config.js', ['--rescan', '--apply'], { TYPESAFE_API_KEY: 'k' });
-assert.match(res.out, /Updated: jev\.enabled false → true/);
+res = h.ok(root, 'config.js', ['--enable-jev'], { TYPESAFE_API_KEY: 'k' });
 assert.strictEqual(stored().jev.enabled, true);
+assert.strictEqual(stored().jev.consent, true);
 
 const data2 = h.json(root, 'config.js', [], { TYPESAFE_API_KEY: 'k' });
 assert.deepStrictEqual(data2.jev.detected, { enabled: true, reason: 'TYPESAFE_API_KEY is set' });

@@ -4,14 +4,84 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { execSync } = require('child_process');
+const { gitProject, git: fixtureGit } = require('../helpers');
 const {
   readRecentCommits, readGitStatus, commitFiles, restoreFromHead, commitExists, describeCommit,
   commitWorkDir, commitRemainingChanges, describeWorkCommit, branchesHolding, isIgnored, GPS_WORK_PATHS,
   failureReason, commitMessages, defaultBranch, isCleanTree, tagExists, createTag, headCommit, pushWithTags, remoteHasTag, remoteBranchAt, headSha, fetchBehind,
-  safeGitArgs,
+  safeGitArgs, gitPrivatePath, pushBranch,
 } = require('../../skills/gps/scripts/lib/git');
 
 const readGitStatusSummary = (root, dir) => readGitStatus(root, dir).session;
+
+// A denied safety journal must stop before a hook can create an unguarded commit.
+{
+  const root = gitProject('gps-denied-guard-');
+  fs.writeFileSync(path.join(root, 'app.js'), 'ticket edit\n');
+  fs.writeFileSync(path.join(root, 'private.txt'), 'user edit\n');
+  fs.writeFileSync(path.join(root, '.git', 'hooks', 'pre-commit'), '#!/bin/sh\ngit add private.txt\n', { mode: 0o755 });
+  const before = headSha(root);
+  const write = fs.writeFileSync;
+  let result;
+  try {
+    fs.writeFileSync = function (file, ...args) {
+      if (String(file).includes('gps-unreviewed-commit.json')) throw Object.assign(new Error('journal denied'), { code: 'EACCES' });
+      return write.call(this, file, ...args);
+    };
+    result = commitFiles(root, ['app.js'], 'fix: guarded');
+  } finally {
+    fs.writeFileSync = write;
+  }
+  assert.strictEqual(result.ok, false);
+  assert.strictEqual(headSha(root), before, 'denied journal must prevent the commit itself');
+  fs.rmSync(root, { recursive: true, force: true });
+}
+
+// Losing control immediately after git commit leaves the pending review guard.
+{
+  const root = gitProject('gps-interrupted-guard-');
+  fs.writeFileSync(path.join(root, 'app.js'), 'ticket edit\n');
+  const cp = require('child_process');
+  const execute = cp.execFileSync;
+  const modulePath = require.resolve('../../skills/gps/scripts/lib/git');
+  const loaded = require.cache[modulePath];
+  let result;
+  try {
+    cp.execFileSync = function (file, args, options) {
+      const output = execute(file, args, options);
+      if (file === 'git' && args.includes('commit')) throw new Error('interrupted after commit');
+      return output;
+    };
+    delete require.cache[modulePath];
+    result = require(modulePath).commitFiles(root, ['app.js'], 'fix: interrupted');
+  } finally {
+    cp.execFileSync = execute;
+    require.cache[modulePath] = loaded;
+  }
+  assert.strictEqual(result.ok, false);
+  assert.strictEqual(fixtureGit(root, 'show', 'HEAD:app.js'), 'ticket edit');
+  assert.ok(fs.existsSync(gitPrivatePath(root, 'gps-unreviewed-commit.json')));
+  assert.strictEqual(pushBranch(root, 'main').ok, false, 'unverified commit remains blocked');
+  fs.rmSync(root, { recursive: true, force: true });
+}
+
+// Recovery journals belong to this worktree's private Git directory.
+{
+  const root = gitProject('gps-private-path-');
+  assert.strictEqual(gitPrivatePath(root, 'gps-finish.json'), path.join(root, '.git', 'gps-finish.json'));
+  const linked = path.join(root, 'linked');
+  fixtureGit(root, 'worktree', 'add', '-q', '-b', 'fix/linked', linked);
+  const linkedJournal = gitPrivatePath(linked, 'gps-finish.json');
+  assert.strictEqual(path.basename(linkedJournal), 'gps-finish.json');
+  assert.strictEqual(
+    fs.realpathSync.native(path.dirname(linkedJournal)),
+    fs.realpathSync.native(path.join(root, '.git', 'worktrees', 'linked')),
+  );
+  fs.rmSync(root, { recursive: true, force: true });
+  const plain = fs.mkdtempSync(path.join(os.tmpdir(), 'gps-no-private-path-'));
+  assert.strictEqual(gitPrivatePath(plain, 'gps-finish.json'), null);
+  fs.rmSync(plain, { recursive: true, force: true });
+}
 
 // Every GPS git process trusts only the containing repository for that
 // invocation. This keeps direct Node script calls usable from agent sandboxes
@@ -155,6 +225,13 @@ assert.strictEqual(describeCommit(projectRoot, 'deadbeef'), null);
   const failed = commitFiles(r, ['log.md', 'w/frag.md'], 'rel');
   assert.strictEqual(failed.ok, false);
   assert.deepStrictEqual(failed.commands, ['git add -- "log.md"', 'git rm -q -- "w/frag.md"', 'git commit -m "rel" -- "log.md" "w/frag.md"']);
+  fs.unlinkSync(hook);
+  const retry = commitFiles(r, ['log.md', 'w/frag.md'], 'rel');
+  assert.strictEqual(retry.ok, true, 'retry must accept the deletion already staged by the failed commit');
+  assert.deepStrictEqual(g('git show --name-status --format= HEAD').split('\n').sort(), ['D\tw/frag.md', 'M\tlog.md']);
+  g('git reset -q HEAD~1');
+  g('git add stray.js');
+  fs.writeFileSync(hook, '#!/bin/sh\nexit 1\n', { mode: 0o755 });
   assert.deepStrictEqual(restoreFromHead(r, ['w/frag.md']), { ok: true });
   assert.ok(fs.existsSync(path.join(r, 'w', 'frag.md')), 'back on disk');
   assert.strictEqual(g('git status --porcelain -- w'), '', 'and in the index as in HEAD');
@@ -175,7 +252,7 @@ assert.strictEqual(commitFiles(notRepo, ['a'], 'x').reason, 'not a git repositor
 fs.rmSync(notRepo, { recursive: true, force: true });
 
 fs.rmSync(projectRoot, { recursive: true, force: true });
-// Finish commits tracked changes only, leaving staged additions and .work alone.
+// Finish cannot know who owns leftover edits: refuse without changing the index.
 {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'gps-leftovers-'));
   const sh = (cmd) => execSync(cmd, { cwd: root, encoding: 'utf-8' }).trim();
@@ -193,15 +270,141 @@ fs.rmSync(projectRoot, { recursive: true, force: true });
   fs.writeFileSync(path.join(root, '.work', 'other', 'state'), 'foreign\n');
   sh('git add new.txt .work/other/state');
   fs.appendFileSync(path.join(root, 'new.txt'), 'unstaged\n');
+  sh('git add tracked.txt');
+  fs.appendFileSync(path.join(root, 'tracked.txt'), 'user unstaged\n');
+  const beforeHead = sh('git rev-parse HEAD');
+  const beforeIndex = sh('git diff --cached --binary');
+  const beforeTree = sh('git diff --binary');
   const result = commitRemainingChanges(root, 'remaining');
-  assert.strictEqual(result.ok, true, result.reason);
+  assert.strictEqual(result.ok, false, 'leftovers need explicit ownership before committing');
   assert.deepStrictEqual(result.files.sort(), ['deleted.txt', 'tracked.txt']);
-  assert.deepStrictEqual(sh('git show --name-only --format= HEAD').split('\n').sort(), ['deleted.txt', 'tracked.txt']);
-  assert.deepStrictEqual(sh('git diff --cached --name-only').split('\n').sort(), ['.work/other/state', 'new.txt']);
+  assert.strictEqual(sh('git rev-parse HEAD'), beforeHead);
+  assert.strictEqual(sh('git diff --cached --binary'), beforeIndex, 'partial staging is preserved');
+  assert.strictEqual(sh('git diff --binary'), beforeTree);
   assert.strictEqual(sh('git show :new.txt'), 'new', 'the staged addition was not updated');
   assert.match(sh('git status --porcelain -- new.txt'), /^AM/);
+  sh('git restore --source=HEAD --staged --worktree tracked.txt deleted.txt');
   assert.strictEqual(commitRemainingChanges(root, 'nothing').sha, null, 'staged additions alone do not create a commit');
   assert.strictEqual(sh('git show :new.txt'), 'new');
+  fs.rmSync(root, { recursive: true, force: true });
+}
+
+// File arguments are literal, individual files, never broad git pathspecs.
+for (const requested of ['*.js', '.', null]) {
+  const root = gitProject('gps-literal-file-');
+  fs.writeFileSync(path.join(root, 'app.js'), 'ticket edit\n');
+  fs.writeFileSync(path.join(root, 'private.js'), 'user edit\n');
+  fixtureGit(root, 'add', 'private.js');
+  const before = fixtureGit(root, 'diff', '--cached', '--binary');
+  const head = headSha(root);
+  const result = commitFiles(root, requested === null ? [] : [requested], 'fix: scoped');
+  assert.strictEqual(result.ok, false, `${requested} must not select unrelated files`);
+  assert.strictEqual(headSha(root), head);
+  assert.strictEqual(fixtureGit(root, 'diff', '--cached', '--binary'), before);
+  fs.rmSync(root, { recursive: true, force: true });
+}
+
+// Equivalent path spellings share the same scope and must not create a guard.
+for (const spelling of ['dot', 'native', 'absolute']) {
+  const root = gitProject('gps-file-spelling-');
+  const folder = path.join(root, 'nested');
+  fs.mkdirSync(folder);
+  fs.writeFileSync(path.join(folder, 'app.js'), 'ticket edit\n');
+  const requested = spelling === 'dot' ? './nested/app.js'
+    : spelling === 'native' ? path.join('nested', 'app.js') : path.join(folder, 'app.js');
+  const result = commitFiles(root, [requested], 'fix: canonical path');
+  assert.strictEqual(result.ok, true, result.reason);
+  assert.deepStrictEqual(result.files, ['nested/app.js']);
+  assert.strictEqual(fs.existsSync(gitPrivatePath(root, 'gps-unreviewed-commit.json')), false);
+  fs.rmSync(root, { recursive: true, force: true });
+}
+
+// A literal filename containing glob syntax must not select a similarly named file.
+{
+  const root = gitProject('gps-bracket-file-');
+  fs.writeFileSync(path.join(root, 'file[1].js'), 'ticket edit\n');
+  fs.writeFileSync(path.join(root, 'file1.js'), 'user edit\n');
+  const result = commitFiles(root, ['file[1].js'], 'fix: literal');
+  assert.strictEqual(result.ok, true, result.reason);
+  assert.deepStrictEqual(result.files, ['file[1].js']);
+  assert.strictEqual(fixtureGit(root, 'ls-files', 'file1.js'), '');
+  fs.rmSync(root, { recursive: true, force: true });
+}
+
+// A partial staged edit is a user-selected boundary, including after a failed hook.
+{
+  const root = gitProject('gps-partial-file-');
+  fs.writeFileSync(path.join(root, 'app.js'), 'staged user edit\n');
+  fixtureGit(root, 'add', 'app.js');
+  fs.appendFileSync(path.join(root, 'app.js'), 'unstaged ticket edit\n');
+  const before = fixtureGit(root, 'diff', '--cached', '--binary');
+  const result = commitFiles(root, ['app.js'], 'fix: scoped');
+  assert.strictEqual(result.ok, false, 'partial staging must not be overwritten');
+  assert.match(result.reason, /partially staged/i);
+  assert.strictEqual(fixtureGit(root, 'diff', '--cached', '--binary'), before);
+  assert.match(fs.readFileSync(path.join(root, 'app.js'), 'utf8'), /unstaged ticket edit/);
+  fs.rmSync(root, { recursive: true, force: true });
+}
+
+// Record renames include both paths in the scope check, without false alarms.
+{
+  const root = gitProject('gps-record-rename-');
+  const folder = path.join(root, '.work', 'sessions');
+  fs.mkdirSync(folder, { recursive: true });
+  fs.writeFileSync(path.join(folder, 'old.md'), 'session record\n');
+  assert.strictEqual(commitWorkDir(root, 'chore(gps): initial').ok, true);
+  fs.renameSync(path.join(folder, 'old.md'), path.join(folder, 'new.md'));
+  const renamed = commitWorkDir(root, 'chore(gps): rename');
+  assert.strictEqual(renamed.ok, true, renamed.reason);
+  assert.deepStrictEqual(renamed.files.sort(), ['.work/sessions/new.md', '.work/sessions/old.md']);
+  fs.rmSync(root, { recursive: true, force: true });
+}
+
+// Record commits must detect the same hook scope escape without rewriting history.
+{
+  const root = gitProject('gps-record-hook-scope-');
+  fs.mkdirSync(path.join(root, '.work', 'sessions'), { recursive: true });
+  fs.writeFileSync(path.join(root, '.work', 'sessions', 'record.md'), 'record\n');
+  fs.writeFileSync(path.join(root, 'private.txt'), 'user edit\n');
+  fs.writeFileSync(path.join(root, '.git', 'hooks', 'pre-commit'), '#!/bin/sh\ngit add private.txt\n', { mode: 0o755 });
+  const result = commitWorkDir(root, 'chore(gps): record');
+  assert.strictEqual(result.ok, false);
+  assert.ok(result.sha);
+  assert.deepStrictEqual(result.files.sort(), ['.work/sessions/record.md', 'private.txt']);
+  assert.match(result.reason, /outside.*scope|unexpected/i);
+  fs.rmSync(root, { recursive: true, force: true });
+}
+
+// Hooks may stage additional paths; report the actual commit and refuse success.
+{
+  const root = gitProject('gps-hook-scope-');
+  fs.writeFileSync(path.join(root, 'app.js'), 'ticket edit\n');
+  fs.writeFileSync(path.join(root, 'private.txt'), 'user edit\n');
+  fs.writeFileSync(path.join(root, '.git', 'hooks', 'pre-commit'), '#!/bin/sh\ngit add private.txt\n', { mode: 0o755 });
+  const result = commitFiles(root, ['app.js'], 'fix: scoped');
+  assert.strictEqual(result.ok, false, 'unexpected hook-staged files require review');
+  assert.ok(result.sha, 'preserve and identify the commit instead of resetting it');
+  assert.deepStrictEqual(result.files.sort(), ['app.js', 'private.txt']);
+  assert.match(result.reason, /outside.*scope|unexpected/i);
+  assert.strictEqual(fixtureGit(root, 'show', 'HEAD:private.txt'), 'user edit');
+  const bare = fs.mkdtempSync(path.join(os.tmpdir(), 'gps-hook-publish-'));
+  fixtureGit(bare, 'init', '--bare', '-q');
+  fixtureGit(root, 'remote', 'add', 'origin', bare);
+  fs.unlinkSync(path.join(root, '.git', 'hooks', 'pre-commit'));
+  assert.strictEqual(commitWorkDir(root, 'chore(gps): retry').ok, true, 'a later no-op cannot clear the publication block');
+  assert.strictEqual(pushBranch(root, 'main').ok, false, 'retry must not publish the unexpected commit');
+  assert.strictEqual(remoteBranchAt(root, 'main'), null);
+  fixtureGit(root, 'tag', '-a', 'v1.0.0', '-m', 'fixture');
+  assert.strictEqual(pushWithTags(root, 'main').ok, false, 'release push must honor the same review requirement');
+  assert.strictEqual(remoteHasTag(root, 'v1.0.0'), false);
+  const marker = gitPrivatePath(root, 'gps-unreviewed-commit.json');
+  assert.deepStrictEqual(JSON.parse(fs.readFileSync(marker, 'utf8')).files, ['private.txt']);
+  fs.writeFileSync(marker, '{interrupted');
+  assert.strictEqual(pushBranch(root, 'main').ok, false, 'malformed marker must also fail closed');
+  fs.unlinkSync(marker); // Simulate explicit review and acknowledgement by the user.
+  assert.strictEqual(pushBranch(root, 'main').ok, true);
+  assert.strictEqual(remoteBranchAt(root, 'main'), headSha(root));
+  fs.rmSync(bare, { recursive: true, force: true });
   fs.rmSync(root, { recursive: true, force: true });
 }
 // isIgnored: a blank line of a CRLF ignore file becomes an empty pattern that

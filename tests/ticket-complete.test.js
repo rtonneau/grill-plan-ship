@@ -30,6 +30,17 @@ const h = require('./helpers');
     1, /Fill these sections .*: Local Test Result, Review Notes, Blockers \/ Challenges\. Nothing was committed/);
   assert.strictEqual(h.git(root, 'rev-parse', 'HEAD'), head);
 
+  // Removing required headings cannot bypass the verification gate.
+  const originalLog = fs.readFileSync(log, 'utf8');
+  fs.writeFileSync(log, '# Truncated log\n');
+  const configBeforeTruncation = fs.readFileSync(h.configPath(root), 'utf8');
+  const indexBeforeTruncation = h.git(root, 'diff', '--cached');
+  h.assertFails(commit(['--message', 'm', '--file', 'a.js']), 1, /Local Test Result/);
+  assert.strictEqual(h.git(root, 'rev-parse', 'HEAD'), head);
+  assert.strictEqual(h.git(root, 'diff', '--cached'), indexBeforeTruncation);
+  assert.strictEqual(fs.readFileSync(h.configPath(root), 'utf8'), configBeforeTruncation);
+  fs.writeFileSync(log, originalLog);
+
   // A failed commit (pre-commit hook) leaves the ticket In Progress.
   h.fillLog(root, '01-a');
   const hook = path.join(root, '.git', 'hooks', 'pre-commit');
@@ -89,6 +100,56 @@ const h = require('./helpers');
   h.completeTicket(root, 1, 'x');
   h.completeTicket(root, 1, 'y');
   assert.deepStrictEqual(h.history(root).filter((e) => e.event === 'ticket_done').map((e) => e.detail.ticket), ['01-x', '01-y']);
+}
+
+for (const failure of ['partial-write', 'denied-rename']) {
+  // A committed implementation survives a failed log save, with the verified
+  // narrative intact and an explicit --commit recovery that does not recommit.
+  const root = h.gitProject();
+  h.shipReady(root, `interrupted-${failure}`, ['a']);
+  h.ok(root, 'ticket-start.js', ['1']);
+  const log = h.fillLog(root, '01-a');
+  const before = fs.readFileSync(log, 'utf-8');
+  const configBefore = fs.readFileSync(h.configPath(root), 'utf-8');
+  fs.writeFileSync(path.join(root, 'a.js'), '// verified implementation\n');
+  const injector = path.join(root, 'interrupt.cjs');
+  fs.writeFileSync(injector, `
+    const fs = require('fs');
+    const write = fs.writeFileSync, rename = fs.renameSync;
+    const target = process.env.GPS_TEST_LOG_TARGET;
+    fs.writeFileSync = function(file, content, ...args) {
+      if (process.env.GPS_TEST_LOG_FAILURE === 'partial-write' &&
+          (String(file) === target || String(file).startsWith(target + '.tmp-'))) {
+        write.call(this, file, String(content).split('##')[0], ...args);
+        throw new Error('injected interrupted log');
+      }
+      return write.call(this, file, content, ...args);
+    };
+    fs.renameSync = function(from, to) {
+      if (String(to) === target) {
+        const error = new Error('injected denied rename');
+        error.code = 'EACCES';
+        throw error;
+      }
+      return rename.call(this, from, to);
+    };
+  `);
+  const failed = h.run(root, 'ticket-complete.js', ['1', '--message', 'feat: a', '--file', 'a.js'], {
+    NODE_OPTIONS: `--require ${JSON.stringify(injector)}`,
+    GPS_TEST_LOG_TARGET: log,
+    GPS_TEST_LOG_FAILURE: failure,
+  });
+  h.assertFails(failed, 1, /injected/);
+  const sha = h.git(root, 'rev-parse', '--short', 'HEAD');
+  assert.strictEqual(h.git(root, 'show', '--name-only', '--format=', 'HEAD'), 'a.js');
+  assert.strictEqual(fs.readFileSync(log, 'utf-8'), before);
+  assert.strictEqual(fs.readFileSync(h.configPath(root), 'utf-8'), configBefore);
+  assert.strictEqual(h.json(root, 'ticket-queue.js').nextPending.slug, 'a');
+  assert.ok(failed.err.includes(`ticket-complete.js 1 --commit ${sha}`));
+  h.ok(root, 'ticket-complete.js', ['1', '--commit', sha]);
+  assert.strictEqual(h.git(root, 'rev-list', '--count', 'HEAD', '--', 'a.js'), '1');
+  assert.strictEqual(h.json(root, 'ticket-queue.js').nextPending, null);
+  assert.strictEqual(h.history(root).filter((e) => e.event === 'ticket_done').length, 1);
 }
 
 h.done('ticket-complete.test.js');

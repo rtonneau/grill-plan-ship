@@ -9,12 +9,14 @@
 const fs = require('fs');
 const path = require('path');
 const { execFileSync } = require('child_process');
+const { writeJsonAtomic } = require('./guard');
 
 const DEFAULT_MAX_COMMITS = 10;
 const BRANCH_TYPES = ['feat', 'fix', 'refactor', 'docs', 'chore', 'perf', 'test'];
 const BRANCH_RE = new RegExp(`^(${BRANCH_TYPES.join('|')})/[a-z0-9]+([._-][a-z0-9]+)*$`);
 const MAX_BRANCH_LENGTH = 80;
 const BRANCH_PATTERN = `<${BRANCH_TYPES.join('|')}>/<short-slug>`;
+const UNREVIEWED_COMMIT = 'gps-unreviewed-commit.json';
 
 // Find the worktree that contains a project root without asking git first:
 // safe.directory must already be in effect before git will inspect a checkout
@@ -88,6 +90,12 @@ const quote = (text) => `"${String(text).replace(/"/g, '\\"')}"`;
 
 function isWorkTree(projectRoot) {
   return tryGit(projectRoot, ['rev-parse', '--is-inside-work-tree']) === 'true';
+}
+
+// Per-worktree state, including linked worktrees, outside committed project files.
+function gitPrivatePath(projectRoot, name) {
+  const location = tryGit(projectRoot, ['rev-parse', '--git-path', name]);
+  return location ? path.resolve(projectRoot, location) : null;
 }
 
 function originUrl(projectRoot) {
@@ -259,10 +267,9 @@ function isIgnored(projectRoot, relPath) {
   return tryGit(projectRoot, ['check-ignore', '-q', '--no-index', '--', target]) !== null;
 }
 
-// Commits every change to tracked files outside .work/ (`git add -u`), so
-// /gps finish leaves nothing behind (e.g. a log a hook appends to); .work/
-// gets its own commit (commitWorkDir). Untracked files are listed, never
-// committed; .work/ is left out of that list. Never throws:
+// Finish has no ownership information for leftover code. Inspect it without
+// staging or committing; the caller must resolve tracked edits explicitly.
+// Untracked files are listed, never committed; .work/ is left out. Never throws:
 // { ok: true, sha, files, untracked } (sha null: nothing to commit, or not a
 // git repo) or { ok: false, reason, commands, untracked }.
 function commitRemainingChanges(projectRoot, message) {
@@ -270,20 +277,65 @@ function commitRemainingChanges(projectRoot, message) {
   const untracked = nulList(tryGit(projectRoot, ['ls-files', '--others', '--exclude-standard', '-z']))
     .filter((f) => !f.startsWith('.work/'));
   try {
-    // `add -u` also updates staged additions, so exclude them before staging.
-    const added = nulList(git(projectRoot, ['diff', '--cached', '--name-only', '--relative', '--no-renames',
-      '--diff-filter=A', '-z', '--', '.']));
-    git(projectRoot, ['add', '-u', '--', '.', ':(exclude).work', ...added.map((f) => `:(exclude,literal)${f}`)]);
-    // Only paths tracked by HEAD belong here. Staged additions and other
-    // skills' .work files remain in the index for their owner.
-    const files = nulList(git(projectRoot, ['diff', '--cached', '--name-only', '--relative', '--no-renames',
-      '--diff-filter=DMT', '-z', '--', '.', ':(exclude).work']));
+    const args = ['--name-only', '--relative', '--no-renames', '--diff-filter=DMT', '-z', 'HEAD', '--', '.', ':(exclude).work'];
+    const files = [...new Set([
+      ...nulList(git(projectRoot, ['diff', ...args])),
+      ...nulList(git(projectRoot, ['diff', '--cached', ...args])),
+    ])];
     if (files.length === 0) return { ok: true, sha: null, files, untracked };
-    git(projectRoot, ['commit', '-q', '-m', message, '--', ...files.map((f) => `:(literal)${f}`)]);
-    return { ok: true, sha: git(projectRoot, ['rev-parse', '--short', 'HEAD']), files, untracked };
+    return { ok: false, reason: `tracked changes need an explicit scoped commit: ${files.join(', ')}`, files, untracked, commands: [] };
   } catch (err) {
     return { ok: false, reason: failureReason(err), untracked, commands: [] };
   }
+}
+
+// Hooks can change the temporary index used by pathspec commits. Inspect the
+// resulting commit rather than reporting the pre-hook staged list as truth.
+function committedScope(projectRoot, allowed, commands) {
+  const sha = git(projectRoot, ['rev-parse', '--short', 'HEAD']);
+  const files = nulList(git(projectRoot, ['diff-tree', '--root', '--no-commit-id', '--name-only', '--no-renames', '-r', '-z', 'HEAD']));
+  const prefix = git(projectRoot, ['rev-parse', '--show-prefix']);
+  const owned = allowed.map((f) => `${prefix}${f}`);
+  const unexpected = files.filter((f) => !owned.includes(f));
+  if (unexpected.length > 0) {
+    const marker = gitPrivatePath(projectRoot, UNREVIEWED_COMMIT);
+    if (!marker) throw new Error(`cannot record unexpected commit ${sha}; inspect it before continuing`);
+    writeJsonAtomic(marker, { sha, files: unexpected });
+    return { ok: false, sha, files, commands,
+      reason: `commit ${sha} contains unexpected files outside the requested scope: ${unexpected.join(', ')}; GPS publication is blocked until you review the commit and explicitly remove ${marker}` };
+  }
+  return { ok: true, sha, files: files.map((f) => f.slice(prefix.length)) };
+}
+
+// Persist the guard before committing: an interruption or a denied journal
+// write cannot leave an unverified commit available to a later push.
+function commitWithScope(projectRoot, files, pathspecs, message, commands) {
+  const marker = gitPrivatePath(projectRoot, UNREVIEWED_COMMIT);
+  const blocked = publicationBlock(projectRoot);
+  if (blocked) return { ok: false, reason: blocked, commands: [] };
+  const before = headSha(projectRoot);
+  writeJsonAtomic(marker, { pending: true, before, files });
+  try {
+    git(projectRoot, ['commit', '-q', '-m', message, '--', ...pathspecs]);
+    const result = committedScope(projectRoot, files, commands);
+    if (result.ok) fs.unlinkSync(marker);
+    return result;
+  } catch (err) {
+    // A rejected hook with a confirmed unchanged HEAD is safe to retry. Any
+    // ambiguity keeps the marker, including a failure after the commit moved HEAD.
+    if (before && headSha(projectRoot) === before) fs.unlinkSync(marker);
+    throw err;
+  }
+}
+
+function publicationBlock(projectRoot) {
+  const marker = gitPrivatePath(projectRoot, UNREVIEWED_COMMIT);
+  if (!marker) return 'cannot inspect the repository publication guard';
+  // Existence is sufficient: corrupt or unreadable journal content cannot
+  // accidentally turn a prior scope violation into permission to publish.
+  return fs.existsSync(marker)
+    ? `an unexpected commit needs review; inspect ${marker}, review its commit, then explicitly remove the file before publishing`
+    : null;
 }
 
 // The paths in .work/ that gps owns; other skills keep out of them and gps
@@ -315,15 +367,15 @@ function commitWorkDir(projectRoot, message) {
     if (addAll.length > 0) git(projectRoot, ['add', '-A', '--', ...addAll]);
     if (updateOnly.length > 0) git(projectRoot, ['add', '-u', '--', ...updateOnly]);
     // --relative: paths as seen from projectRoot, which may be a subfolder of the repo.
-    const files = nulList(git(projectRoot, ['diff', '--cached', '--name-only', '--relative', '-z', '--', ...paths]));
+    const files = nulList(git(projectRoot, ['diff', '--cached', '--name-only', '--relative', '--no-renames', '-z', '--', ...paths]));
     if (files.length === 0) return none(null);
     // git commit fails on a directory holding no tracked file, so only the
     // paths with something staged are named.
     const staged = paths.filter((p) => files.some((f) => f === p || f.startsWith(`${p}/`)));
     // Never commit without a pathspec: that would take the whole index.
     if (staged.length === 0) return none(null);
-    git(projectRoot, ['commit', '-q', '-m', message, '--', ...staged]);
-    return { ok: true, sha: git(projectRoot, ['rev-parse', '--short', 'HEAD']), files, skipped: null };
+    const committed = commitWithScope(projectRoot, files, staged, message, commands);
+    return committed.ok ? { ...committed, skipped: null } : committed;
   } catch (err) {
     return { ok: false, reason: failureReason(err), commands };
   }
@@ -335,6 +387,7 @@ function commitWorkDir(projectRoot, message) {
 // `git rm` it). Never throws:
 // { ok: true, sha, files } or { ok: false, reason, commands }.
 function commitFiles(projectRoot, files, message) {
+  files = files.map((file) => path.relative(projectRoot, path.resolve(projectRoot, file)).split(path.sep).join('/'));
   const present = files.filter((f) => fs.existsSync(path.join(projectRoot, f)));
   const gone = files.filter((f) => !present.includes(f));
   const commands = [
@@ -344,15 +397,32 @@ function commitFiles(projectRoot, files, message) {
   ];
   if (!isWorkTree(projectRoot)) return { ok: false, reason: 'not a git repository', commands };
   try {
+    if (files.length === 0) throw new Error('give at least one individual file to commit');
+    for (const file of files) {
+      const rel = path.relative(projectRoot, path.resolve(projectRoot, file));
+      if (!rel || rel === '..' || rel.startsWith(`..${path.sep}`) || path.isAbsolute(rel)) {
+        throw new Error(`file is outside the project: ${file}`);
+      }
+      if (fs.existsSync(path.join(projectRoot, file)) && fs.lstatSync(path.join(projectRoot, file)).isDirectory()) {
+        throw new Error(`give individual files, not a directory: ${file}`);
+      }
+    }
+    const literalFiles = files.map((f) => `:(literal)${f}`);
+    const stagedBefore = nulList(git(projectRoot, ['diff', '--cached', '--name-only', '--relative', '--no-renames', '-z', '--', ...literalFiles]));
+    const unstaged = nulList(git(projectRoot, ['diff', '--name-only', '--relative', '--no-renames', '-z', '--', ...literalFiles]));
+    const partial = stagedBefore.filter((f) => unstaged.includes(f));
+    if (partial.length > 0) throw new Error(`partially staged files need review before committing: ${partial.join(', ')}`);
     // `git add` of a deleted path under an ignored directory fails (even when
     // tracked), `git rm --cached` does not; the pathspec commit then takes
     // each path as it is on disk.
-    if (present.length) git(projectRoot, ['add', '--', ...present]);
-    if (gone.length) git(projectRoot, ['rm', '-q', '--cached', '--', ...gone]);
-    const staged = nulList(git(projectRoot, ['diff', '--cached', '--name-only', '-z', '--', ...files]));
+    if (present.length) git(projectRoot, ['add', '--', ...present.map((f) => `:(literal)${f}`)]);
+    // A failed hook can leave deletions already staged. Keep them staged on
+    // retry rather than asking git rm to remove an index entry that is gone.
+    const unstagedDeletions = gone.filter((f) => !stagedBefore.includes(f));
+    if (unstagedDeletions.length) git(projectRoot, ['rm', '-q', '--cached', '--', ...unstagedDeletions.map((f) => `:(literal)${f}`)]);
+    const staged = nulList(git(projectRoot, ['diff', '--cached', '--name-only', '--relative', '-z', '--', ...literalFiles]));
     if (staged.length === 0) return { ok: false, reason: 'none of the given files has changes to commit', commands };
-    git(projectRoot, ['commit', '-q', '-m', message, '--', ...files]);
-    return { ok: true, sha: git(projectRoot, ['rev-parse', '--short', 'HEAD']), files: staged };
+    return commitWithScope(projectRoot, files, literalFiles, message, commands);
   } catch (err) {
     return { ok: false, reason: failureReason(err), commands };
   }
@@ -387,6 +457,8 @@ function describeWorkCommit(record) {
 // Never throws: { ok: true } or { ok: false, reason }.
 function pushBranch(projectRoot, branch) {
   try {
+    const blocked = publicationBlock(projectRoot);
+    if (blocked) return { ok: false, reason: blocked };
     git(projectRoot, ['push', '-u', 'origin', branch]);
     return { ok: true };
   } catch (err) {
@@ -447,6 +519,8 @@ function headCommit(projectRoot) {
 function pushWithTags(projectRoot, branch) {
   const commands = [`git push --atomic --follow-tags origin ${branch}`];
   try {
+    const blocked = publicationBlock(projectRoot);
+    if (blocked) return { ok: false, reason: blocked, commands: [] };
     git(projectRoot, ['push', '--atomic', '--follow-tags', 'origin', branch]);
     return { ok: true, commands };
   } catch (err) {
@@ -490,6 +564,7 @@ module.exports = {
   safeGitArgs,
   failureReason,
   isWorkTree,
+  gitPrivatePath,
   originUrl,
   currentBranch,
   sessionBaseBranch,

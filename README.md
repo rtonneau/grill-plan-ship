@@ -52,7 +52,7 @@ The agent states the size it chose: say so if you disagree. `/gps init` is an op
 | `/gps write` | Save the agreed grill or plan to disk (`plan`, `ship` and `auto` do it for you) |
 | `/gps plan` | Save the grill if pending, then draft tickets with model and effort hints |
 | `/gps ship [N] [--inline\|--delegate]` | Save the plan if pending, then implement every remaining ticket and chain `/gps finish` (or only ticket N) |
-| `/gps finish` | Close the session: changelog fragment, leftovers committed, INDEX.md, PR (a full `/gps ship` runs it for you) |
+| `/gps finish` | Close the session: changelog fragment, INDEX.md, PR; tracked leftovers require a scoped commit first |
 | `/gps auto [--delegate\|--inline] [plan\|ship\|finish]` | Run from the current phase to the target without stopping |
 | `/gps release` | Turn the changelog fragments into a version: suggest, bump, tag, push |
 | `/gps handoff` | Save an in-flight checkpoint before you stop for the day |
@@ -105,9 +105,11 @@ The `idea` skill keeps a backlog of future work apart from gps sessions. An Idea
 `/gps ship` runs one ticket at a time and chooses how, per ticket, saying which:
 
 - **inline:** the coding agent implements the ticket in this session.
-- **delegate:** a fresh child implements and verifies it, and fills its commit log. This session reviews the diff, fixes small gaps and commits. It is chosen when a ticket's hints differ from the session or the ticket would crowd this context.
+- **delegate:** a fresh implementer executes the ticket, verifies it and fills its commit log. The parent coordinates review, accepts the result and commits. It is chosen when a ticket's hints differ from the session or the ticket would crowd this context.
 
 `--inline` or `--delegate` overrides the choice for the run.
+
+**Shared roles.** Both hosts receive the same implementer and reviewer instructions from Markdown templates. Independent review runs for delegated security, persisted-state, migration, public-API or delivery changes, and interacting changes across components. Localized low-risk work can use parent review. A fresh reviewer inspects the actual stable diff and reports findings with severity, file/line and verification gaps; it never edits or completes the ticket. Only the parent accepts, commits and changes session state. With unavailable spawning, the parent reviews inline and records the limitation, unless delegation or independent review was explicitly required. See [decision 0016](docs/decisions/0016-shared-behavioral-roles.md).
 
 **Hints.** A ticket may carry a portable `**Model:**` tier (`fast`, `medium`, `heavy`, `inherit`) and an `**Effort:**` level (`low`, `medium`, `high`, `xhigh`, `inherit`); no line means the session's own. Inline work ignores them, since a running session can't change its own model or effort. Hints stop at `xhigh` on purpose ([decision 0001](docs/decisions/0001-effort-hints-stop-at-xhigh.md)).
 
@@ -118,11 +120,11 @@ The `idea` skill keeps a backlog of future work apart from gps sessions. An Idea
 { "delegation": { "codex": { "models": { "heavy": "<available-model-id>" } } } }
 ```
 
-A hint that can't be honored is dropped and the agent tells you. Reasoning: [decision 0014](docs/decisions/0014-one-brief-parent-commits.md).
+A ticket hint that can't be honored may be dropped with disclosure. An explicit user requirement must be supported by the current host or reported as blocked; it is never silently lowered. Reasoning: [decision 0014](docs/decisions/0014-one-brief-parent-commits.md).
 
-**Sequential by design.** Only one writer is live at a time: tickets build on each other and share the working tree and session state.
+**Sequential by design.** Only one implementation writer is live at a time: tickets build on each other and share the working tree and session state. All writers stop during independent review; the parent records the fixed review base and pre-existing changes in the log.
 
-**Recovery.** The agent fixes what it can, or tries one fresh child with what it learned. If the verification still fails or only you can settle it, `ticket-block.js` records why and the run stops with the work left in place. Rerunning `/gps ship` resumes from the existing log, on either host. Each ticket's `commit-log.md` gets its test result and review notes from the agent, and its commit and time spent from the script.
+**Recovery.** The parent records findings and permits one correction/recovery pass, inline or through a fresh implementer, followed by verification and fresh review when required. Unresolved findings, verification gaps or decisions needing you block through `ticket-block.js`, with the work preserved. Rerunning `/gps ship` resumes the same log, base and attempt count on either host; an exhausted loop needs new evidence or a resolved blocker. Permission denials stop both roles and parent without retrying through another tool. Each ticket's `commit-log.md` holds test results, findings and parent dispositions; scripts fill its commit and time spent.
 
 **Ship chains finish.** When a full `/gps ship` reaches "All tickets are done" (also when they were all done already), it runs `/gps finish` for you as a *chained finish*: it asks nothing, keeps any issue open and offers no session switch. `/gps auto` runs its finish the same way, and `/gps auto ship` adds finish after ship. `/gps ship N` and a stopped run (a blocked ticket or an unfixable `❌`) never chain; a typed `/gps finish` still asks its questions. Set `ship.autoFinish` to `false` to stop after the last ticket instead. Reasoning: [docs/decisions/0011-ship-chains-finish.md](docs/decisions/0011-ship-chains-finish.md).
 
@@ -187,7 +189,7 @@ Every script in `skills/gps/scripts/` follows the same rules (see `scripts/lib/c
 | `plan.js` | start the plan phase |
 | `ticket-queue.js` | the tickets, their state, and model and effort hints |
 | `ticket-start.js` | prepare a ticket's workspace (next pending one by default); `--mode` records the ship mode |
-| `dispatch-prompt.js` | the ticket brief and the Claude or Codex spawn call for its child |
+| `dispatch-prompt.js` | shared implementer/reviewer brief, fixed review base, and host spawn/result guidance |
 | `ticket-complete.js` | commit the given files, mark the ticket Done, fill its log |
 | `ticket-block.js` | record why a ticket can't be finished |
 | `changelog-prepare.js` | `/gps finish` step 1: the session's commits, bump floor and payload path for its CHANGELOG entry |
@@ -225,7 +227,7 @@ The built-in grill uses a project's own domain docs when it has them, the way ma
 
 `.work/gps-config.json` says whether the project uses GitHub (`origin` on github.com and `gh auth status` succeeds). It is detected once; `/gps config --rescan` detects it again, and you can edit it by hand (e.g. for GitHub Enterprise).
 
-- **Planned sessions:** saving the plan creates a session branch (`feat/…`, `fix/…`, named by Claude after the plan) from whatever is checked out. `/gps finish` commits leftover tracked changes, pushes, opens a PR against that base branch (or reuses an open one) and switches back to the base.
+- **Planned sessions:** saving the plan creates a session branch (`feat/…`, `fix/…`, named by Claude after the plan) from whatever is checked out. `/gps finish` refuses tracked leftovers, pushes, opens a PR against that base branch (or reuses an open one) and switches back after successful delivery. Resolve leftovers with an explicit scoped commit; GPS does not infer their ownership.
 - **Small work** (no plan) stays on the current branch: no branch, no PR.
 - **Issues:** `/gps start --issue` files the issue when the grill is saved. Small work gets a summary comment at finish (and, if you say so, the issue is closed). Planned work's PR says `Closes #N`.
 - A failed push, `gh` call or switch never fails the finish: the commands to run by hand are printed and written to INDEX.md.
@@ -236,11 +238,12 @@ gps has no server and no telemetry. Everything it does runs on your machine, thr
 
 - **Commands it runs:** `node` for its own scripts, which the skill pre-approves in Claude Code one by one in `allowed-tools` (`Bash(node ${CLAUDE_SKILL_DIR}/scripts/<name>.js *)` for each script in `skills/gps/scripts/`) so they run without a permission prompt; nothing else is pre-approved by the skill. The `idea` skill, shipped in the same plugin, pre-approves its own six scripts in `skills/idea/scripts/` the same way, under its own `SKILL.md`. Codex applies its own configured sandbox and approval rules. The scripts call `git` and, on GitHub projects, `gh`, always with an argument list, never through a shell.
 - **Files it writes:** session files under `.work/` and run artifacts under `.scratch/` in your project, a line in the project's `.gitignore` (`.scratch/`), the changelog fragment `.work/changelog/<session-id>.md` at `/gps finish`, the CHANGELOG and the version files (such as `package.json`) at `/gps release`, which also deletes the fragments, and a temporary file for each pull request, issue or GitHub Release body (deleted right after, except a release's notes file when `gh release create` fails: the by-hand command uses it). The `idea` skill writes each Idea as one file under `.work/idea/` (Project scope) or your configured Global repo's `.work/idea/global/` (Global scope), and keeps which repo that is in `~/.gps/idea-config.json`.
+- **Local recovery:** finish checkpoints and pending commit-scope checks live in the worktree's Git-private directory (non-Git finish uses `.scratch/`). These records are not published or copied by cloning.
 - **Files it reads:** the project it runs in (its files and git history), gps's own scripts and templates, and a file a command is explicitly given, such as the review for `/gps scout --from`. Other than the `idea` skill's `~/.gps/idea-config.json`, it does not read host transcripts or your home directory. Jev reads TYPESAFE_API_KEY from the environment to authenticate its optional request.
-- **Commits it makes:** one commit per ticket with only the files you name, the `chore(gps)` session-record commits described above, a commit of leftover tracked changes at `/gps finish` (the changelog fragment travels in its `chore(gps)` record commit), the `chore(release): X.Y.Z` commit (CHANGELOG, version files and fragment deletions) and its annotated tag `vX.Y.Z` at `/gps release`, and the `chore(gps): set up gps` commit of `/gps init --apply`. The `idea` skill adds one `idea(<slug>): <action>` commit per saved Idea, in the project you ran it from or in your configured Global repo, and never pushes it.
-- **What leaves your machine** (with your own git and gh credentials): with any `origin`, at `/gps release` only, `git fetch` of the base branch before a cut, `git push` of the release commit and tag at `/gps release --push` (after your yes) and `git ls-remote`, which only reads. On GitHub projects only: `git push` of the session branch and `gh pr create` at `/gps finish`; `gh release create` at `/gps release --push` when `release.githubRelease` allows it; `gh issue create`, `gh issue comment` and `gh issue close` for `/gps start --issue` sessions; and `gh auth status`, `gh pr list` and `gh release view`, which only read.
+- **Commits it makes:** one commit per ticket with only the files you name, the `chore(gps)` session-record commits described above, the `chore(release): X.Y.Z` commit (CHANGELOG, version files and fragment deletions) and its annotated tag `vX.Y.Z` at `/gps release`, and the `chore(gps): set up gps` commit of `/gps init --apply`. Partially staged ticket files require review first. The `idea` skill adds one `idea(<slug>): <action>` commit per saved Idea, in the project you ran it from or in your configured Global repo, and never pushes it.
+- **What leaves your machine** (with your own git and gh credentials): with any `origin`, at `/gps release` only, `git fetch` of the base branch before a cut, `git push` of the release commit and tag at `/gps release --push` (after your yes) and `git ls-remote`, which only reads. On GitHub projects only: `git push` of the session branch and `gh pr create` at `/gps finish`; `gh release create` at `/gps release --push` when `release.githubRelease` allows it; `gh issue create`, `gh issue comment` and `gh issue close` for `/gps start --issue` sessions; and `gh auth status`, `gh pr list`, `gh issue view` and `gh release view`, which only read.
 
-Optional **Jev** sends drafted ticket names and complete bodies plus classification instructions to TypeSafe at `https://api.typesafe.ai/v1/systemone`, authenticated by `TYPESAFE_API_KEY`. Arbitrary repository files are not uploaded by this code; ticket bodies may include project details or code. Initial configuration derives `jev.enabled` from key presence; subsequent calls require both the saved flag and key. Set `jev.enabled` to `false` in `.work/gps-config.json` to opt out. A rescan can propose changing the flag, and an applied rescan can enable it again when the key is present. We make no TypeSafe retention or training guarantees. Conversation policies belong to the selected host (Anthropic for Claude Code, OpenAI for Codex). See [PRIVACY.md](PRIVACY.md).
+Optional **Jev** sends drafted ticket names and complete bodies plus classification instructions to TypeSafe at `https://api.typesafe.ai/v1/systemone`, authenticated by `TYPESAFE_API_KEY`. It starts disabled. `/gps config --enable-jev` explicitly authorizes that transmission and records `jev.enabled: true` and `jev.consent: true`; older auto-enabled settings need this one-time consent. Key detection and rescans cannot grant consent. Set `jev.enabled` to `false` to stop requests, or `jev.consent` to `false` to revoke authorization. Ticket bodies may include project details or code. We make no TypeSafe retention or training guarantees. Conversation policies belong to the selected host (Anthropic for Claude Code, OpenAI for Codex). See [PRIVACY.md](PRIVACY.md).
 
 ## Development
 

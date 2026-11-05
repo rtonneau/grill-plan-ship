@@ -144,6 +144,9 @@ function resolveSession(projectRoot) {
   const sessionDir = path.join(sessionsDir, sessionId);
   const configPath = path.join(sessionDir, CONFIG_FILENAME);
   const config = readJson(configPath, `.session-config.json of ${sessionId}`);
+  if (!config || typeof config !== 'object' || Array.isArray(config)) {
+    throw new GpsError(`.session-config.json of ${sessionId} must be a JSON object.`, 'Restore or repair the config before retrying; no session changes were made.');
+  }
   return { sessionsDir, sessionId, sessionDir, configPath, config };
 }
 

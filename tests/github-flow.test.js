@@ -30,6 +30,7 @@ fs.writeFileSync(ghStub, `
 const fs = require('fs');
 const args = process.argv.slice(2);
 if (args[0] === 'auth') process.exit(0);
+if (args[0] === 'issue' && args[1] === 'view') { console.log('{"comments":[]}'); process.exit(0); }
 if (args[0] === 'pr' && args[1] === 'list') process.exit(0);
 if (args[0] === 'pr' && args[1] === 'view') {
   if (process.env.GH_STUB_VIEW_FAIL) { console.error('gh: HTTP 502'); process.exit(1); }
@@ -156,16 +157,18 @@ assert.ok(!readConfig(configPath).history.some((e) => e.event === 'branch_create
 commit('theme.js', 'feat: add dark theme');
 // A tracked file changed outside any commit (e.g. a log a hook appends to).
 fs.appendFileSync(path.join(root, 'app.js'), '// hook log line\n');
+git('add', 'app.js');
+git('commit', '-qm', 'chore: reviewed hook output');
 res = ok('finish.js');
-assert.match(res.out, /📦 Committed 1 remaining file\(s\) \([0-9a-f]+\): app\.js/);
+assert.doesNotMatch(res.out, /Committed .* remaining/);
 assert.match(res.out, /🗂️ {2}Session record committed \([0-9a-f]+\): \d+ file\(s\) in \.work\//);
 assert.strictEqual(git('log', '-2', '--format=%s'),
-  `chore(gps): finish ${sessionId}\nchore: commit remaining changes (gps finish ${sessionId})`);
+  `chore(gps): finish ${sessionId}\nchore: reviewed hook output`);
 assert.strictEqual(git('status', '--porcelain', '--untracked-files=no'), '');
 assert.strictEqual(git('status', '--porcelain', '--', '.work'), '', 'the whole session record is committed');
 assert.strictEqual(git('ls-files', '--', '.work/sessions/.current-session'), '', 'the pointer stays local');
 assert.doesNotMatch(res.out + res.err, /Back on|Still on/, 'no branch: no switch');
-assert.match(fs.readFileSync(path.join(sessionDir, 'INDEX.md'), 'utf-8'), /## Remaining changes[\s\S]*`app\.js`/);
+assert.doesNotMatch(fs.readFileSync(path.join(sessionDir, 'INDEX.md'), 'utf-8'), /## Remaining changes/);
 assert.doesNotMatch(res.out, /Pull request/);
 assert.strictEqual(ghCalls().length, 0, 'a bounded session makes no gh call');
 assert.doesNotMatch(fs.readFileSync(path.join(sessionDir, 'INDEX.md'), 'utf-8'), /Branch & PR/);
@@ -258,9 +261,11 @@ git('branch', '-q', '-D', 'detour');
 // Finish commits the leftovers (tracked only), pushes, opens the PR and
 // returns to develop.
 fs.appendFileSync(path.join(root, 'app.js'), '// hook log line\n');
+git('add', 'app.js');
+git('commit', '-qm', 'chore: reviewed hook output');
 fs.writeFileSync(path.join(root, 'scratch.txt'), 'not for the PR\n');
 res = ok('finish.js');
-assert.match(res.out, /📦 Committed 1 remaining file\(s\) \([0-9a-f]+\): app\.js/);
+assert.doesNotMatch(res.out, /Committed .* remaining/);
 // (.gitignore was created by /gps start in this fresh repo and never added.)
 assert.match(res.err, /⚠️ {2}Untracked files left uncommitted: \.gitignore, scratch\.txt\n/);
 assert.match(res.out, /↩️ {2}Back on develop: merge the pull request, then git pull/);
@@ -269,7 +274,7 @@ assert.strictEqual(git('status', '--porcelain', '--untracked-files=no'), '');
 assert.ok(fs.existsSync(path.join(root, 'scratch.txt')), 'untracked file left alone');
 fs.rmSync(path.join(root, 'scratch.txt'));
 assert.strictEqual(git('log', '-2', '--format=%s', 'feat/search-filters'),
-  `chore(gps): finish ${sessionId}\nchore: commit remaining changes (gps finish ${sessionId})`);
+  `chore(gps): finish ${sessionId}\nchore: reviewed hook output`);
 assert.ok(git('show', '--name-only', '--format=', 'feat/search-filters').includes('INDEX.md'), 'INDEX.md is in the pull request');
 assert.strictEqual(
   execFileSync('git', ['--git-dir', bare, 'rev-parse', 'refs/heads/feat/search-filters'], { encoding: 'utf-8' }).trim(),
@@ -282,7 +287,7 @@ assert.deepStrictEqual(call.args.slice(0, 8),
   ['pr', 'create', '--base', 'develop', '--head', 'feat/search-filters', '--title', 'feat: Search Filters']);
 assert.match(call.body, /Users want to filter results\./);
 assert.match(call.body, /feat: add filters/);
-assert.match(call.body, /chore: commit remaining changes/);
+assert.match(call.body, /chore: reviewed hook output/);
 assert.match(call.body, /- \[x\] 01 filters/);
 assert.match(call.body, /Generated with \[grill-plan-ship\]/);
 assert.doesNotMatch(call.body, /Closes #/);
@@ -321,12 +326,14 @@ fs.appendFileSync(path.join(root, 'app.js'), '// another hook log line\n');
 const remoteBeforeFailure = execFileSync('git', ['--git-dir', bare, 'rev-parse', 'refs/heads/feat/search-filters'], { encoding: 'utf-8' }).trim();
 res = run('finish.js');
 assert.strictEqual(res.code, 1);
-assert.match(res.err, /Remaining changes could not be committed \(lint failed\); the session remains open/);
+assert.match(res.err, /Remaining changes could not be committed.*session remains open/);
 assert.strictEqual(git('branch', '--show-current'), 'feat/search-filters');
 assert.strictEqual(currentSession().sessionId, sessionId);
 assert.strictEqual(readConfig(configPath).finished_at, undefined);
 assert.strictEqual(execFileSync('git', ['--git-dir', bare, 'rev-parse', 'refs/heads/feat/search-filters'], { encoding: 'utf-8' }).trim(), remoteBeforeFailure);
 fs.rmSync(preCommit);
+git('add', 'app.js');
+git('commit', '-qm', 'chore: reviewed hook output');
 res = ok('finish.js');
 assert.match(res.out,
   /🔀 Pull request #12 \(already open, updated by the push\): feat: Search Filters \(feat\/search-filters → develop\)\nhttps:\/\/github\.com\/acme\/app\/pull\/12\r?\n/);
@@ -433,19 +440,20 @@ assert.match(fs.readFileSync(path.join(sessionDir, 'INDEX.md'), 'utf-8'), /Close
 assert.deepStrictEqual(readConfig(configPath).history.map((e) => e.event),
   ['session_started', 'issue_created', 'grill_written', 'issue_commented', 'issue_closed', 'session_finished']);
 
-// ------------------------- G. gh comment fails: finish still succeeds, commands listed
+// ------------------------- G. gh comment fails: finish remains open for retry
 ({ sessionId, sessionDir, configPath } = startIssueSession('Broken link', 'The docs link 404s.'));
 const linkIssue = readConfig(configPath).issue.number;
 commit('docs.js', 'fix: docs link');
 process.env.GH_STUB_FAIL_COMMENT = '1';
-res = ok('finish.js', '--keep-issue');
+res = run('finish.js', '--keep-issue');
 delete process.env.GH_STUB_FAIL_COMMENT;
-assert.match(res.err, new RegExp(`Issue #${linkIssue}: comment failed \\(gh: HTTP 403\\)`));
-assert.match(res.err, new RegExp(`gh issue comment ${linkIssue} --body`));
+assert.strictEqual(res.code, 1);
+assert.match(res.err, /Issue delivery failed: comment: gh: HTTP 403/);
 assert.strictEqual(readConfig(configPath).issue.commented, undefined);
-issueIndex = fs.readFileSync(path.join(sessionDir, 'INDEX.md'), 'utf-8');
-assert.match(issueIndex, /Summary comment:\*\* not posted/);
-assert.match(issueIndex, new RegExp(`gh issue comment ${linkIssue} --body`));
+assert.strictEqual(readConfig(configPath).finished_at, undefined);
+assert.strictEqual(currentSession().sessionId, sessionId);
+res = ok('finish.js', '--keep-issue');
+assert.strictEqual(readConfig(configPath).issue.commented, true);
 
 // ------------------- H. planned issue session: branch + PR "Closes #N", no comment/close
 git('switch', '-q', 'main');

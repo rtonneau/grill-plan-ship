@@ -72,6 +72,15 @@ function choices(name, model, effort) {
   process.env.GPS_JEV_TIMEOUT_MS = '100';
   fakeFetch.next = { hang: true };
   await assert.rejects(classifyTickets([{ name: '01-a', body: 'x' }]), (err) => err instanceof JevError && /timed out/.test(err.message));
+
+  // Headers arriving do not end the timeout: a stalled body must abort too.
+  fakeFetch.next = { bodyHang: true };
+  const deadline = new Promise((resolve) => setTimeout(() => resolve('still pending'), 500));
+  const bodyResult = await Promise.race([
+    classifyTickets([{ name: '01-a', body: 'x' }]).then(() => 'unexpected success', (err) => err),
+    deadline,
+  ]);
+  assert.ok(bodyResult instanceof JevError && /timed out/.test(bodyResult.message), String(bodyResult));
   delete process.env.GPS_JEV_TIMEOUT_MS;
 
   console.log('jev.test.js: all assertions passed');

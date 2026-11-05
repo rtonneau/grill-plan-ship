@@ -4,6 +4,7 @@
  * config.js [--json]                  show .work/gps-config.json and what detection finds now
  * config.js --rescan [--json]         detect GitHub again; writes only when the value is unchanged
  * config.js --rescan --apply [--json] write the newly detected value
+ * config.js --enable-jev [--json]    authorize ticket transmission to TypeSafe
  *
  * Also shows (read-only) changelog.enabled, release.versionFiles,
  * release.githubRelease, scratch.cleanupOnFinish, scratch.extraDirs and ship.autoFinish.
@@ -17,7 +18,7 @@ const path = require('path');
 const { main } = require('./lib/cli');
 const { pinnedCodexModel } = require('./lib/host-dispatch');
 const { TICKET_MODELS } = require('./lib/ticket-model');
-const { CONFIG_FILENAME, readConfig, rescanProjectConfig, rescanJevConfig, changelogSettings, releaseSettings, scratchSettings, shipSettings } = require('./lib/project-config');
+const { CONFIG_FILENAME, readConfig, rescanProjectConfig, rescanJevConfig, enableJev, changelogSettings, releaseSettings, scratchSettings, shipSettings } = require('./lib/project-config');
 const { UsageError } = require('./lib/guard');
 
 const SCOPE_NOTE = 'The flag applies to sessions whose plan is not saved yet; sessions already planned keep their current mode.';
@@ -47,10 +48,11 @@ function describeFlag(name, label, file, result, { rescan, extraDiffers } = {}) 
 }
 
 main({
-  usage: 'config.js [--rescan [--apply]] [--json]',
-  options: { rescan: 'boolean', apply: 'boolean' },
+  usage: 'config.js [--rescan [--apply]] [--enable-jev] [--json]',
+  options: { rescan: 'boolean', apply: 'boolean', 'enable-jev': 'boolean' },
   run({ options, projectRoot }) {
     if (options.apply && !options.rescan) throw new UsageError('--apply only goes with --rescan.');
+    if (options['enable-jev']) enableJev(projectRoot);
     const file = path.join('.work', CONFIG_FILENAME);
     const rescanOpts = { apply: options.apply, check: !options.rescan };
     const github = rescanProjectConfig(projectRoot, rescanOpts);
@@ -63,6 +65,7 @@ main({
     const delegation = config.delegation || null;
     const data = { github, jev, file, changelog, release, scratch, ship, delegation };
     const settings = [
+      `jev.consent = ${Boolean(config.jev && config.jev.consent)} (authorizes complete ticket names and bodies to https://api.typesafe.ai/v1/systemone; enable with config.js --enable-jev)`,
       `changelog.enabled = ${changelog.enabled} (path ${changelog.path})`,
       `release.versionFiles = ${release.versionFiles ? release.versionFiles.join(', ') : 'not saved yet'}`,
       `release.githubRelease = ${release.githubRelease}`,
