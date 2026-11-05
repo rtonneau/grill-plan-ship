@@ -2,6 +2,17 @@
 
 All notable changes to grill-plan-ship. Versions follow [semantic versioning](https://semver.org/).
 
+## 3.1.0 (2026-11-05)
+
+- Shared implementer and reviewer briefs for Claude Code and Codex, with fixed review bases and native host invocation/result guidance.
+- Review substantial or risky delegated changes independently; keep acceptance, commits and state transitions with the parent, and record one resumable correction pass with unresolved findings blocking delivery.
+- Record the second-pass audit, installed-plugin host evidence, migration behavior and remaining recovery limitations.
+- Refuse unrelated tracked changes at finish, preserve partial staging, treat ticket paths literally, and block GPS publication after a commit escapes its reviewed scope.
+- Recover interrupted finish operations through a local journal, distinguish failed PR lookup from no PR, and reconcile issue comments before retrying.
+- Preserve phase and completion records when writes fail; reject malformed session objects and incomplete verification records before committing.
+- Require explicit Jev consent even when credentials or legacy enablement exist, and apply request timeouts through response parsing.
+- Preserve explicit model and effort requirements, stop parent and child recovery after permission denial, require actual high-risk ticket approval under auto, and inspect saved scope when resuming Small work.
+
 ## 3.0.0 (2026-11-05)
 
 - **`/gps start` sizes the work.** Small changes go straight to implementation with no grill; standard work has one design approval; high-risk work also settles rollback and approves tickets.

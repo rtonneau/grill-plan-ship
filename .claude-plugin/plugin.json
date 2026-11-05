@@ -1,7 +1,7 @@
 {
   "name": "grill-plan-ship",
   "displayName": "Grill Plan Ship",
-  "version": "3.0.0",
+  "version": "3.1.0",
   "description": "Request to delivery with as much process as the work deserves: small changes go straight to implementation; larger ones get a focused design conversation, reviewable tickets and a pull request, while scripts handle session state, git and gh.",
   "author": {
     "name": "rtonneau",
