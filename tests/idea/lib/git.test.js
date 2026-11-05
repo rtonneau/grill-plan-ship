@@ -20,7 +20,7 @@ test("safeGitArgs: scopes safe.directory to the repository containing root, noth
   fs.mkdirSync(nestedProject, { recursive: true });
   assert.deepEqual(
     safeGitArgs(nestedProject, ["status", "--short"]),
-    ["-c", `safe.directory=${repo}`, "status", "--short"]
+    ["-c", `safe.directory=${repo.split(path.sep).join("/")}`, "status", "--short"]
   );
 
   const linked = path.join(container, "linked worktree");
@@ -28,7 +28,7 @@ test("safeGitArgs: scopes safe.directory to the repository containing root, noth
   fs.writeFileSync(path.join(linked, ".git"), "gitdir: elsewhere\n");
   assert.deepEqual(
     safeGitArgs(linked, ["rev-parse", "HEAD"]),
-    ["-c", `safe.directory=${linked}`, "rev-parse", "HEAD"]
+    ["-c", `safe.directory=${linked.split(path.sep).join("/")}`, "rev-parse", "HEAD"]
   );
 
   const nonRepo = path.join(container, "not-a-repo");

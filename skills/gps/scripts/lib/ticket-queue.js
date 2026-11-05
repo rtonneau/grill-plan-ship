@@ -10,8 +10,11 @@ const { TICKET_MODELS, TICKET_EFFORTS, normalizeTicketModel, normalizeTicketEffo
 const STATUS_DONE_RE = /^\*\*Status:\*\*\s*✅\s*Done\s*$/m;
 
 // The ways /gps ship can run a ticket. ticket-start.js records the one used
-// (config.ship_mode) so the next /gps ship can offer it first.
-const SHIP_MODES = ['inline', 'subagent', 'subagent+inline'];
+// (config.ship_mode), which ticket-queue.js reports.
+const SHIP_MODES = ['inline', 'delegate'];
+// Sessions from before 3.0 may hold these; they read as today's delegate mode.
+const LEGACY_SHIP_MODES = Object.freeze({ subagent: 'delegate', 'subagent+inline': 'delegate' });
+const normalizeShipMode = (mode) => LEGACY_SHIP_MODES[mode] || mode || null;
 
 // "NN-<slug>.md" with a valid slug -> { num, slug }; anything else
 // (including the "[slug]" stubs /gps plan creates) -> null.
@@ -89,4 +92,5 @@ function listTickets(sessionDir) {
   return { tickets, nextPending, skipped };
 }
 
-module.exports = { TICKET_MODELS, TICKET_EFFORTS, SHIP_MODES, STATUS_DONE_RE, parseTicketFilename, isTicketDone, listTickets };
+module.exports = {
+  normalizeShipMode, TICKET_MODELS, TICKET_EFFORTS, SHIP_MODES, STATUS_DONE_RE, parseTicketFilename, isTicketDone, listTickets };

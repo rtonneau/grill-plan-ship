@@ -25,7 +25,7 @@ const readGitStatusSummary = (root, dir) => readGitStatus(root, dir).session;
   fs.mkdirSync(nestedProject, { recursive: true });
   assert.deepStrictEqual(
     safeGitArgs(nestedProject, ['status', '--short']),
-    ['-c', `safe.directory=${repo}`, 'status', '--short'],
+    ['-c', `safe.directory=${repo.split(path.sep).join('/')}`, 'status', '--short'],
   );
 
   const linked = path.join(container, 'linked worktree');
@@ -33,7 +33,7 @@ const readGitStatusSummary = (root, dir) => readGitStatus(root, dir).session;
   fs.writeFileSync(path.join(linked, '.git'), 'gitdir: elsewhere\n');
   assert.deepStrictEqual(
     safeGitArgs(linked, ['rev-parse', 'HEAD']),
-    ['-c', `safe.directory=${linked}`, 'rev-parse', 'HEAD'],
+    ['-c', `safe.directory=${linked.split(path.sep).join('/')}`, 'rev-parse', 'HEAD'],
   );
 
   const nonRepo = path.join(container, 'not-a-repo');
@@ -202,6 +202,25 @@ fs.rmSync(projectRoot, { recursive: true, force: true });
   assert.match(sh('git status --porcelain -- new.txt'), /^AM/);
   assert.strictEqual(commitRemainingChanges(root, 'nothing').sha, null, 'staged additions alone do not create a commit');
   assert.strictEqual(sh('git show :new.txt'), 'new');
+  fs.rmSync(root, { recursive: true, force: true });
+}
+// isIgnored: a blank line of a CRLF ignore file becomes an empty pattern that
+// git matches against any path ending in "/"; it must not read as ".work/ ignored".
+{
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'gps-crlf-'));
+  const sh = (cmd) => execSync(cmd, { cwd: root, encoding: 'utf-8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
+  sh('git init -q -b main');
+  const excludes = path.join(root, '..', `gps-crlf-excludes-${path.basename(root)}`);
+  fs.writeFileSync(excludes, '*.log\r\n\r\nlogs/\r\n');
+  sh(`git config core.excludesfile "${excludes.replace(/\\/g, '/')}"`);
+  assert.strictEqual(isIgnored(root, '.work/'), false, 'a CRLF blank line does not ignore .work/');
+  fs.writeFileSync(excludes, '.work/\r\n');
+  assert.strictEqual(isIgnored(root, '.work/'), true, 'a real .work/ line still counts');
+  fs.writeFileSync(path.join(root, '.gitignore'), '');
+  fs.writeFileSync(excludes, '');
+  fs.writeFileSync(path.join(root, '.gitignore'), '.work\n');
+  assert.strictEqual(isIgnored(root, '.work/'), true, 'the slashless form counts too');
+  fs.rmSync(excludes, { force: true });
   fs.rmSync(root, { recursive: true, force: true });
 }
 // commitWorkDir: .work/ in its own commit; other staged files stay staged,

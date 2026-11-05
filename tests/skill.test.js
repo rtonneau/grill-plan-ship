@@ -31,15 +31,10 @@ assert.strictEqual(spawnSync(process.execPath, [path.join(__dirname, 'check-skil
 const listed = [...skill.matchAll(/^\| `\/gps (\w+)/gm)].map((m) => m[1]).sort();
 assert.deepStrictEqual(Object.keys(refs).sort(), listed);
 for (const command of listed) assert.ok(skill.includes(`\`references/${command}.md\``), `SKILL.md must route /gps ${command}`);
-assert.match(skill, /In Claude Code, use `node \$\{CLAUDE_SKILL_DIR\}\/scripts\/<name>\.js`; in Codex, use the absolute script path/);
+assert.match(skill, /in Claude Code `node \$\{CLAUDE_SKILL_DIR\}\/scripts\/<name>\.js`, in Codex the absolute path/);
 assert.match(skill, /Remove `\/gps` or `\$gps` and the subcommand/);
 assert.match(skill, /`\$gps config --rescan` runs `config\.js --rescan`/);
-assert.match(refs.ship, /--host <claude\|codex> --json/);
-assert.match(refs.ship, /Never silently omit overrides/);
-assert.ok(refs.ship.indexOf('dispatch-preflight.js') < refs.ship.indexOf('Start each ticket with'), 'preflight precedes ticket-start loop');
-assert.match(refs.ship, /Runtime check before ticket-start/);
-assert.match(refs.auto, /whole-queue `dispatch-preflight.js`/);
-assert.match(refs.plan, /Portable plans can be saved without mappings/);
+assert.match(refs.ship, /--host <claude\|codex>/);
 // The scripts are pre-approved under the same path the router gives them.
 // Pre-approved: exactly one rule per script (the directory's review asks for the
 // exact commands, not a wildcard over scripts/), each matching it with or without arguments.
@@ -47,10 +42,15 @@ const approved = [...skill.split(/^---$/m)[1].matchAll(/^  - Bash\(node \$\{CLAU
 assert.deepStrictEqual(approved, [...scripts].sort(), 'allowed-tools lists every script once, in order, and nothing else');
 assert.doesNotMatch(skill, /scripts\/\*\)/, 'no wildcard over scripts/');
 assert.match(skill, /^argument-hint: "<[a-z|]+> \[args\]"$/m);
-assert.match(skill, /unless the references file says how to recover/);
-// The description names every command, so the skill triggers on each.
+assert.match(skill, /fix the cause and rerun/);
+// The description names every command, so an explicit request triggers it, and
+// keeps ordinary coding requests out. Trigger control stays in the description:
+// allow_implicit_invocation: false also made explicit $gps unreliable in codex exec.
 const description = skill.match(/^description: "(.*)"$/m)[1];
-for (const command of listed) assert.ok(description.includes(`/gps ${command}`), `description must mention /gps ${command}`);
+for (const command of listed) assert.ok(new RegExp(`\\b${command}\\b`).test(description), `description must mention ${command}`);
+assert.match(description, /gps or \$gps/);
+assert.match(description, /ordinary coding requests/);
+assert.ok(!fs.existsSync(path.join(SKILL_DIR, 'agents')), 'no Codex policy file (docs/COMPATIBILITY.md)');
 // No procedures in the router: no numbered steps.
 assert.doesNotMatch(skill, /^\d+\. /m, 'SKILL.md holds no step-by-step procedures');
 
@@ -68,8 +68,8 @@ for (const name of scripts) assert.ok(named.has(name), `no reference uses ${name
 const expected = {
   scout: ['scout-merge.js'], start: ['start.js', 'domain-doc.js'], status: ['status.js', 'set-current.js'], clean: ['clean.js'],
   config: ['config.js'], write: ['write-prepare.js', 'write-apply.js'], plan: ['write-prepare.js', 'plan.js', 'jev-hints.js'],
-  ship: ['write-prepare.js', 'ticket-queue.js', 'ticket-start.js', 'dispatch-preflight.js', 'dispatch-prompt.js', 'ticket-check.js', 'ticket-complete.js', 'ticket-block.js'],
-  finish: ['changelog-prepare.js', 'changelog-apply.js', 'finish.js', 'set-current.js'], auto: ['auto-route.js', 'ticket-check.js'], handoff: ['handoff.js'],
+  ship: ['write-prepare.js', 'ticket-queue.js', 'ticket-start.js', 'dispatch-prompt.js', 'ticket-complete.js', 'ticket-block.js'],
+  finish: ['changelog-prepare.js', 'changelog-apply.js', 'finish.js', 'set-current.js'], auto: ['auto-route.js'], handoff: ['handoff.js'],
   help: ['help.js', 'status.js'], init: ['init.js'], release: ['release.js'],
 };
 assert.deepStrictEqual(Object.keys(expected).sort(), listed);
@@ -82,15 +82,21 @@ assert.match(refs.write, /fix those items in the payload and run it again/);
 assert.match(refs.plan, /`references\/write\.md` steps 2–3/);
 assert.match(refs.ship, /`references\/write\.md` steps 2–3/);
 assert.match(refs.ship, /under `\/gps auto`: back to `references\/auto\.md`/i);
-assert.match(refs.ship, /never two subagents live at once/);
-assert.match(refs.auto, /writing-plans only drafts/);
+assert.match(refs.ship, /one writer live at a time/);
+assert.match(refs.ship, /## Recovery/);
 assert.match(refs.auto, /except its `Next:` line/);
 assert.match(refs.auto, /`⚠️` lines included/);
 assert.match(refs.finish, /--close-issue` \(yes\) or `--keep-issue` \(no\)/);
-assert.match(refs.start, /Ready for me to implement this\?/);
-// Whichever grill runs (external skill or built-in), questions are clicks: the rule sits above the built-in section.
-assert.match(refs.start.split('## Built-in grill')[0], /every question[^\n]*host question rule[^\n]*overrides/i);
-assert.match(skill, /asynchronous invocation, preselected options and elapsed time are not confirmation/);
+// Adaptive workflow: the size decides the process, and a small change skips the grill.
+assert.match(refs.start, /\*\*Small:\*\*/);
+assert.match(refs.start, /\*\*Standard:\*\*/);
+assert.match(refs.start, /\*\*High-risk:\*\*/);
+assert.match(refs.start, /## Small work/);
+// Native-first: no external skill is required, and retired gates stay gone.
+for (const text of [skill, ...Object.values(refs)]) {
+  assert.doesNotMatch(text, /writing-plans|unslop|brainstorming|dispatch-preflight|ticket-check|parent-effort|subagent\+inline/);
+}
+assert.match(skill, /Host question rule/);
 for (const text of Object.values(refs)) assert.doesNotMatch(text, /AskUserQuestion/);
 assert.match(refs.clean, /--dry-run/);
 assert.match(refs.help, /Never run a command that changes state/);
@@ -152,24 +158,8 @@ const readmeWords = fs.readFileSync(path.join(repo, 'README.md'), 'utf-8').repla
 // No SVG in the plugin: the directory holds every SVG for review (an SVG can carry
 // script); the sources live on the design-sources branch.
 assert.deepStrictEqual(spawnSync('git', ['ls-files', '*.svg'], { cwd: repo, encoding: 'utf-8' }).stdout.trim(), '', 'no SVG files in the plugin');
-// Effort subagents (decision 0001): one per TICKET_EFFORTS level but inherit, no max,
-// identical bodies so a level never changes what the subagent is told.
-const { TICKET_EFFORTS } = require('../skills/gps/scripts/lib/ticket-model');
-const agentsDir = path.join(repo, 'agents');
-const agentFiles = fs.readdirSync(agentsDir).sort();
-assert.deepStrictEqual(agentFiles, TICKET_EFFORTS.filter((e) => e !== 'inherit').map((e) => `gps-ticket-${e}.md`).sort());
-const agentBodies = new Set();
-for (const file of agentFiles) {
-  const level = file.match(/^gps-ticket-(.+)\.md$/)[1];
-  const text = fs.readFileSync(path.join(agentsDir, file), 'utf-8');
-  const [, front, body] = text.match(/^---\n([\s\S]*?)\n---\n([\s\S]*)$/);
-  assert.match(front, new RegExp(`^name: gps-ticket-${level}$`, 'm'), `${file} name`);
-  assert.match(front, new RegExp(`^effort: ${level}$`, 'm'), `${file} effort`);
-  assert.match(front, new RegExp(`^description: ".* at ${level} effort\\. Only for /gps ship`, 'm'), `${file} description`);
-  assert.doesNotMatch(front, /^(model|tools|hooks|mcpServers|permissionMode):/m, `${file} sets only name, description and effort`);
-  agentBodies.add(body);
-}
-assert.strictEqual(agentBodies.size, 1, 'every gps-ticket agent has the same body');
+// One shared brief, spawned with per-call model and effort (decision 0014): the plugin ships no agents.
+assert.ok(!fs.existsSync(path.join(repo, 'agents')), 'no plugin agent definitions');
 // The shared .work/ contract names every path gps owns (docs/WORK-DIR.md).
 const { GPS_WORK_PATHS } = require('../skills/gps/scripts/lib/git');
 const workDirDoc = fs.readFileSync(path.join(repo, 'docs', 'WORK-DIR.md'), 'utf-8');

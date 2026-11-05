@@ -3,7 +3,7 @@
 // One full session through the real scripts, in a throwaway git repo, the
 // way the references drive them:
 //   start -> write (grill) -> plan -> write (plan) -> ship 2 tickets
-//   (ticket-start -> dispatch-prompt -> ticket-complete -> ticket-check)
+//   (ticket-start -> dispatch-prompt -> ticket-complete)
 //   -> handoff -> status -> finish -> scout --from -> start (seeded).
 // After every step /gps status reports the right phase and next command,
 // the recorded phase never drifts, and the history lists every step.
@@ -50,22 +50,22 @@ fs.writeFileSync(prep.payloadPath, `${h.fillSkeleton(head, '1 day')}${ticket('01
 h.ok(root, 'write-apply.js');
 let report = expectStatus('ship', '/gps ship');
 assert.strictEqual(report.current.nextPending.slug, 'toggle');
-assert.match(h.ok(root, 'ticket-queue.js').out, /1: fast\/high\n2: inherit\/inherit/);
+assert.match(h.ok(root, 'ticket-queue.js').out, /01 toggle — pending — model fast, effort high\n- 02 persist — pending — model inherit, effort inherit/);
 
-// ship: ticket 1 the subagent way, ticket 2 inline
-for (const [num, slug, mode] of [[1, 'toggle', 'subagent'], [2, 'persist', 'inline']]) {
+// ship: ticket 1 delegated (the parent commits), ticket 2 inline
+for (const [num, slug, mode] of [[1, 'toggle', 'delegate'], [2, 'persist', 'inline']]) {
   const started = h.json(root, 'ticket-start.js');
   assert.strictEqual(started.ticket.slug, slug);
-  if (mode === 'subagent') {
-    const call = h.json(root, 'dispatch-prompt.js', [String(num), '--mode', 'subagent']).call;
+  if (mode === 'delegate') {
+    const call = h.json(root, 'dispatch-prompt.js', [String(num)]).call;
     assert.strictEqual(call.model, 'haiku');
-    assert.strictEqual(call.subagent_type, 'grill-plan-ship:gps-ticket-high');
+    assert.strictEqual(call.subagent_type, 'general-purpose');
+    assert.strictEqual(call.effort, 'high');
     assert.ok(call.prompt.includes(started.ticket.commitLogPath));
   }
   h.fillLog(root, `0${num}-${slug}`);
   fs.writeFileSync(path.join(root, `${slug}.js`), `// ${slug}\n`);
   h.ok(root, 'ticket-complete.js', [String(num), '--message', `feat: ${slug}`, '--file', `${slug}.js`]);
-  h.ok(root, 'ticket-check.js', [String(num)]);
 }
 assert.match(h.ok(root, 'ticket-start.js').out, /All tickets are done/);
 report = expectStatus('finish-pending', '/gps finish');

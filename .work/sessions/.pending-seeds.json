@@ -1,0 +1,17 @@
+{
+  "checkjs-type-check-scripts": {
+    "strength": "Worth exploring",
+    "severity": null,
+    "files": [
+      "skills/gps/scripts/lib/cli.js",
+      "skills/gps/scripts/lib/guard.js"
+    ],
+    "problem": "The gps and idea scripts are untyped JavaScript, so wrong option names or malformed { text, data } returns from run() are only caught by tests. A rewrite in another language was considered and rejected: the scripts are I/O-bound (performance is irrelevant), the plugin ships as plain files that run with only Node and no dependencies, and a compiled language would need per-platform binaries plus a port of the whole test suite and lib/cli.js.",
+    "solution": "Add JSDoc annotations to lib/ and the scripts, a tsconfig with checkJs and noEmit, and run tsc --checkJs --noEmit in CI. No build step, no runtime or distribution change. Open decisions: how many errors it surfaces on first run, how much annotation work that is, and whether tsc as a dev dependency fits the built-ins-only rule (it would be dev-only).",
+    "benefits": "Catches contract and option-name bugs at CI time without changing how the plugin is distributed.",
+    "sourceDirection": "Would converting the .js scripts to another language improve anything?",
+    "sourceReport": "scout-reports/review-language-note-2026-10-28T10-22-22-870Z.md",
+    "sourcePath": "C:\\Users\\rtonneau\\AppData\\Local\\Temp\\claude\\E--DEV-AICODE-grill-plan-ship\\67d9c798-556c-4424-8b76-92e28c8e509e\\scratchpad\\language-note.md",
+    "createdAt": "2026-10-28T10:22:22.870Z"
+  }
+}

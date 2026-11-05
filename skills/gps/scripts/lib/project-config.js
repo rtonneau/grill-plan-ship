@@ -220,6 +220,14 @@ function shipSettings(projectRoot) {
   return { autoFinish: ship.autoFinish === undefined ? true : ship.autoFinish };
 }
 
+// What follows the last ticket, as a script line says it: the chain decision
+// travels with the "all done" output instead of a separate config lookup.
+function allDoneNext(projectRoot) {
+  return shipSettings(projectRoot).autoFinish
+    ? '/gps finish (ship.autoFinish is on: a full /gps ship runs it now as a chained finish)'
+    : '/gps finish';
+}
+
 function releaseSettings(projectRoot) {
   const release = (readConfig(projectRoot) || {}).release || {};
   return {
@@ -236,5 +244,5 @@ function saveVersionFiles(projectRoot, files) {
 module.exports = {
   CONFIG_FILENAME, readConfig, ensureProjectConfig, githubEnabled, rescanProjectConfig,
   jevEnabled, rescanJevConfig, changelogSettings, releaseSettings, saveVersionFiles,
-  scratchSettings, shipSettings, SCRATCH_POLICIES,
+  scratchSettings, shipSettings, allDoneNext, SCRATCH_POLICIES,
 };

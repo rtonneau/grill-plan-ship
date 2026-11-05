@@ -3,7 +3,7 @@
 **When:** you want the codebase, or an existing review, to suggest what to build next.
 
 **Without `--from`:**
-1. Call the first available of `improve-codebase-architecture`, `mattpocock-skills:codebase-design` (neither: tell the user to install `mattpocock-skills`), passing `[direction]` verbatim. Follow its steps 1 (explore) and 2 (HTML report) only; skip its grilling loop.
+1. Review the architecture toward `[direction]` and write the findings to a temp report file, one candidate per finding. When `improve-codebase-architecture` or `codebase-design` is available, follow its explore and report steps only.
 2. Turn every candidate card into an entry, write `{ "sourceDirection": <direction or null>, "candidates": [...] }` to a temp JSON file, then `scout-merge.js <report.html> <entries.json>`.
 
 **With `--from <review-file>`** (no architecture skill, no HTML report):

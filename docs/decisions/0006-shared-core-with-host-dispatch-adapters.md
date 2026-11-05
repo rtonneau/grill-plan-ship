@@ -1,5 +1,7 @@
 # Shared core with host dispatch adapters
 
+_Partly superseded by decision 0014: the shared core stands; preflight and mapping details are gone._
+
 ## Context
 
 Claude Code and Codex can continue the same GPS session. Their delegation tools use different fields and model names. Claude agent definitions encode effort in the selected subagent; dropping that field in Codex loses the requested effort.

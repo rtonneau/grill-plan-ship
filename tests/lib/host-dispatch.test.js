@@ -1,35 +1,48 @@
 const assert = require('assert');
-const { buildDispatch } = require('../../skills/gps/scripts/lib/host-dispatch');
+const { buildDispatch, pinnedCodexModel } = require('../../skills/gps/scripts/lib/host-dispatch');
 
 const brief = { model: 'medium', effort: 'high', description: 'ticket', prompt: 'complete brief', taskName: 'gps_ticket_01' };
-const config = { delegation: { codex: {
-  models: { medium: { model: 'available-codex-model', efforts: ['low', 'high'] } },
-  inheritEfforts: ['medium'],
-} } };
+
+// Claude: family alias and effort on the call, one subagent type for every level.
 assert.deepStrictEqual(buildDispatch('claude', brief), {
-  subagent_type: 'grill-plan-ship:gps-ticket-high', model: 'sonnet', description: 'ticket', prompt: 'complete brief',
+  call: { subagent_type: 'general-purpose', model: 'sonnet', effort: 'high', description: 'ticket', prompt: 'complete brief' },
+  notes: [],
 });
-assert.deepStrictEqual(buildDispatch('codex', brief, config), {
-  task_name: 'gps_ticket_01', message: 'complete brief', fork_turns: 'none', model: 'available-codex-model', reasoning_effort: 'high',
+assert.strictEqual(buildDispatch('claude', { ...brief, model: 'fast' }).call.model, 'haiku');
+assert.strictEqual(buildDispatch('claude', { ...brief, model: 'heavy' }).call.model, 'opus');
+const claudeInherit = buildDispatch('claude', { ...brief, model: 'inherit', effort: 'inherit' }).call;
+assert.ok(!('model' in claudeInherit) && !('effort' in claudeInherit));
+
+// Codex without a pin: no model ID is invented; the parent resolves the tier against the live tool.
+let codex = buildDispatch('codex', brief);
+assert.deepStrictEqual(codex.call, { task_name: 'gps_ticket_01', message: 'complete brief', fork_turns: 'none', reasoning_effort: 'high' });
+assert.match(codex.notes.join(' '), /everyday workhorse model offered by your spawn tool \(tier medium\)/);
+assert.match(codex.notes.join(' '), /nearest lower level and tell the user/);
+assert.match(buildDispatch('codex', { ...brief, model: 'heavy' }).notes[0], /most capable/);
+assert.match(buildDispatch('codex', { ...brief, model: 'fast' }).notes[0], /most efficient/);
+
+// Codex inherit: nothing to set, nothing to resolve.
+assert.deepStrictEqual(buildDispatch('codex', { ...brief, model: 'inherit', effort: 'inherit' }), {
+  call: { task_name: 'gps_ticket_01', message: 'complete brief', fork_turns: 'none' }, notes: [],
 });
-assert.strictEqual(buildDispatch('claude', { ...brief, model: 'fast' }).model, 'haiku');
-assert.strictEqual(buildDispatch('claude', { ...brief, model: 'heavy' }).model, 'opus');
-assert.strictEqual(buildDispatch('codex', { ...brief, model: 'fast', effort: 'low' }).model, 'gpt-6-luna');
-assert.strictEqual(buildDispatch('codex', { ...brief, model: 'heavy', effort: 'xhigh' }).model, 'gpt-6-astra');
-const inherited = { ...brief, model: 'inherit', effort: 'inherit' };
-assert.deepStrictEqual(buildDispatch('codex', inherited), {
-  task_name: 'gps_ticket_01', message: 'complete brief', fork_turns: 'none',
-});
-assert.strictEqual(buildDispatch('codex', { ...inherited, effort: 'medium' }, config).reasoning_effort, 'medium');
-assert.throws(() => buildDispatch('codex', { ...brief, effort: 'inherit' }, config), /Parent effort is unknown/);
-assert.strictEqual(buildDispatch('codex', { ...brief, effort: 'inherit', parentEffort: 'high' }, config).reasoning_effort, 'high');
-assert.throws(() => buildDispatch('codex', { ...brief, effort: 'inherit', parentEffort: 'medium' }, config), /not configured as supported/);
-assert.strictEqual(buildDispatch('codex', { ...brief, parentEffort: 'low' }, config).reasoning_effort, 'high');
-for (const parentEffort of ['inherit', 'max', 'ultra', 'bad']) assert.throws(() => buildDispatch('codex', { ...brief, parentEffort }, config), /--parent-effort/);
-assert.throws(() => buildDispatch('claude', { ...brief, parentEffort: 'low' }), /only applies/);
-assert.strictEqual(buildDispatch('codex', { ...brief, effort: 'medium' }).model, 'gpt-6-sol');
-assert.throws(() => buildDispatch('codex', { ...brief, effort: 'xhigh' }, config), /not configured as supported/);
-assert.throws(() => buildDispatch('codex', { ...inherited, effort: 'high' }), /not configured as supported/);
-assert.throws(() => buildDispatch('codex', brief, { delegation: { codex: { models: { medium: { model: 'x', efforts: 'high' } } } } }), /not configured as supported/);
+// A mapped-looking tier with inherited effort omits the effort: the host applies the model's default.
+assert.ok(!('reasoning_effort' in buildDispatch('codex', { ...brief, effort: 'inherit' }).call));
+
+// A project pin wins, as a string or as the pre-3.0 { model, efforts } shape.
+const pin = (entry) => ({ delegation: { codex: { models: { medium: entry } } } });
+assert.strictEqual(buildDispatch('codex', brief, pin('my-model')).call.model, 'my-model');
+codex = buildDispatch('codex', brief, pin({ model: 'my-model', efforts: ['low', 'high'] }));
+assert.strictEqual(codex.call.model, 'my-model');
+assert.strictEqual(codex.call.reasoning_effort, 'high');
+assert.deepStrictEqual(codex.notes, []);
+// An effort the pin rules out is dropped visibly, never silently and never fatally.
+codex = buildDispatch('codex', { ...brief, effort: 'xhigh' }, pin({ model: 'my-model', efforts: ['low'] }));
+assert.ok(!('reasoning_effort' in codex.call));
+assert.match(codex.notes[0], /Effort xhigh is not listed for my-model.*tell the user/);
+// Pre-3.0 keys that are no longer read change nothing.
+const legacy = { delegation: { codex: { inheritEfforts: ['medium'] } } };
+assert.deepStrictEqual(buildDispatch('codex', brief, legacy), buildDispatch('codex', brief));
+assert.strictEqual(pinnedCodexModel('medium', { delegation: { codex: { models: { medium: { efforts: ['low'] } } } } }), null);
+
 assert.throws(() => buildDispatch('other', brief), /--host/);
 console.log('host-dispatch.test.js: all assertions passed');

@@ -1,5 +1,7 @@
 # 0001: Effort hints stop at xhigh
 
+_The xhigh cap still holds. The per-effort agents this describes were removed by decision 0014._
+
 _Recorded 2026-10-03, version 2.4.0._
 
 ## Context

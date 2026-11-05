@@ -1,35 +1,31 @@
 # /gps start [--issue] <name>
 
-**When:** beginning a feature, or with `--issue` a bug or small request you want to work on (on a GitHub project the grill write files it as a GitHub issue).
+**When:** beginning any change, or with `--issue` a bug or small request (on a GitHub project saving the grill files it as a GitHub issue).
 
-1. `start.js [--issue] "<name>"`. Relay its output. A seed block means `/gps scout` proposed this work: open the grill with it instead of asking the user to restate it.
-   - **Output `↩️ Session … already exists`** (an unfinished session of that name; nothing was written). If `Current session: no`, ask "Continue session X?" with the router's host question rule (continue first, Recommended). Yes → `set-current.js <id> --confirmed`, then continue from its phase. No → stop and suggest another name. If `Current session: yes`, ask nothing and continue directly.
-   - **Resumed in the grill phase:** rerun the grill, opening with the feature name, the session's HANDOFF.md if any, and the glossary/ADRs. Tell the user the earlier conversation was not saved. Any other phase: follow the printed `Next:` and skip step 2.
-2. Start the grill at once; don't wait for the user to call a skill. Use the first one available, and say in one line which one runs:
-   - `mattpocock-skills:grilling`, with `mattpocock-skills:domain-modeling` for the glossary and ADRs. Call them yourself, `grilling` first. Never `grill-with-docs`: it is flagged `disable-model-invocation`, so an agent cannot start it.
-   - `brainstorming` (superpowers).
-   - Neither: the built-in grill below.
+1. `start.js [--issue] "<name>"`. Relay it. A seed block means `/gps scout` proposed this work: start from it.
+   - **`↩️ Session … already exists`** (nothing was written). `Current session: no`: ask "Continue session X?" (host question rule). Yes → `set-current.js <id> --confirmed`; no → stop and suggest another name. Then, or when already current: grill phase → continue from HANDOFF.md, the glossary and ADRs, saying the earlier conversation was not saved; any other phase → follow the printed `Next:`.
+2. **Size the work** from the request and a look at the code, and say the size in one line; the user can overrule it.
+   - **Small:** one clear, low-risk change with nothing for the user to decide. Follow *Small work*.
+   - **Standard:** a feature, or several connected changes. Run the grill, then `/gps plan`.
+   - **High-risk:** data migration, security, public API, or hard to undo. Run the grill and settle failure and rollback paths too; `/gps plan` then asks for ticket approval.
 
    With `--issue`, frame it as a report: Problem Statement is the report, "Current behavior" the reproduction, Success Metrics the expected result.
 
-   **Whichever grill runs, every question follows the router's host question rule, which overrides the skill's own question format.**
-3. Once the design is approved: `/gps plan` (saves the grill first) or `/gps auto`.
+## Small work
 
-## Built-in grill
+Save the grill (`references/write.md`; write `N/A` where a section doesn't apply), implement on the checked-out branch, run the check that proves it, commit (for an issue, `(#N)` in the message), and run `/gps finish`. No plan, tickets, branch or PR. If it grows a product decision or more than one reviewable change, say so and move to Standard.
 
-_Adapted from the `grilling` and `domain-modeling` skills of mattpocock-skills (https://github.com/mattpocock/skills.git)._
+## Grill
 
-Interview the user until you both hold the same design, with nothing silently assumed. Treat it as a design tree: each decision opens the decisions that hang off it. First run `domain-doc.js where` and read the glossary and ADRs it lists: they hold the project's settled language and decisions (the project's own `GLOSSARY.md` / `CONTEXT.md` and `docs/adr/` when it has them, else gps's in `.work/`).
+_Adapted from the `grilling` and `domain-modeling` skills of mattpocock-skills (https://github.com/mattpocock/skills.git)._ When the user names another grill skill, run that one; the host question rule still applies.
 
-- **Facts are yours, decisions are theirs.** Look up whatever the code, docs or tools can answer (an Explore subagent for wide searches) instead of asking. Put every decision to the user.
-- **Ask the frontier only:** questions whose prerequisites are settled, so no answer rests on a guess. A question that depends on an open one waits. Ask each using the router's host question rule with your recommended answer first; free text only for open-ended answers. Recompute the frontier after each answer.
-- **Sharpen the language.** When a term is vague, overloaded or conflicts with the glossary, say so and propose one precise word ("you said 'account': the Customer or the User?"). Probe boundaries with concrete edge-case scenarios, and check claims against the code ("the code cancels whole orders, but you said partial cancellation is possible: which is right?").
-- **Write terms down as they settle,** not in a batch at the end: `domain-doc.js glossary`, then add the term with Edit. Domain terms only: no implementation details, no general programming concepts.
-- **Record an ADR sparingly:** only for a decision that is hard to reverse, surprising without context, and the result of a real trade-off. If any of the three is missing, nobody will need the record. `domain-doc.js adr <slug> --title "<title>"`, then fill it in 1–3 sentences.
-- **Done** when the frontier is empty and you could fill every section of the resume `write-prepare.js` prints without guessing. Summarize the design, then ask for approval using the router's host question rule; act on nothing before it.
+Interview the user until you both hold the same design. Treat it as a design tree: each decision opens the ones that hang off it. First run `domain-doc.js where` and read the glossary and ADRs it lists.
 
-Say once that `mattpocock-skills` or `superpowers` provide their own grill skills.
-
-**Bounded work** (a short in-chat design for one small change): answering a design question is not approval, because the user may still be thinking aloud. Ask a standalone "Ready for me to implement this?" using the router's host question rule and wait for yes. Then save the grill (`references/write.md`) before touching code, implement on the checked-out branch (no plan, tickets, branch or PR; for an issue, put `(#N)` in commit messages), and run `/gps finish`.
+- **Facts are yours, decisions are theirs.** Look up what the code, docs or tools can answer; put only real decisions to the user.
+- **Ask the frontier only:** questions whose prerequisites are settled, with your recommended answer first (host question rule). Recompute it after each answer.
+- **Sharpen the language.** When a term is vague or clashes with the glossary, propose one precise word and probe it with a concrete edge case; check claims against the code.
+- **Write terms down as they settle:** `domain-doc.js glossary`, then add the term. Domain terms only.
+- **Record an ADR** only for a decision that is hard to reverse, surprising without context, and a real trade-off: `domain-doc.js adr <slug> --title "<title>"`, then 1–3 sentences.
+- **Done** when the frontier is empty and you could fill every section of the resume without guessing. Summarize the design and ask for approval once (host question rule): it is the one design gate of the session. Then `/gps plan`, or `/gps auto` if the user wants no more stops.
 
 **Examples:** `/gps start add-dark-mode` · `/gps start --issue crash when saving a large file`

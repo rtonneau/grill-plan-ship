@@ -23,9 +23,9 @@ const capitalize = (text) => text.charAt(0).toUpperCase() + text.slice(1);
 
 const WORKFLOW = [
   '1. **Scout** (optional): `/gps scout` turns a codebase review into seeds.',
-  '2. **Grill**: `/gps start <name>` opens a session and questions you until the design is clear.',
-  '3. **Plan**: `/gps plan` saves the design and drafts small tickets for you to approve.',
-  '4. **Ship**: `/gps ship` implements the tickets, one commit each.',
+  '2. **Start**: `/gps start <name>` opens a session and sizes the work: small changes go straight to implementation, the rest to a grill until the design is clear.',
+  '3. **Plan**: `/gps plan` saves the design and drafts reviewable tickets.',
+  '4. **Ship**: `/gps ship` implements the tickets, inline or delegated, one commit each.',
   '5. **Finish**: `/gps finish` writes the summary (and opens the PR on GitHub projects).',
   '6. **Release** (when you choose): `/gps release` turns the finished sessions\' changelog entries into a version, a tag and, if you say so, a push.',
   '',
@@ -35,7 +35,7 @@ const WORKFLOW = [
 const PHASES = {
   grill: 'Grill: the design is being discussed; once you approve it, it gets saved.',
   'plan-not-started': 'Grill saved: break the work into tickets, or for a small change implement it and finish.',
-  plan: 'Plan: tickets are being drafted; once you approve them, they get saved.',
+  plan: 'Plan: tickets are being drafted; /gps ship saves and implements them.',
   ship: 'Ship: tickets are being implemented.',
   'finish-pending': 'All tickets are done: close the session.',
   'plan-complete': 'The plan has no tickets left: close the session.',

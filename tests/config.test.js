@@ -68,7 +68,7 @@ assert.deepStrictEqual(data2.jev.detected, { enabled: true, reason: 'TYPESAFE_AP
 
 // A corrupt file is an error, not silently replaced.
 assert.strictEqual(h.json(root, 'config.js').delegation, null);
-assert.match(h.ok(root, 'config.js').out, /delegation.codex.models = not configured/);
+assert.match(h.ok(root, 'config.js').out, /delegation.codex.models = none \(the parent picks from its spawn tool\)/);
 const delegation = { codex: {
   models: { medium: { model: 'test-model', efforts: ['low', 'high'] } },
   inheritEfforts: ['medium'],
@@ -77,9 +77,8 @@ fs.writeFileSync(file, JSON.stringify({ ...stored(), delegation }));
 const mappedBefore = fs.readFileSync(file, 'utf8');
 assert.deepStrictEqual(h.json(root, 'config.js').delegation, delegation);
 res = h.ok(root, 'config.js');
-assert.match(res.out, /declared settings \(not live capability detection\)/);
-assert.match(res.out, /medium: model test-model, efforts low, high/);
-assert.match(res.out, /delegation.codex.inheritEfforts = medium/);
+assert.match(res.out, /delegation.codex.models = medium: test-model/);
+assert.match(res.out, /inheritEfforts is no longer read/);
 assert.strictEqual(fs.readFileSync(file, 'utf8'), mappedBefore);
 for (const args of [['--rescan'], ['--rescan', '--apply']]) {
   assert.deepStrictEqual(h.json(root, 'config.js', args).delegation, delegation);

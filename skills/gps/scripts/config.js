@@ -15,6 +15,8 @@
 
 const path = require('path');
 const { main } = require('./lib/cli');
+const { pinnedCodexModel } = require('./lib/host-dispatch');
+const { TICKET_MODELS } = require('./lib/ticket-model');
 const { CONFIG_FILENAME, readConfig, rescanProjectConfig, rescanJevConfig, changelogSettings, releaseSettings, scratchSettings, shipSettings } = require('./lib/project-config');
 const { UsageError } = require('./lib/guard');
 
@@ -69,15 +71,9 @@ main({
       `ship.autoFinish = ${ship.autoFinish}`,
     ];
     const codex = delegation && delegation.codex;
-    settings.push('Codex delegation: declared settings (not live capability detection)');
-    const mappings = codex && codex.models;
-    if (!mappings || !Object.keys(mappings).length) settings.push('delegation.codex.models = not configured');
-    else {
-      for (const [alias, mapping] of Object.entries(mappings)) {
-        settings.push(`${alias}: model ${mapping && mapping.model || 'not configured'}, efforts ${mapping && Array.isArray(mapping.efforts) ? mapping.efforts.join(', ') : 'not configured'}`);
-      }
-    }
-    settings.push(`delegation.codex.inheritEfforts = ${codex && Array.isArray(codex.inheritEfforts) ? codex.inheritEfforts.join(', ') : 'not configured'}`);
+    const pins = TICKET_MODELS.map((tier) => [tier, pinnedCodexModel(tier, config)]).filter(([, pin]) => pin);
+    settings.push(`delegation.codex.models = ${pins.length ? pins.map(([tier, pin]) => `${tier}: ${pin.model}`).join(', ') : 'none (the parent picks from its spawn tool)'}`);
+    if (codex && codex.inheritEfforts) settings.push('⚠️  delegation.codex.inheritEfforts is no longer read; you can remove it.');
     const githubExtra = github.stored && !github.detected.enabled
       ? '⚠️  Applying turns GitHub off: a hand-forced true (e.g. GitHub Enterprise) would be lost.'
       : null;

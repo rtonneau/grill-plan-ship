@@ -14,14 +14,13 @@ h.assertFails(h.run(root, 'auto-route.js', ['ship', 'finish']), 2, /Unexpected a
 h.assertFails(h.run(root, 'auto-route.js', ['--delegate', 'ship', 'finish']), 2);
 assert.strictEqual(autoEvents().length, 0);
 
-// The whole route from the grill, asking the ship mode once.
+// The whole route from the grill, with no question to ask.
 let res = h.ok(root, 'auto-route.js');
 assert.match(res.out, /target finish\): write:grill → plan → write:plan → ship → finish/);
-assert.match(res.out, /Ask once, before the first step: the ship mode \(subagent \+ inline follow-up \(Recommended\)/);
 let route = h.json(root, 'auto-route.js');
 assert.strictEqual(route.target, 'finish');
 assert.deepStrictEqual(route.steps, ['write:grill', 'plan', 'write:plan', 'ship', 'finish']);
-assert.deepStrictEqual(route.questions, ['ship-mode']);
+assert.strictEqual(route.questions, undefined);
 assert.deepStrictEqual(autoEvents()[0].detail, { target: 'finish', steps: 'write:grill → plan → write:plan → ship → finish' });
 
 // Target ship chains finish by default; ship.autoFinish false in .work/gps-config.json stops at ship.
@@ -48,15 +47,15 @@ assert.deepStrictEqual(h.json(root, 'auto-route.js', ['ship']).steps, ['write:gr
 
 // --delegate presets the ship mode, wherever it sits among the arguments.
 route = h.json(root, 'auto-route.js', ['ship', '--delegate']);
-assert.deepStrictEqual(route.questions, []);
-assert.strictEqual(route.shipMode, 'subagent+inline');
-assert.strictEqual(autoEvents().pop().detail.shipMode, 'subagent+inline');
-assert.match(h.ok(root, 'auto-route.js', ['--delegate', 'ship']).out, /Ship mode: subagent\+inline \(preset by --delegate\); ask nothing\./);
+assert.strictEqual(route.shipMode, 'delegate');
+assert.strictEqual(autoEvents().pop().detail.shipMode, 'delegate');
+assert.match(h.ok(root, 'auto-route.js', ['--delegate', 'ship']).out, /Ship mode: delegate \(preset\)\./);
+assert.strictEqual(h.json(root, 'auto-route.js', ['--inline']).shipMode, 'inline');
+h.assertFails(h.run(root, 'auto-route.js', ['--inline', '--delegate']), 2, /not both/);
 
-// No ship step: --delegate is ignored with a warning, and nothing is asked.
+// No ship step: --delegate is ignored with a warning.
 res = h.ok(root, 'auto-route.js', ['--delegate', 'plan']);
 assert.match(res.err, /⚠️ {2}--delegate ignored/);
-assert.match(res.out, /Ask nothing\./);
 assert.strictEqual(h.json(root, 'auto-route.js', ['--delegate', 'plan']).shipMode, undefined);
 
 // Later phases start later; a finished session is refused.

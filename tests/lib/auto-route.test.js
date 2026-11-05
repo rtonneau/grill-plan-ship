@@ -20,8 +20,6 @@ fs.writeFileSync(resumePath, '# Session\n\n<!-- gps:fill Problem statement -->\n
 assert.deepStrictEqual(computeRoute(dir, config).steps, ['write:grill', 'plan', 'write:plan', 'ship', 'finish']);
 assert.strictEqual(computeRoute(dir, config).target, 'finish');
 assert.deepStrictEqual(computeRoute(dir, config, 'plan').steps, ['write:grill', 'plan', 'write:plan']);
-assert.deepStrictEqual(computeRoute(dir, config, 'ship').questions, ['ship-mode']);
-assert.deepStrictEqual(computeRoute(dir, config, 'plan').questions, []);
 
 // target ship chains finish by default (ship.autoFinish on), and stops at ship when off
 const shipOn = computeRoute(dir, config, 'ship');
@@ -33,19 +31,17 @@ const shipOff = computeRoute(dir, config, 'ship', { autoFinish: false });
 assert.deepStrictEqual(shipOff.steps, ['write:grill', 'plan', 'write:plan', 'ship']);
 assert.strictEqual(shipOff.target, 'ship');
 assert.strictEqual(shipOff.chainedFinish, undefined);
-assert.deepStrictEqual(shipOff.questions, ['ship-mode']);
 // targets plan and finish ignore the option
 assert.deepStrictEqual(computeRoute(dir, config, 'plan', { autoFinish: true }).steps, ['write:grill', 'plan', 'write:plan']);
 assert.deepStrictEqual(computeRoute(dir, config, 'finish', { autoFinish: false }).steps, ['write:grill', 'plan', 'write:plan', 'ship', 'finish']);
 assert.strictEqual(computeRoute(dir, config, 'finish').chainedFinish, undefined);
 
-// preset ship mode replaces the question, only when the route ships
-const delegated = computeRoute(dir, config, 'ship', { shipMode: 'subagent+inline' });
-assert.deepStrictEqual(delegated.questions, []);
-assert.strictEqual(delegated.shipMode, 'subagent+inline');
+// a preset ship mode holds only when the route ships; nothing is ever asked
+const delegated = computeRoute(dir, config, 'ship', { shipMode: 'delegate' });
+assert.strictEqual(delegated.questions, undefined);
+assert.strictEqual(delegated.shipMode, 'delegate');
 assert.strictEqual(computeRoute(dir, config, 'ship').shipMode, undefined);
-const planOnly = computeRoute(dir, config, 'plan', { shipMode: 'subagent+inline' });
-assert.deepStrictEqual(planOnly.questions, []);
+const planOnly = computeRoute(dir, config, 'plan', { shipMode: 'delegate' });
 assert.strictEqual(planOnly.shipMode, undefined);
 
 // resume written, no plan: starts at plan

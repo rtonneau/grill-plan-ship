@@ -21,7 +21,7 @@ function repositoryRoot(root) {
 
 function safeGitArgs(root, args) {
   const repo = repositoryRoot(root);
-  return repo ? ["-c", `safe.directory=${repo}`, ...args] : args;
+  return repo ? ["-c", `safe.directory=${repo.split(path.sep).join("/")}`, ...args] : args; // git compares it literally: no backslashes
 }
 
 function git(root, args) {

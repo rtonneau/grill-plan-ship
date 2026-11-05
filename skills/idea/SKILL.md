@@ -1,6 +1,6 @@
 ---
 name: idea
-description: "Backlog of future-work Ideas, kept apart from gps sessions. Use to capture an Idea in seconds, grill or plan it later, review it, promote it into a gps session, drop it, list the Backlog, or configure the Global root: /idea capture, /idea start, /idea plan, /idea review, /idea promote, /idea drop, /idea list, /idea config."
+description: "Backlog of future-work Ideas, kept apart from gps sessions. Use to capture an Idea for later, grill or plan it, review it, promote it into a gps session, drop it, list the Backlog, or configure the Global root (/idea or $idea). Work the user wants done now belongs to the host or gps."
 argument-hint: "<capture|start|plan|review|promote|drop|list|config> [args]"
 allowed-tools:
   - Bash(node ${CLAUDE_SKILL_DIR}/scripts/idea-config.js *)
@@ -57,7 +57,7 @@ When rewriting an existing Idea, start from its current body and keep what still
 
 ## Rules for every command
 
-- **Host question rule:** In Claude Code use `AskUserQuestion`, one question per call, recommended answer first marked "(Recommended)"; keep free text for open-ended answers. In Codex inspect the available question tool, its schema and mode restrictions; never assume Claude Code tool availability. If no suitable tool is available, ask concise numbered conversational questions. Inside a grill skill (`grilling`, `domain-modeling`, `brainstorming`) this overrides the skill's own "ask in chat".
+- **Host question rule:** Ask with the host's question tool (Claude Code: `AskUserQuestion`, one question per call, recommended answer first; Codex: inspect the tool and its mode, else concise numbered questions). Keep free text for open-ended answers.
 - Take every fact about scope, path, status and branch from `idea-resolve.js` or `idea-find.js`, run in this conversation, never from memory or a directory listing.
 - `idea-save.js` alone writes the frontmatter (`status`, `scope`, `created`, `reviews`, `promoted_to`) and the Changelog: never hand-edit them. You write only the body file.
 - `idea-save.js` commits the one Idea file it wrote; leave pushing to the user and never push.

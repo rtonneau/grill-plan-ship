@@ -13,9 +13,7 @@ const FENCE_CLOSE_RE = /^\s*(`{3,}|~{3,})\s*$/;
 const TICKET_MODELS = Object.freeze(['fast', 'medium', 'heavy', 'inherit']);
 
 // Effort levels a ticket may ask for; "inherit" (or no line) means the
-// session's own effort. Each level but inherit has a plugin subagent,
-// agents/gps-ticket-<level>.md, that sets it (an Agent call can pass a model
-// but not an effort).
+// session's own effort. Host adapters pass the level on the spawn call.
 //
 // Decision: the hints stop at xhigh. Claude Code also has `max`, but a ticket
 // is one small, independently committable change: max is slow and costly for

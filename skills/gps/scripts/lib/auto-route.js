@@ -1,9 +1,9 @@
 // skills/gps/scripts/lib/auto-route.js
 //
 // /gps auto: the steps that carry the current session from its phase to a
-// target, in pipeline order, plus the questions to ask before the run.
-// The phase comes from resolveWriteTarget, as everywhere else. A preset
-// ship mode (--delegate) replaces the ship-mode question when the route ships.
+// target, in pipeline order. The phase comes from resolveWriteTarget, as
+// everywhere else. A preset ship mode (--delegate, --inline) replaces the
+// agent's per-ticket choice when the route ships.
 // Target ship also runs finish when ship.autoFinish is on (the default): the
 // route keeps target "ship" and flags chainedFinish.
 
@@ -43,9 +43,8 @@ function computeRoute(sessionDir, config, target = 'finish', { shipMode, autoFin
   const steps = STEPS.slice(first, last + 1);
   const chainedFinish = target === 'ship' && autoFinish;
   if (chainedFinish) steps.push('finish');
-  const route = { target, steps, questions: [], ...(chainedFinish && { chainedFinish }) };
-  if (!steps.includes('ship')) return route;
-  return shipMode ? { ...route, shipMode } : { ...route, questions: ['ship-mode'] };
+  const route = { target, steps, ...(chainedFinish && { chainedFinish }) };
+  return shipMode && steps.includes('ship') ? { ...route, shipMode } : route;
 }
 
 module.exports = { STEPS, TARGETS, computeRoute };

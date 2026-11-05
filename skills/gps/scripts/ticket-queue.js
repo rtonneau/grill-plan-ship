@@ -8,20 +8,21 @@
  * ticket is Done only when its commit-log.md Status line is exactly
  * "**Status:** ✅ Done". Unknown **Model:** or **Effort:** values (hand
  * edits) are warned about and count as inherit. Also prints the ship mode used last in this
- * session (config.ship_mode, set by ticket-start.js --mode), if any. Read-only.
+ * session (config.ship_mode, set by ticket-start.js --mode; pre-3.0 values read as delegate). Read-only.
  */
 
 const { main } = require('./lib/cli');
-const { TICKET_MODELS, TICKET_EFFORTS } = require('./lib/ticket-queue');
+const { TICKET_MODELS, TICKET_EFFORTS, normalizeShipMode } = require('./lib/ticket-queue');
 const { MAX_EFFORT_REASON } = require('./lib/ticket-model');
 const { readyTickets } = require('./lib/ticket-lookup');
 const { resolveSession } = require('./lib/session-store');
+const { allDoneNext } = require('./lib/project-config');
 
 main({
   usage: 'ticket-queue.js [--json]',
   run({ projectRoot, warn }) {
     const { sessionId, sessionDir, config } = resolveSession(projectRoot);
-    const shipMode = config.ship_mode || null;
+    const shipMode = normalizeShipMode(config.ship_mode);
     const { tickets, nextPending } = readyTickets(sessionDir);
     for (const { num, slug, modelInvalid, effortInvalid } of tickets) {
       if (modelInvalid !== null) {
@@ -42,10 +43,9 @@ main({
       '',
     ];
     if (nextPending) {
-      lines.push(`Next pending: ${nextPending.num} ${nextPending.slug}`, '', 'Model and effort hints of the remaining tickets:',
-        ...pending.map((t) => `${Number(t.num)}: ${t.model}/${t.effort}`));
+      lines.push(`Next pending: ${nextPending.num} ${nextPending.slug}`);
     } else {
-      lines.push('All tickets are done. Next: /gps finish');
+      lines.push(`All tickets are done. Next: ${allDoneNext(projectRoot)}`);
     }
     return { text: lines.join('\n'), data: { sessionId, sessionDir, tickets, nextPending, shipMode } };
   },
