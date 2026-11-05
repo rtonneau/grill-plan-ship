@@ -15,12 +15,17 @@ GPS turns a request into verified, delivered code and keeps enough state on disk
 |---|---|---|
 | Host agent | Investigation, design questions, tickets, implementation, review, recovery | `skills/*/SKILL.md`, `references/<command>.md` |
 | Scripts | Session state, write transactions, git and gh calls, changelog, release | `skills/*/scripts/` (Node built-ins only) |
-| Host adapter | Mapping one ticket brief to a spawn call | `lib/host-dispatch.js` |
+| Shared roles | Implementer and independent reviewer responsibilities and reports | `assets/role-*.md`, `dispatch-prompt.js` |
+| Host adapter | Mapping a shared role brief to a spawn call and result lifecycle | `lib/host-dispatch.js` |
 | Session files | Resume on any host or machine | `.work/sessions/<id>/` |
 
 **The user decides** product questions, ambiguous scope, and irreversible or outward actions not already requested. A typed command is the go-ahead for what its reference describes. **The agent decides** everything else, including how to recover from a failure.
 
-**Delegation.** A ticket runs inline or in one child that gets the same brief on both hosts. The child implements, verifies and fills the commit log. The parent reviews the diff and is the only process that touches git and session state. See [decision 0014](decisions/0014-one-brief-parent-commits.md).
+**Delegation.** A ticket runs inline or through the shared implementer brief. Both hosts consume identical role Markdown; adapters only translate invocation and result handling. The implementer edits ticket files, verifies and fills the existing log's narrative. A fresh reviewer independently reads a stable actual diff, including untracked files, against acceptance criteria and project conventions. It reports severity, file/line, concrete findings and verification gaps without editing anything. These are behavioral restrictions, not a new sandbox. See [decision 0016](decisions/0016-shared-behavioral-roles.md), extending [0014](decisions/0014-one-brief-parent-commits.md).
+
+**Review selection.** Independent review is required for delegated security, persisted-state, migration, public-API or delivery changes, and interacting changes across components. The parent can assess localized low-risk changes directly. Explicit inline execution stays inline; if spawning is unavailable, parent review records that limitation unless independent review was explicitly required. Model/effort preferences and project pins use the existing live host resolution for either role.
+
+**Acceptance and recovery.** Before writing, the parent records a fixed base SHA and pre-existing change ownership in Review Notes. Only one implementation writer runs; all writers stop during review. The parent records findings and evidence-based dispositions after the reviewer returns. One recorded correction/recovery pass may return findings to the implementer, followed by verification and fresh review. Resume retains this count and the original base. Unresolved findings, gaps or exhausted recovery block through the existing script; a reviewer verdict never changes ticket state. Only the parent accepts and runs commit/state/delivery scripts. Permission denials still stop both child and parent without a bypass.
 
 ## Component audit
 
@@ -42,7 +47,7 @@ Each row answers: what problem it solved, whether that problem remains, and the 
 | Jev hints | Optional outside model judgment | Optional | KEEP (opt-in, decision 0005) |
 | "Never retry" stop rules | Runaway retries | Bounded recovery covers it | REPLACE: bounded recovery |
 | Hardcoded Codex model and effort table | Mapping tiers to IDs | The spawn tool lists them live | REPLACE: parent resolves; optional project pin |
-| `gps-ticket-<effort>` agents | Agent calls could not set effort | No: `effort` is a call parameter | DELETE |
+| `gps-ticket-<effort>` agents | Agent calls could not set effort | No: `effort` is a call parameter | DELETE; behavioral roles now live in shared templates, not agent definitions |
 | `subagent` / `subagent+inline` modes | Trading context for review | Merged | DELETE: one `delegate` mode |
 | Child commits, `ticket-check.js` | Verifying a child's commit claim | No: children no longer commit | DELETE |
 | `dispatch-preflight.js`, `--parent-effort` | Static validation of the table above | No | DELETE |

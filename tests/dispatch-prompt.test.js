@@ -17,6 +17,36 @@ h.assertFails(h.run(root, 'dispatch-prompt.js', ['1', '--mode', 'subagent']), 2,
 h.assertFails(h.run(root, 'dispatch-prompt.js', ['1']), 1, /no workspace yet[\s\S]*ticket-start\.js 1/);
 h.ok(root, 'ticket-start.js', ['1']);
 
+// Role dispatch must be read-only and bind review to an immutable, real base.
+const base = h.git(root, 'rev-parse', 'HEAD');
+const stateBeforeRoles = fs.readFileSync(h.configPath(root), 'utf-8');
+const statusBeforeRoles = h.git(root, 'status', '--porcelain');
+h.assertFails(h.run(root, 'dispatch-prompt.js', ['1', '--role', 'researcher']), 2, /--role/);
+h.assertFails(h.run(root, 'dispatch-prompt.js', ['1', '--role', 'reviewer']), 2, /--base/);
+h.assertFails(h.run(root, 'dispatch-prompt.js', ['1', '--role', 'reviewer', '--base', 'HEAD']), 2, /full commit/);
+h.assertFails(h.run(root, 'dispatch-prompt.js', ['1', '--role', 'reviewer', '--base', '0'.repeat(40)]), 1, /base.*commit/i);
+h.assertFails(h.run(root, 'dispatch-prompt.js', ['1', '--base', base]), 2, /reviewer/);
+const reviewArgs = ['1', '--role', 'reviewer', '--base', base];
+const reviewer = h.json(root, 'dispatch-prompt.js', reviewArgs);
+const codexReviewer = h.json(root, 'dispatch-prompt.js', [...reviewArgs, '--host', 'codex']);
+assert.strictEqual(reviewer.role, 'reviewer');
+assert.strictEqual(reviewer.base, base);
+assert.strictEqual(reviewer.call.prompt, codexReviewer.call.message, 'both hosts consume the same reviewer brief');
+assert.strictEqual(codexReviewer.call.task_name, 'gps_review_01');
+assert.strictEqual(codexReviewer.call.fork_turns, 'none');
+assert.match(reviewer.call.prompt, new RegExp(`git diff ${base} --`));
+assert.match(reviewer.call.prompt, /untracked/);
+assert.match(reviewer.call.prompt, /Do not edit any files/);
+assert.match(reviewer.call.prompt, /Do not commit, stage, change session state/);
+assert.match(reviewer.call.prompt, /file:line.*severity/);
+assert.match(reviewer.call.prompt, /Verification gaps/);
+assert.match(reviewer.call.prompt, /REVIEWED — findings/);
+assert.match(reviewer.call.prompt, /REVIEWED — no findings/);
+assert.doesNotMatch(reviewer.call.prompt, /End with.*READY/);
+assert.strictEqual(fs.readFileSync(h.configPath(root), 'utf-8'), stateBeforeRoles);
+assert.strictEqual(h.git(root, 'status', '--porcelain'), statusBeforeRoles);
+assert.strictEqual(h.git(root, 'rev-parse', 'HEAD'), base);
+
 // The brief: every path filled in, the parent owns git, one final line.
 let data = h.json(root, 'dispatch-prompt.js', ['1']);
 assert.strictEqual(data.model, 'fast');
@@ -24,11 +54,17 @@ assert.strictEqual(data.call.subagent_type, 'general-purpose');
 assert.strictEqual(data.call.model, 'haiku');
 assert.strictEqual(data.call.description, 'gps ticket 01 toggle');
 const prompt = data.call.prompt;
+assert.strictEqual(data.role, 'implementer');
+assert.strictEqual(h.json(root, 'dispatch-prompt.js', ['1', '--role', 'implementer']).call.prompt, prompt);
+assert.match(prompt, /Repository: /);
+assert.match(prompt, /AGENTS\.md.*CLAUDE\.md/);
+assert.match(prompt, /Do not commit, stage, change session state/);
+assert.match(prompt, /parent's recorded findings/);
 assert.ok(prompt.includes(path.join(h.sessionDir(root), '02-plan', 'tickets', '01-toggle.md')), 'spec path');
 assert.ok(prompt.includes(path.join(h.sessionDir(root), '03-implement', '01-toggle', 'commit-log.md')), 'log path');
 assert.ok(prompt.includes(`.scratch/tests/${h.currentSession(root)}`), 'scratch dir');
 assert.match(prompt, /only writer in this tree/);
-assert.match(prompt, /leave your changes unstaged and uncommitted/);
+assert.match(prompt, /leave your changes unstaged and uncommitted/i);
 assert.match(prompt, /permission or sandbox denial, stop and report BLOCKED/);
 assert.match(prompt, /never retry it through another shell, tool or agent/);
 assert.match(prompt, /`READY — <files you changed, comma-separated> — <verification result>` or `BLOCKED — <cause, and what you tried>`/);

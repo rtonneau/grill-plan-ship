@@ -105,9 +105,11 @@ The `idea` skill keeps a backlog of future work apart from gps sessions. An Idea
 `/gps ship` runs one ticket at a time and chooses how, per ticket, saying which:
 
 - **inline:** the coding agent implements the ticket in this session.
-- **delegate:** a fresh child implements and verifies it, and fills its commit log. This session reviews the diff, fixes small gaps and commits. It is chosen when a ticket's hints differ from the session or the ticket would crowd this context.
+- **delegate:** a fresh implementer executes the ticket, verifies it and fills its commit log. The parent coordinates review, accepts the result and commits. It is chosen when a ticket's hints differ from the session or the ticket would crowd this context.
 
 `--inline` or `--delegate` overrides the choice for the run.
+
+**Shared roles.** Both hosts receive the same implementer and reviewer instructions from Markdown templates. Independent review runs for delegated security, persisted-state, migration, public-API or delivery changes, and interacting changes across components. Localized low-risk work can use parent review. A fresh reviewer inspects the actual stable diff and reports findings with severity, file/line and verification gaps; it never edits or completes the ticket. Only the parent accepts, commits and changes session state. With unavailable spawning, the parent reviews inline and records the limitation, unless delegation or independent review was explicitly required. See [decision 0016](docs/decisions/0016-shared-behavioral-roles.md).
 
 **Hints.** A ticket may carry a portable `**Model:**` tier (`fast`, `medium`, `heavy`, `inherit`) and an `**Effort:**` level (`low`, `medium`, `high`, `xhigh`, `inherit`); no line means the session's own. Inline work ignores them, since a running session can't change its own model or effort. Hints stop at `xhigh` on purpose ([decision 0001](docs/decisions/0001-effort-hints-stop-at-xhigh.md)).
 
@@ -120,9 +122,9 @@ The `idea` skill keeps a backlog of future work apart from gps sessions. An Idea
 
 A ticket hint that can't be honored may be dropped with disclosure. An explicit user requirement must be supported by the current host or reported as blocked; it is never silently lowered. Reasoning: [decision 0014](docs/decisions/0014-one-brief-parent-commits.md).
 
-**Sequential by design.** Only one writer is live at a time: tickets build on each other and share the working tree and session state.
+**Sequential by design.** Only one implementation writer is live at a time: tickets build on each other and share the working tree and session state. All writers stop during independent review; the parent records the fixed review base and pre-existing changes in the log.
 
-**Recovery.** The agent fixes what it can, or tries one fresh child with what it learned. If the verification still fails or only you can settle it, `ticket-block.js` records why and the run stops with the work left in place. Rerunning `/gps ship` resumes from the existing log, on either host. Each ticket's `commit-log.md` gets its test result and review notes from the agent, and its commit and time spent from the script.
+**Recovery.** The parent records findings and permits one correction/recovery pass, inline or through a fresh implementer, followed by verification and fresh review when required. Unresolved findings, verification gaps or decisions needing you block through `ticket-block.js`, with the work preserved. Rerunning `/gps ship` resumes the same log, base and attempt count on either host; an exhausted loop needs new evidence or a resolved blocker. Permission denials stop both roles and parent without retrying through another tool. Each ticket's `commit-log.md` holds test results, findings and parent dispositions; scripts fill its commit and time spent.
 
 **Ship chains finish.** When a full `/gps ship` reaches "All tickets are done" (also when they were all done already), it runs `/gps finish` for you as a *chained finish*: it asks nothing, keeps any issue open and offers no session switch. `/gps auto` runs its finish the same way, and `/gps auto ship` adds finish after ship. `/gps ship N` and a stopped run (a blocked ticket or an unfixable `❌`) never chain; a typed `/gps finish` still asks its questions. Set `ship.autoFinish` to `false` to stop after the last ticket instead. Reasoning: [docs/decisions/0011-ship-chains-finish.md](docs/decisions/0011-ship-chains-finish.md).
 
@@ -187,7 +189,7 @@ Every script in `skills/gps/scripts/` follows the same rules (see `scripts/lib/c
 | `plan.js` | start the plan phase |
 | `ticket-queue.js` | the tickets, their state, and model and effort hints |
 | `ticket-start.js` | prepare a ticket's workspace (next pending one by default); `--mode` records the ship mode |
-| `dispatch-prompt.js` | the ticket brief and the Claude or Codex spawn call for its child |
+| `dispatch-prompt.js` | shared implementer/reviewer brief, fixed review base, and host spawn/result guidance |
 | `ticket-complete.js` | commit the given files, mark the ticket Done, fill its log |
 | `ticket-block.js` | record why a ticket can't be finished |
 | `changelog-prepare.js` | `/gps finish` step 1: the session's commits, bump floor and payload path for its CHANGELOG entry |

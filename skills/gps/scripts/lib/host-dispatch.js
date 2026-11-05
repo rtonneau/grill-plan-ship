@@ -1,4 +1,4 @@
-// Host adapters over one shared ticket brief. Tiers stay portable in session
+// Host adapters over shared role briefs. Tiers stay portable in session
 // files. Claude has stable family aliases. Codex has none, and its spawn tool
 // lists the models and efforts this account can use, so the parent resolves
 // the tier against that list unless the project pinned a model (decision 0014).
@@ -20,7 +20,7 @@ function pinnedCodexModel(tier, config = {}) {
   return { model, efforts: entry && Array.isArray(entry.efforts) ? entry.efforts : null };
 }
 
-// { call, notes }: `call` holds the host tool's parameters, `notes` what the
+// { call, notes, lifecycle }: `call` holds only the host tool's parameters, `notes` what the
 // parent must resolve or tell the user. Hints are preferences; explicit overrides
 // are requirements and must not be downgraded.
 function buildDispatch(host, { model, effort, description, prompt, taskName, requiredModel = false, requiredEffort = false }, config = {}) {
@@ -35,6 +35,7 @@ function buildDispatch(host, { model, effort, description, prompt, taskName, req
         prompt,
       },
       notes: [],
+      lifecycle: 'Use Agent with general-purpose in fresh context, not a fork or worktree. Inspect the live schema before calling. If it returns a background ID, wait for its completion notification and read the final result; a launch acknowledgment is not completion. Use only the host-supported result/wait mechanism. Children inherit host permissions; these briefs do not enforce a read-only sandbox.',
     };
   }
   if (host !== 'codex') throw new UsageError('--host must be one of: claude, codex.');
@@ -63,6 +64,7 @@ function buildDispatch(host, { model, effort, description, prompt, taskName, req
       ...(keepEffort && { reasoning_effort: effort }),
     },
     notes,
+    lifecycle: 'Use spawn_agent with fork_turns none; model and reasoning_effort overrides require this fresh context. Suffix task_name if already used so each fresh child, including recovery and re-review, has a unique name. Retain the returned identity, use wait_agent and completion messages to obtain the final result; an ID, progress message or timeout is not completion. Inspect the live schema for available models and permissions; no per-call sandbox override is assumed. These briefs do not enforce a read-only sandbox.',
   };
 }
 
