@@ -22,7 +22,7 @@ _Adapted from the `grilling` and `domain-modeling` skills of mattpocock-skills (
 Interview the user until you both hold the same design. Treat it as a design tree: each decision opens the ones that hang off it. First run `domain-doc.js where` and read the glossary and ADRs it lists.
 
 - **Facts are yours, decisions are theirs.** Look up what the code, docs or tools can answer; put only real decisions to the user.
-- **Ask the frontier only:** questions whose prerequisites are settled, with your recommended answer first (host question rule). Recompute it after each answer.
+- **Ask the frontier only:** questions whose prerequisites are settled, in one question-tool call per round (independent questions together, up to the tool's limit), each with 2–4 concrete options and your recommended answer first (host question rule); never a bare chat question. Recompute the frontier after each answer.
 - **Sharpen the language.** When a term is vague or clashes with the glossary, propose one precise word and probe it with a concrete edge case; check claims against the code.
 - **Write terms down as they settle:** `domain-doc.js glossary`, then add the term. Domain terms only.
 - **Record an ADR** only for a decision that is hard to reverse, surprising without context, and a real trade-off: `domain-doc.js adr <slug> --title "<title>"`, then 1–3 sentences.

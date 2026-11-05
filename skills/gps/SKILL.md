@@ -67,7 +67,7 @@ Read the command's references file before acting, on every run: script flags cha
 
 - **Yours:** facts the code can answer, implementation choices, debugging, retries, and recovery. Decide them, and state any choice the user may want to know in one line.
 - **The user's:** product decisions, ambiguous scope, and irreversible or outward actions not already requested. A typed command is the go-ahead for what its reference describes.
-- **Host question rule:** ask with the host's question tool (Claude Code: `AskUserQuestion`, at most 4 questions, recommended answer first; Codex: inspect the tool and its mode, else concise numbered questions) and wait for the answer. Questions never stand in for a sandbox approval.
+- **Host question rule:** ask with the host's question tool (Claude Code: `AskUserQuestion`, at most 4 questions, recommended answer first; Codex: inspect the tool and its mode, else concise numbered questions) and wait for the answer. Every question for the user goes through it, grill questions included, with concrete options instead of an open prompt (free text via "Other"). Write questions in chat only when the host has no question tool or the current mode disables it. Questions never stand in for a sandbox approval.
 - **Permissions:** work inside the host's sandbox and approvals. Report a denial with the exact action, and request approval through the host.
 
 ## State

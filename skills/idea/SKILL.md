@@ -57,7 +57,7 @@ When rewriting an existing Idea, start from its current body and keep what still
 
 ## Rules for every command
 
-- **Host question rule:** Ask with the host's question tool (Claude Code: `AskUserQuestion`, one question per call, recommended answer first; Codex: inspect the tool and its mode, else concise numbered questions). Keep free text for open-ended answers.
+- **Host question rule:** Ask with the host's question tool (Claude Code: `AskUserQuestion`, one question per call, recommended answer first; Codex: inspect the tool and its mode, else concise numbered questions). Grill questions go through it too, with concrete options; write them in chat only when the host has no question tool or the current mode disables it. Keep free text for open-ended answers.
 - Take every fact about scope, path, status and branch from `idea-resolve.js` or `idea-find.js`, run in this conversation, never from memory or a directory listing.
 - `idea-save.js` alone writes the frontmatter (`status`, `scope`, `created`, `reviews`, `promoted_to`) and the Changelog: never hand-edit them. You write only the body file.
 - `idea-save.js` commits the one Idea file it wrote; leave pushing to the user and never push.
