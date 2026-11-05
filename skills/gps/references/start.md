@@ -3,7 +3,7 @@
 **When:** beginning any change, or with `--issue` a bug or small request (on a GitHub project saving the grill files it as a GitHub issue).
 
 1. `start.js [--issue] "<name>"`. Relay it. A seed block means `/gps scout` proposed this work: start from it.
-   - **`↩️ Session … already exists`** (nothing was written). `Current session: no`: ask "Continue session X?" (host question rule). Yes → `set-current.js <id> --confirmed`; no → stop and suggest another name. Then, or when already current: grill phase → continue from HANDOFF.md, the glossary and ADRs, saying the earlier conversation was not saved; any other phase → follow the printed `Next:`.
+   - **`↩️ Session … already exists`** (nothing was written). `Current session: no`: ask "Continue session X?" (host question rule). Yes → `set-current.js <id> --confirmed`; no → stop and suggest another name. Then, or when already current: grill phase → continue from HANDOFF.md, the glossary and ADRs, saying the earlier conversation was not saved; saved resume without a plan → inspect the resume and git diff/log, then continue *Small work* if the scope is still small, keeping completed work; otherwise follow the printed `Next:`.
 2. **Size the work** from the request and a look at the code, and say the size in one line; the user can overrule it.
    - **Small:** one clear, low-risk change with nothing for the user to decide. Follow *Small work*.
    - **Standard:** a feature, or several connected changes. Run the grill, then `/gps plan`.

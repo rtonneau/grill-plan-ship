@@ -39,6 +39,9 @@ assert.deepStrictEqual(codex.notes, []);
 codex = buildDispatch('codex', { ...brief, effort: 'xhigh' }, pin({ model: 'my-model', efforts: ['low'] }));
 assert.ok(!('reasoning_effort' in codex.call));
 assert.match(codex.notes[0], /Effort xhigh is not listed for my-model.*tell the user/);
+// An explicit user requirement must not be downgraded like a ticket preference.
+assert.throws(() => buildDispatch('codex', { ...brief, effort: 'xhigh', requiredEffort: true },
+  pin({ model: 'my-model', efforts: ['low'] })), /required.*xhigh|xhigh.*required/i);
 // Pre-3.0 keys that are no longer read change nothing.
 const legacy = { delegation: { codex: { inheritEfforts: ['medium'] } } };
 assert.deepStrictEqual(buildDispatch('codex', brief, legacy), buildDispatch('codex', brief));

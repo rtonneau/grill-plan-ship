@@ -35,7 +35,8 @@ function buildPrompt(ticket, scratchDir) {
     '3. In the commit log, replace the gps:fill markers of Local Test Result, Review Notes and Blockers / Challenges ("None" if none).',
     '',
     'You are the only writer in this tree. The parent session owns git and session state: leave your changes unstaged and uncommitted, and leave the ticket scripts to it.',
-    'When a permission or sandbox denial stops you, report it as BLOCKED with the exact denied action.',
+    'Inspect existing changes before editing; preserve user work and continue any partial ticket work without resetting it.',
+    'On a permission or sandbox denial, stop and report BLOCKED with the exact denied action; never retry it through another shell, tool or agent.',
     '',
     'End with exactly one line: `READY — <files you changed, comma-separated> — <verification result>` or `BLOCKED — <cause, and what you tried>`.',
   ].join('\n');
@@ -69,6 +70,8 @@ main({
     const prompt = buildPrompt(ticket, config.scratch_dir || `.scratch/tests/${sessionId}`);
     const { call, notes } = buildDispatch(host, {
       model, effort,
+      requiredModel: options.model !== null && model !== 'inherit',
+      requiredEffort: options.effort !== null && effort !== 'inherit',
       description: `gps ticket ${ticket.num} ${ticket.slug}`.slice(0, 60),
       taskName: `gps_ticket_${ticket.num}`,
       prompt,

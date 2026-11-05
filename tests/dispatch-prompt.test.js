@@ -29,7 +29,8 @@ assert.ok(prompt.includes(path.join(h.sessionDir(root), '03-implement', '01-togg
 assert.ok(prompt.includes(`.scratch/tests/${h.currentSession(root)}`), 'scratch dir');
 assert.match(prompt, /only writer in this tree/);
 assert.match(prompt, /leave your changes unstaged and uncommitted/);
-assert.match(prompt, /permission or sandbox denial stops you, report it as BLOCKED/);
+assert.match(prompt, /permission or sandbox denial, stop and report BLOCKED/);
+assert.match(prompt, /never retry it through another shell, tool or agent/);
 assert.match(prompt, /`READY — <files you changed, comma-separated> — <verification result>` or `BLOCKED — <cause, and what you tried>`/);
 assert.doesNotMatch(prompt, /ticket-complete\.js"/, 'the child runs no ticket script');
 
@@ -59,9 +60,7 @@ fs.writeFileSync(configPath, JSON.stringify({ ...JSON.parse(before), delegation:
 codex = h.json(root, 'dispatch-prompt.js', ['1', '--host', 'codex', '--effort', 'low']);
 assert.strictEqual(codex.call.model, 'available-model');
 assert.strictEqual(codex.call.reasoning_effort, 'low');
-const ruledOut = h.json(root, 'dispatch-prompt.js', ['1', '--host', 'codex', '--effort', 'high']);
-assert.ok(!('reasoning_effort' in ruledOut.call));
-assert.match(ruledOut.notes[0], /not listed for available-model/);
+h.assertFails(h.run(root, 'dispatch-prompt.js', ['1', '--host', 'codex', '--effort', 'high']), 1, /required.*high|high.*required/i);
 const inherited = h.json(root, 'dispatch-prompt.js', ['1', '--host', 'codex', '--model', 'inherit', '--effort', 'inherit']);
 assert.ok(!('model' in inherited.call) && !('reasoning_effort' in inherited.call));
 assert.deepStrictEqual(inherited.notes, []);
