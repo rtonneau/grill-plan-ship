@@ -5,7 +5,7 @@
  *
  * /gps plan, step 4: reads drafted ticket blocks from stdin (the same
  * "--- ticket: NN-<slug> ---" format write-apply.js's payload uses) and,
- * if Jev is enabled (.work/gps-config.json jev.enabled, backed by
+ * if Jev is authorized (.work/gps-config.json jev.enabled and jev.consent, backed by
  * TYPESAFE_API_KEY), asks it to judge each ticket's Model and Effort in
  * one batched call. Falls back to { used: false } — never a GpsError —
  * when Jev is not enabled or the call fails for any reason; Claude then
@@ -42,7 +42,7 @@ mainAsync({
     if (!jevEnabled(projectRoot)) {
       return {
         text: 'Jev is not enabled; use your own judgment for every ticket.',
-        data: { used: false, reason: 'jev.enabled is false', tickets: {} },
+        data: { used: false, reason: 'Jev is disabled or ticket transmission is not authorized', tickets: {} },
       };
     }
     const diagnosis = diagnoseJev();

@@ -55,6 +55,9 @@ function validate(config, filePath) {
   if (config.jev !== undefined && !(isObject(config.jev) && typeof config.jev.enabled === 'boolean')) {
     throw invalid('"jev.enabled" must be true or false', filePath);
   }
+  if (config.jev && config.jev.consent !== undefined && typeof config.jev.consent !== 'boolean') {
+    throw invalid('"jev.consent" must be true or false', filePath);
+  }
   // The file is <projectRoot>/.work/gps-config.json.
   const projectRoot = path.dirname(path.dirname(filePath));
   const { changelog, release, scratch, ship } = config;
@@ -115,19 +118,19 @@ function writeConfig(projectRoot, config) {
   writeJsonAtomic(filePath, config);
 }
 
-function createConfig(projectRoot, detectedGithub, detectedJev) {
+function createConfig(projectRoot, detectedGithub) {
   const config = {
     version: CONFIG_VERSION,
     github: { enabled: detectedGithub.enabled, detected_at: new Date().toISOString() },
-    jev: { enabled: detectedJev.enabled, detected_at: new Date().toISOString() },
+    jev: { enabled: false, consent: false, detected_at: new Date().toISOString() },
   };
   writeConfig(projectRoot, config);
   return config;
 }
 
-// The parsed config; creates the file (detecting GitHub and Jev) when it is missing.
+// The parsed config; creates the file with GitHub detected and Jev off when missing.
 function ensureProjectConfig(projectRoot) {
-  return readConfig(projectRoot) || createConfig(projectRoot, diagnoseGithub(projectRoot), diagnoseJev());
+  return readConfig(projectRoot) || createConfig(projectRoot, diagnoseGithub(projectRoot));
 }
 
 function githubEnabled(projectRoot) {
@@ -136,7 +139,19 @@ function githubEnabled(projectRoot) {
 
 function jevEnabled(projectRoot) {
   const config = ensureProjectConfig(projectRoot);
-  return Boolean(config.jev && config.jev.enabled);
+  return Boolean(config.jev && config.jev.enabled && config.jev.consent === true);
+}
+
+// Only this explicitly requested operation authorizes sending ticket contents.
+// Older enabled flags were auto-detected from credentials, so they are insufficient.
+function enableJev(projectRoot) {
+  const detected = diagnoseJev();
+  if (!detected.enabled) throw new GpsError('TYPESAFE_API_KEY is not set.', 'Set it before enabling Jev.');
+  const config = ensureProjectConfig(projectRoot);
+  writeConfig(projectRoot, {
+    ...config,
+    jev: { ...(config.jev || {}), enabled: true, consent: true, detected_at: new Date().toISOString() },
+  });
 }
 
 // Detects GitHub again and compares with the stored flag. Returns
@@ -151,7 +166,7 @@ function rescanProjectConfig(projectRoot, { apply = false, check = false } = {})
   const existing = readConfig(projectRoot);
   const detected = diagnoseGithub(projectRoot);
   if (!existing) {
-    return { status: 'created', stored: null, storedAt: null, detected, config: createConfig(projectRoot, detected, diagnoseJev()) };
+    return { status: 'created', stored: null, storedAt: null, detected, config: createConfig(projectRoot, detected) };
   }
 
   const stored = existing.github.enabled;
@@ -169,13 +184,17 @@ function rescanProjectConfig(projectRoot, { apply = false, check = false } = {})
   return { status: same ? 'unchanged' : 'updated', stored, storedAt, detected, config };
 }
 
-// Same as rescanProjectConfig, but for the jev section (TYPESAFE_API_KEY
-// presence instead of GitHub detection).
+// Rescan credentials without authorizing transmission. Legacy enabled flags
+// lack proof of consent because they were seeded automatically from the key.
 function rescanJevConfig(projectRoot, { apply = false, check = false } = {}) {
   const existing = readConfig(projectRoot);
-  const detected = diagnoseJev();
+  const available = diagnoseJev();
+  const consent = Boolean(existing && existing.jev && existing.jev.consent === true);
+  const detected = available.enabled && !consent
+    ? { enabled: false, reason: `${available.reason}; ticket transmission is not authorized (config.js --enable-jev)` }
+    : available;
   if (!existing) {
-    return { status: 'created', stored: null, storedAt: null, detected, config: createConfig(projectRoot, diagnoseGithub(projectRoot), detected) };
+    return { status: 'created', stored: null, storedAt: null, detected, config: createConfig(projectRoot, diagnoseGithub(projectRoot)) };
   }
 
   const stored = existing.jev ? existing.jev.enabled : false;
@@ -243,6 +262,6 @@ function saveVersionFiles(projectRoot, files) {
 
 module.exports = {
   CONFIG_FILENAME, readConfig, ensureProjectConfig, githubEnabled, rescanProjectConfig,
-  jevEnabled, rescanJevConfig, changelogSettings, releaseSettings, saveVersionFiles,
+  jevEnabled, rescanJevConfig, enableJev, changelogSettings, releaseSettings, saveVersionFiles,
   scratchSettings, shipSettings, allDoneNext, SCRATCH_POLICIES,
 };
