@@ -74,8 +74,8 @@ const readGitStatusSummary = (root, dir) => readGitStatus(root, dir).session;
   const linkedJournal = gitPrivatePath(linked, 'gps-finish.json');
   assert.strictEqual(path.basename(linkedJournal), 'gps-finish.json');
   assert.strictEqual(
-    fs.realpathSync(path.dirname(linkedJournal)),
-    fs.realpathSync(path.join(root, '.git', 'worktrees', 'linked')),
+    fs.realpathSync.native(path.dirname(linkedJournal)),
+    fs.realpathSync.native(path.join(root, '.git', 'worktrees', 'linked')),
   );
   fs.rmSync(root, { recursive: true, force: true });
   const plain = fs.mkdtempSync(path.join(os.tmpdir(), 'gps-no-private-path-'));
