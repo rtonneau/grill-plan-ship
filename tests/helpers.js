@@ -131,6 +131,18 @@ function completeTicket(root, num, slug, env = {}) {
   return ok(root, 'ticket-complete.js', [String(num), '--message', `feat: ${slug}`, '--file', file], env);
 }
 
+// A fresh copy of a fixture built once per test process: `build` returns
+// { root, ... } and drives the scripts as usual. Copying a finished session
+// costs a fraction of the dozens of git processes it takes to rebuild it.
+const fixtures = new Map();
+function copyFixture(key, prefix, build) {
+  if (!fixtures.has(key)) fixtures.set(key, build());
+  const fixture = fixtures.get(key);
+  const root = tempProject(prefix);
+  fs.cpSync(fixture.root, root, { recursive: true });
+  return { ...fixture, root };
+}
+
 function done(name) {
   console.log(`${name}: all assertions passed`);
 }
@@ -138,5 +150,5 @@ function done(name) {
 module.exports = {
   SCRIPTS, SKILL_DIR, tempProject, run, ok, json, assertFails, git, gitProject,
   sessionsDir, currentSession, sessionDir, configPath, readConfig, history,
-  fillSkeleton, writeGrill, planPayload, writePlan, shipReady, fillLog, completeTicket, done,
+  fillSkeleton, writeGrill, planPayload, writePlan, shipReady, fillLog, completeTicket, copyFixture, done,
 };
