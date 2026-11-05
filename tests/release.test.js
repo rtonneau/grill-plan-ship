@@ -21,6 +21,11 @@ function finishSession(root, name, type, bump, reason) {
   fs.writeFileSync(prep.payloadPath, `- ${name} done\n`);
   h.ok(root, 'changelog-apply.js', ['--bump', bump, ...(reason ? ['--reason', reason] : [])]);
   const id = h.currentSession(root);
+  // Setup changes belong to the project, not finish's session-record commit.
+  if (h.git(root, 'status', '--porcelain', '--', '.gitignore')) {
+    h.git(root, 'add', '--', '.gitignore');
+    h.git(root, 'commit', '-q', '-m', 'chore: setup ignores');
+  }
   h.ok(root, 'finish.js');
   // gps's one-time .gitignore setup is the project's to commit.
   if (h.git(root, 'status', '--porcelain')) { h.git(root, 'add', '-A'); h.git(root, 'commit', '-q', '-m', 'chore: setup'); }

@@ -75,14 +75,15 @@ function withBodyFile(body, fn) {
   }
 }
 
-// URL of an open PR whose head is `branch`, or null (none, or gh failed).
+// Distinguish an absent PR from a failed lookup: the latter cannot authorize
+// creation, especially after a prior request may have succeeded remotely.
 function findOpenPullRequest(projectRoot, branch) {
   try {
-    return lastUrl(runGh(projectRoot, [
+    return { ok: true, url: lastUrl(runGh(projectRoot, [
       'pr', 'list', '--head', branch, '--state', 'open', '--json', 'url', '--jq', '.[].url',
-    ]));
-  } catch (_err) {
-    return null;
+    ])) };
+  } catch (err) {
+    return { ok: false, reason: failureReason(err) };
   }
 }
 
@@ -137,7 +138,9 @@ function openPullRequest(projectRoot, gitInfo, { title, body }) {
   const pushed = pushBranch(projectRoot, gitInfo.branch);
   if (!pushed.ok) return { ok: false, step: 'push', reason: pushed.reason, commands };
 
-  const existingUrl = gitInfo.pr_url || findOpenPullRequest(projectRoot, gitInfo.branch);
+  const found = gitInfo.pr_url ? { ok: true, url: gitInfo.pr_url } : findOpenPullRequest(projectRoot, gitInfo.branch);
+  if (!found.ok) return { ok: false, step: 'lookup', reason: found.reason, commands: [] };
+  const existingUrl = found.url;
   if (existingUrl) return { ok: true, url: existingUrl, existing: true, ...viewPullRequest(projectRoot, existingUrl) };
 
   return withBodyFile(body, (bodyFile) => {
@@ -195,6 +198,18 @@ function commentOnIssue(projectRoot, number, body) {
   }
 }
 
+// Reconcile an interrupted comment by its GPS session marker. An unreadable
+// response is not evidence that the comment is absent.
+function findIssueComment(projectRoot, number, marker) {
+  try {
+    const result = JSON.parse(runGh(projectRoot, ['issue', 'view', String(number), '--json', 'comments']));
+    if (!result || !Array.isArray(result.comments)) throw new Error('gh returned no comments list');
+    return { ok: true, found: result.comments.some(c => typeof c.body === 'string' && c.body.includes(marker)) };
+  } catch (err) {
+    return { ok: false, reason: failureReason(err) };
+  }
+}
+
 function closeIssue(projectRoot, number) {
   try {
     runGh(projectRoot, ['issue', 'close', String(number)]);
@@ -243,6 +258,7 @@ module.exports = {
   buildIssueBody,
   createIssue,
   commentOnIssue,
+  findIssueComment,
   closeIssue,
   releaseExists,
   createRelease,

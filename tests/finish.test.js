@@ -19,15 +19,17 @@ const h = require('./helpers');
   fs.writeFileSync(hook, '#!/bin/sh\necho "blocked commit" >&2\nexit 1\n', { mode: 0o755 });
   const failed = h.run(root, 'finish.js', ['--json']);
   h.assertFails(failed, 1, /Remaining changes could not be committed.*session remains open/);
-  assert.match(failed.err, /Fix the Git error.*finish again/);
+  assert.match(failed.err, /Review and commit only the intended files/);
   assert.strictEqual(h.currentSession(root), id);
   assert.strictEqual(fs.readFileSync(h.configPath(root), 'utf-8'), before);
   assert.strictEqual(h.git(root, 'rev-parse', 'HEAD'), head);
   assert.ok(!fs.existsSync(path.join(sessionDir, 'INDEX.md')));
   fs.unlinkSync(hook);
+  h.git(root, 'add', 'app.js');
+  h.git(root, 'commit', '-qm', 'fix: explicitly reviewed changes');
   h.ok(root, 'finish.js');
   assert.ok(fs.existsSync(path.join(sessionDir, 'INDEX.md')));
-  assert.match(h.git(root, 'log', '-2', '--format=%s'), /commit remaining changes/);
+  assert.match(h.git(root, 'log', '-2', '--format=%s'), /explicitly reviewed changes/);
 }
 
 {
@@ -83,17 +85,20 @@ const h = require('./helpers');
   // --keep-issue on a session without an issue: ignored with a warning.
   h.completeTicket(root, 2, 'b');
   fs.appendFileSync(path.join(root, 'app.js'), '// hook log line\n');
+  h.assertFails(h.run(root, 'finish.js'), 1, /Remaining changes/);
+  h.git(root, 'add', 'app.js');
+  h.git(root, 'commit', '-qm', 'chore: reviewed hook output');
   const res = h.ok(root, 'finish.js', ['--keep-issue']);
   assert.match(res.err, /--keep-issue ignored: this session has no GitHub issue/);
   assert.match(res.out, /✅ Session complete: .*fin/);
-  assert.match(res.out, /📦 Committed 1 remaining file\(s\) \([0-9a-f]+\): app\.js/);
+  assert.doesNotMatch(res.out, /Committed .* remaining/);
   assert.match(res.out, new RegExp(`Unfinished sessions: ${olderId}\\. Next: ask the user whether to switch to one \\(set-current\\.js <session-id> --confirmed\\)`));
-  assert.strictEqual(h.git(root, 'log', '-2', '--format=%s'), `chore(gps): finish ${id}\nchore: commit remaining changes (gps finish ${id})`);
+  assert.strictEqual(h.git(root, 'log', '-2', '--format=%s'), `chore(gps): finish ${id}\nchore: reviewed hook output`);
   assert.strictEqual(h.git(root, 'status', '--porcelain', '--', '.work'), '', 'INDEX.md and the finished state are committed');
   const index = fs.readFileSync(indexPath, 'utf-8');
   assert.match(index, /✅ 01 a — \[spec\]\(02-plan\/tickets\/01-a\.md\) · \[log\]\(03-implement\/01-a\/commit-log\.md\)/);
   assert.match(index, /✅ 02 b/);
-  assert.match(index, /## Remaining changes[\s\S]*`app\.js`/);
+  assert.doesNotMatch(index, /## Remaining changes/);
   assert.match(index, /## Timeline[\s\S]*\| session_finished \|/);
   for (const [, link] of index.matchAll(/\]\(([^)]+)\)/g)) assert.ok(fs.existsSync(path.join(sessionDir, link)), link);
   const config = JSON.parse(fs.readFileSync(path.join(sessionDir, '.session-config.json'), 'utf-8'));

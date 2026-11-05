@@ -75,15 +75,17 @@ assert.strictEqual(currentBranch(repo), 'feat/dark-mode');
 assert.strictEqual(fs.readFileSync(path.join(repo, 'app.js'), 'utf-8'), '2\n');
 assert.throws(() => createSessionBranch(repo, 'feat/taken'), /git switch -c feat\/taken failed/);
 
-// Leftovers: tracked changes committed, untracked files listed (not .work/).
+// Leftovers: refuse unknown ownership, preserve work, list untracked files.
 fs.writeFileSync(path.join(repo, 'notes.txt'), 'untracked\n');
 fs.mkdirSync(path.join(repo, '.work'));
 fs.writeFileSync(path.join(repo, '.work', 'state.json'), '{}\n');
 let leftover = commitRemainingChanges(repo, 'feat: two');
-assert.strictEqual(leftover.ok, true);
-assert.match(leftover.sha, /^[0-9a-f]{7,}$/);
+assert.strictEqual(leftover.ok, false);
 assert.deepStrictEqual(leftover.files, ['app.js']);
 assert.deepStrictEqual(leftover.untracked, ['notes.txt']);
+assert.strictEqual(git('log', '-1', '--format=%s'), 'initial');
+git('add', 'app.js');
+git('commit', '-qm', 'feat: two');
 assert.strictEqual(git('log', '-1', '--format=%s'), 'feat: two');
 assert.strictEqual(git('status', '--porcelain', '--untracked-files=no'), '');
 // Nothing left -> no commit.
@@ -225,10 +227,9 @@ delete process.env.GH_STUB_OPEN_PR;
 process.env.GH_STUB_FAIL = '1';
 pr = openPullRequest(repo, info, { title: 'feat: Dark mode', body: 'x' });
 assert.strictEqual(pr.ok, false);
-assert.strictEqual(pr.step, 'gh');
+assert.strictEqual(pr.step, 'lookup');
 assert.match(pr.reason, /not logged in/);
-assert.strictEqual(pr.commands.length, 1);
-assert.match(pr.commands[0], /^gh pr create --base main --head feat\/dark-mode/);
+assert.strictEqual(pr.commands.length, 0, 'a failed lookup never suggests creating another PR');
 delete process.env.GH_STUB_FAIL;
 
 // Push failure -> both commands listed.

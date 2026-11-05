@@ -8,14 +8,14 @@
 const fs = require('fs');
 const path = require('path');
 const {
-  listSessionDirs, readConfigOrNull, resolveCurrentPointer, pointerError,
+  listSessionDirs, readConfigOrNull, resolveCurrentPointer, pointerError, isSafeSessionName,
 } = require('./session-store');
 const { computeSessionState } = require('./phase');
-const { readRecentCommits } = require('./git');
+const { readRecentCommits, gitPrivatePath } = require('./git');
 const { SEEDS_FILENAME, STRENGTHS, peekSeeds } = require('./seeds-store');
 const { computeIdleness, STALE_DAYS } = require('./staleness');
 const { readHandoff } = require('./handoff');
-const { mdCell } = require('./guard');
+const { mdCell, readJsonOrNull } = require('./guard');
 
 // Phase is computed from the session's files; status / phases_completed
 // fields in older configs are ignored.
@@ -70,11 +70,15 @@ function listPendingSeeds(sessionsDir) {
 function buildStatusReport(sessionsDir, projectRoot) {
   const sessions = listSessionDirs(sessionsDir).map((sessionId) => summarizeSession(sessionsDir, sessionId));
   const { seeds, seedsProblem } = listPendingSeeds(sessionsDir);
+  const journalPath = gitPrivatePath(projectRoot, 'gps-finish.json') || path.join(projectRoot, '.scratch', 'gps-finish.json');
+  const journal = readJsonOrNull(journalPath);
+  const finishRecovery = journal && isSafeSessionName(journal.sessionId)
+    ? { sessionId: journal.sessionId, branch: journal.branch || null, path: journalPath } : null;
 
   const pointer = resolveCurrentPointer(sessionsDir);
   if (pointer.problem) {
     const { message, hint } = pointerError(sessionsDir, pointer);
-    const report = { sessions, seeds, seedsProblem, current: null, currentProblem: { code: pointer.problem, message, hint } };
+    const report = { sessions, seeds, seedsProblem, finishRecovery, current: null, currentProblem: { code: pointer.problem, message, hint } };
     if (pointer.problem === 'no-sessions' && seeds.length > 0) {
       report.suggestedNext = {
         command: seeds[0].startCommand,
@@ -95,6 +99,7 @@ function buildStatusReport(sessionsDir, projectRoot) {
     sessions,
     seeds,
     seedsProblem,
+    finishRecovery,
     current: {
       sessionId,
       phase,
@@ -161,6 +166,10 @@ function currentBlock(current, sessions) {
 function renderStatus(report) {
   const currentId = report.current ? report.current.sessionId : null;
   const lines = [];
+  if (report.finishRecovery) {
+    const recovery = report.finishRecovery;
+    lines.push(`⚠️ Session delivery is pending for ${recovery.sessionId}; run /gps finish${recovery.branch ? ` on ${recovery.branch}` : ''}. The local finished record does not prove delivery.`, '');
+  }
   if (report.sessions.length > 0) {
     lines.push('## Sessions', '', ...report.sessions.map((s) => sessionLine(s, currentId)), '');
   }
