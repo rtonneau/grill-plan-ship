@@ -1,5 +1,7 @@
 # 0011: A full /gps ship chains a finish that asks nothing
 
+_Still current. `ticket-check.js` was removed by decision 0014, and the script's `Next:` line now carries the chain decision._
+
 ## Context
 
 When `/gps ship` completed the last ticket, it suggested `/gps finish` and stopped, so every session needed one more typed command. Under `/gps auto`, finish still asked its closing questions (close issue #N? switch to an unfinished session?), which blocked an unattended run. The rule until then was that typing `/gps finish` is the go-ahead for its push and pull request.

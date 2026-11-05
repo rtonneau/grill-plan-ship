@@ -1,14 +1,14 @@
 #!/usr/bin/env node
 
 /**
- * ticket-start.js [<number>] [--mode <inline|subagent|subagent+inline>] [--json]
+ * ticket-start.js [<number>] [--mode <inline|delegate>] [--json]
  *
  * /gps ship: prepares one ticket for implementation (the next pending one
  * when no number is given): creates 03-implement/NN-<slug>/ and its
  * commit-log.md, records a `ticket_started` event (once), and prints the
  * spec, the log and the scratch dir. When every ticket is done it says so and points at
- * /gps finish. --mode records the ship mode as config.ship_mode, so the
- * next /gps ship can offer it first (ticket-queue.js prints it).
+ * /gps finish. --mode records the ship mode as config.ship_mode (ticket-queue.js
+ * prints it); the pre-3.0 names subagent and subagent+inline are stored as delegate.
  *
  * - Refuses until the plan phase is written.
  * - An existing commit-log.md is never overwritten: a Done ticket is
@@ -21,7 +21,8 @@ const fs = require('fs');
 const { main } = require('./lib/cli');
 const { loadTemplate, renderTemplate } = require('./lib/templates');
 const { resolveSession } = require('./lib/session-store');
-const { SHIP_MODES, isTicketDone } = require('./lib/ticket-queue');
+const { allDoneNext } = require('./lib/project-config');
+const { SHIP_MODES, normalizeShipMode, isTicketDone } = require('./lib/ticket-queue');
 const { findTicketByNumber, readyTickets } = require('./lib/ticket-lookup');
 const { hasEvent, recordEvent, sessionPath } = require('./lib/history');
 const { ensureScratchDir } = require('./lib/scratch-dir');
@@ -40,17 +41,18 @@ function pickTicket(sessionDir, arg) {
 }
 
 main({
-  usage: 'ticket-start.js [<number>] [--mode <inline|subagent|subagent+inline>] [--json]',
+  usage: 'ticket-start.js [<number>] [--mode <inline|delegate>] [--json]',
   positionals: { min: 0, max: 1 },
   options: { mode: 'string' },
   run({ positionals: [arg], options, projectRoot, warn }) {
-    if (options.mode !== null && !SHIP_MODES.includes(options.mode)) {
+    const mode = normalizeShipMode(options.mode);
+    if (mode !== null && !SHIP_MODES.includes(mode)) {
       throw new UsageError(`--mode must be one of: ${SHIP_MODES.join(', ')}.`);
     }
     const { sessionId, sessionDir, configPath, config } = resolveSession(projectRoot);
     const ticket = pickTicket(sessionDir, arg);
     if (!ticket) {
-      return { text: 'All tickets are done. Next: /gps finish', data: { sessionId, ticket: null, allDone: true } };
+      return { text: `All tickets are done. Next: ${allDoneNext(projectRoot)}`, data: { sessionId, ticket: null, allDone: true } };
     }
 
     const key = `${ticket.num}-${ticket.slug}`;
@@ -66,7 +68,7 @@ main({
     if (!config.scratch_dir) warn(`${sessionId} predates scratch dirs; adding scratch_dir to its config.`);
     const scratchDir = ensureScratchDir(projectRoot, sessionId);
     config.scratch_dir = scratchDir;
-    if (options.mode !== null) config.ship_mode = options.mode;
+    if (mode !== null) config.ship_mode = mode;
     writeJsonAtomic(configPath, config);
 
     const logExisted = fs.existsSync(ticket.commitLogPath);

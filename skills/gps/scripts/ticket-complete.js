@@ -29,6 +29,7 @@ const { unfilledSections, completeLog } = require('./lib/commit-log');
 const { commitFiles, describeCommit, commitWorkDir, describeWorkCommit } = require('./lib/git');
 const { getHistory, hasEvent, recordEvent, sessionPath } = require('./lib/history');
 const { GpsError, UsageError } = require('./lib/guard');
+const { allDoneNext } = require('./lib/project-config');
 
 const OFF_LIMITS = ['.work/', '.scratch/'];
 
@@ -123,7 +124,7 @@ main({
     return {
       text: `✅ Ticket ${ticket.num} (${ticket.slug}) done: ${what}.\n`
         + (recorded.line ? `${recorded.line}\n` : '')
-        + `Next: ${next ? `ticket ${next.num} (${next.slug})` : 'every ticket is done: /gps finish'}`,
+        + `Next: ${next ? `ticket ${next.num} (${next.slug})` : `every ticket is done: ${allDoneNext(projectRoot)}`}`,
       data: { ticket: key, commit: sha, files: committedFiles, record, nextPending: next ? keyOf(next) : null },
     };
   },

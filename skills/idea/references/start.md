@@ -13,22 +13,20 @@
 
 ## Collision prompt
 
-One `AskUserQuestion`, naming the existing Idea's status, Scope and path:
+One question (host question rule), naming the existing Idea's status, Scope and path:
 
 1. "Open the existing Idea": for `grilled` or `planned`, follow `references/review.md` on it. For `captured` in the other Scope, grill that Idea (step 2, saving with its Scope's flag). For `promoted` or `dropped`, show its summary (Problem, Decisions, the last Changelog entries, `promoted_to`) and stop: `idea-save.js` re-saves only active Ideas.
 2. "Rename": ask for a new name in chat, then go back to step 1 with it.
 
 ## Grill
 
-Use the first chain available, and say in one line which one runs: `grilling` and `domain-modeling` (mattpocock-skills, `grilling` first), else `brainstorming` (superpowers), else the built-in grill below. Every finite question goes through `AskUserQuestion` (`SKILL.md` rules), whichever chain runs.
+Run the grill below; when the user names another grill skill, run that one. Finite questions follow the host question rule either way.
 
 **Terms** settle during the grill:
-- **Project Idea:** add them to the target repo's `CONTEXT.md` as they settle (`domain-modeling` does this).
+- **Project Idea:** add them to the target repo's `CONTEXT.md` as they settle.
 - **Global Idea:** write them in the Idea's `## Terms` section, and keep decisions in `## Decisions`. A Global Idea writes nothing to any repo's `CONTEXT.md` or `docs/adr/`; Promote carries its Terms into the target repo later.
 
-**Done** when every Problem, Decision and Risk could be written without guessing, and what is still undecided is listed as an open question the user chose to leave open. Summarize the design, then ask for approval with `AskUserQuestion`; save nothing before it.
-
-### Built-in grill
+**Done** when every Problem, Decision and Risk could be written without guessing, and what is still undecided is listed as an open question the user chose to leave open. Summarize the design, then ask for approval using the host question rule; save nothing before it.
 
 Adapted from the `grilling` and `domain-modeling` skills of mattpocock-skills. Interview the user until you both hold the same design. Treat it as a design tree: each decision opens the ones that hang off it. For a Project Idea, first read the repo's `CONTEXT.md` and `docs/adr/` when they exist.
 

@@ -1,14 +1,13 @@
-# /gps auto [--delegate] [plan|ship|finish]
+# /gps auto [--delegate|--inline] [plan|ship|finish]
 
 **When:** you trust the direction and want the session to run from its current phase to the target (default `finish`) without stopping.
 
-1. `auto-route.js [plan|ship|finish] [--delegate]` (pass `--delegate` through when typed). It prints the steps.
-2. A first step `write:grill` needs a grill design approved in this conversation, and `write:plan` needs tickets drafted in it. If that content isn't here, stop and say so.
-3. If it says to ask the ship mode, ask it once using the router's host question rule, subagent + inline follow-up first as "(Recommended)" (whatever the last ship mode was); a preset mode (`--delegate` = subagent + inline follow-up) is used as is. Ask nothing else routinely; required mapping/capability resolution or an unknown inherited effort still needs an explicit choice. Never substitute silently.
-4. Run each step through its references file as if typed (`write:*` → `write.md`, `plan` → `plan.md`, `ship` → `ship.md`, `finish` → `finish.md`), except:
-   - `plan`: writing-plans only drafts. Don't execute its plan or ask for a review or an execution method; tickets drafted in `plan.md` step 3 (with or without writing-plans and unslop) count as approved.
-   - `ship`: use the mode from step 3 and the model and effort hints as drafted. After plan save, delegated modes run the whole-queue `dispatch-preflight.js` and runtime capability checks from ship.md before any ticket-start. Failure stops before implementation and finish; no automatic retry, mode switch or restart of completed tickets.
-   - `finish`: run it as a chained finish (`finish.md`): no closing questions. Target `ship` lists `finish` after `ship` when `ship.autoFinish` is on (the route says so); run it the same way.
-5. Relay each step's output, `⚠️` lines included, except its `Next:` line. A `⚠️` doesn't stop the run; repeat every one in the final report. The first `❌` (other than a write payload fix), BLOCKED ticket or failed `ticket-check.js` ends the run: report which step stopped it. Finish never runs after an incomplete ship.
+1. `auto-route.js [plan|ship|finish] [--delegate|--inline]` prints the steps.
+2. A first step `write:grill` needs a design agreed in this conversation, and `write:plan` needs tickets drafted in it. If that content isn't here, stop and say so.
+3. Run each step through its references file (`write:*` → `write.md`, `plan` → `plan.md`, `ship` → `ship.md`, `finish` → `finish.md`), with these differences:
+   - `plan`: the drafted tickets count as approved, also for high-risk work.
+   - `ship`: a preset mode holds for the run.
+   - `finish`: run it as a chained finish (`finish.md`). Target `ship` lists `finish` when `ship.autoFinish` is on.
+4. Relay each step's output, `⚠️` lines included, except its `Next:` line, and repeat every `⚠️` in the final report. Recover per the script contract and `ship.md`; a blocked ticket or an unfixable `❌` ends the run, and you report which step stopped it. Finish runs only after a complete ship.
 
 **Examples:** `/gps auto` · `/gps auto plan` · `/gps auto --delegate`

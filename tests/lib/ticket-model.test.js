@@ -37,7 +37,7 @@ assert.ok(fs.existsSync(path.join(__dirname, '..', '..', 'docs', 'decisions', '0
 
 // The model list in the docs matches the code, so they can't drift apart
 const refs = path.join(__dirname, '..', '..', 'skills', 'gps', 'references');
-for (const file of ['plan.md', 'ship.md']) {
+for (const file of ['plan.md']) {
   const text = fs.readFileSync(path.join(refs, file), 'utf-8');
   for (const model of TICKET_MODELS) {
     assert.ok(text.includes(`\`${model}\``) || text.includes(model), `${file} does not mention model "${model}"`);

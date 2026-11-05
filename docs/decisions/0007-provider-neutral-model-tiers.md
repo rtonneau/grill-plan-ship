@@ -1,5 +1,7 @@
 # 0007: Ticket model hints use provider-neutral tiers
 
+_Partly superseded by decision 0014: tiers stand; the built-in Codex table is gone._
+
 ## Context
 
 GPS plans are shared between Claude Code and Codex, but ticket hints used Claude family names. Codex therefore needed project mappings before it could dispatch the same plan, and the stored plan described a provider rather than the capability the ticket needed.

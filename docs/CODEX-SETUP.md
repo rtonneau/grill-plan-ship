@@ -1,6 +1,6 @@
 # GPS on Windows Codex
 
-Scope: Windows CLI and desktop. CLI installation below passed on 2026-10-12 with Codex CLI 0.162.1, Node 22.14.0 and Git 2.39.0.windows.2. This is a tested client version, not a proven minimum. CLI skill discovery/help/status also passed. Desktop discovery and execution remain unverified; see [smoke results](CODEX-SMOKE-TEST.md).
+Scope: Windows CLI and desktop. Tested client versions and what remains untested are in [COMPATIBILITY.md](COMPATIBILITY.md).
 
 Install Node.js 20+ and Git. Authenticated `gh` is needed only for GitHub features. Use the reviewed local checkout to include uncommitted changes; a remote install cannot include them. Keep the portable root `plugin.json` and existing `.claude-plugin/marketplace.json` together.
 
@@ -53,8 +53,10 @@ The [official packaging guide](https://developers.openai.com/plugins/build/plugi
 
 ## Delegation setup
 
-Use `/gps config` (as `$gps config` in Codex) to inspect declared delegation settings. GPS maps the portable `fast`, `medium`, and `heavy` ticket tiers to Luna, Sol, and Astra by default. Optional README mappings override those defaults for clients with different native IDs or effort support. Queue preflight validates the resolved settings; the host must separately verify tool/account capabilities before starting a ticket.
+GPS needs no delegation setup: the parent picks the model matching each ticket's tier from the list its `spawn_agent` tool offers. `$gps config` shows any pin set by hand in `delegation.codex.models`.
 
-For a mapped model requesting inherited effort, supply `--parent-effort` only from authoritative current runtime context. Unknown effort requires an explicit supported effort choice. Native `inherit/inherit` requires no mapping and omits both overrides, leaving resolution to the host. Inline execution requires no mappings. These are explicit user choices; GPS never silently falls back to either.
+## Sandbox
 
-Command syntax was checked against local help and the [official CLI reference](https://learn.chatgpt.com/docs/cli/reference). Successful installation alone does not establish skill discovery or live delegation.
+Under `workspace-write`, `.git` stays read-only, so GPS's commits need an approval or a host configuration that allows them. With `approval_policy = never` a commit fails and GPS stops at that ticket with the work left in the tree.
+
+Test evidence: [COMPATIBILITY.md](COMPATIBILITY.md).

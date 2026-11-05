@@ -28,14 +28,14 @@ function derivePhaseLabel(writeTarget, ticketQueue, config) {
 function suggestNext(phase, ticketQueue) {
   switch (phase) {
     case 'grill':
-      return { command: '/gps write', why: 'Save the approved brainstorm to 01-grill/resume.md.' };
+      return { command: '/gps write', why: 'Save the agreed design to 01-grill/resume.md.' };
     case 'plan-not-started':
       return {
         command: '/gps plan',
-        why: 'The resume is saved; break the work into tickets. For bounded work (no plan), implement it and run /gps finish instead.',
+        why: 'The resume is saved; break the work into tickets. For small work (no plan), implement it and run /gps finish instead.',
       };
     case 'plan':
-      return { command: '/gps write', why: 'Save the approved plan and tickets to 02-plan/.' };
+      return { command: '/gps write', why: 'Save the drafted plan and tickets to 02-plan/.' };
     case 'ship': {
       const next = ticketQueue && ticketQueue.nextPending;
       return {

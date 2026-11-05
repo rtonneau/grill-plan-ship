@@ -30,9 +30,10 @@ function repositoryRoot(projectRoot) {
   }
 }
 
+// git compares safe.directory literally: on Windows a backslash path never matches.
 function safeGitArgs(projectRoot, args) {
   const root = repositoryRoot(projectRoot);
-  return root ? ['-c', `safe.directory=${root}`, ...args] : args;
+  return root ? ['-c', `safe.directory=${root.split(path.sep).join('/')}`, ...args] : args;
 }
 
 function git(projectRoot, args) {
@@ -250,8 +251,12 @@ function pathHasChanges(projectRoot, relPath) {
 }
 
 // True when git ignores `relPath` (e.g. an older .gitignore with ".work/").
+// A directory ("dir/") is judged through a child: git turns a blank line of a
+// CRLF ignore file into an empty pattern that matches any path ending in "/",
+// which reported .work/ as ignored and silently stopped every record commit.
 function isIgnored(projectRoot, relPath) {
-  return tryGit(projectRoot, ['check-ignore', '-q', '--no-index', '--', relPath]) !== null;
+  const target = relPath.endsWith('/') ? `${relPath}.gps-ignore-probe` : relPath;
+  return tryGit(projectRoot, ['check-ignore', '-q', '--no-index', '--', target]) !== null;
 }
 
 // Commits every change to tracked files outside .work/ (`git add -u`), so

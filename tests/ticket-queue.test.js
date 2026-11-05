@@ -16,12 +16,11 @@ const prep = h.json(root, 'write-prepare.js');
 fs.writeFileSync(prep.payloadPath, h.planPayload(prep, [{ slug: 'toggle', model: 'fast' }, { slug: 'persist', model: 'heavy' }, { slug: 'docs' }]));
 h.ok(root, 'write-apply.js');
 
-// Text: one line per ticket, next pending, and the model-hint lines ship asks about.
+// Text: one line per ticket with its hints, and the next pending one.
 let res = h.ok(root, 'ticket-queue.js');
 assert.match(res.out, /0\/3 done/);
 assert.match(res.out, /- 01 toggle — pending — model fast, effort inherit/);
 assert.match(res.out, /Next pending: 01 toggle/);
-assert.match(res.out, /Model and effort hints of the remaining tickets:\n1: fast\/inherit\n2: heavy\/inherit\n3: inherit\/inherit/);
 
 // No ship mode recorded yet: no "Last ship mode" line.
 assert.doesNotMatch(res.out, /Last ship mode/);
@@ -41,18 +40,24 @@ fs.writeFileSync(path.join(ticketsDir, 'notes.md'), 'stray');
 res = h.ok(root, 'ticket-queue.js');
 assert.match(res.err, /⚠️ {2}Ticket 02-persist: unknown model "mediumm", using inherit/);
 assert.match(res.err, /⚠️ {2}Skipped notes\.md/);
-assert.match(res.out, /2: inherit/);
+assert.match(res.out, /02 persist — pending — model inherit/);
 
-// The mode ticket-start.js recorded is offered back.
+// The mode ticket-start.js recorded is reported back.
 h.ok(root, 'ticket-start.js', ['--mode', 'subagent']);
-assert.match(h.ok(root, 'ticket-queue.js').out, /3 done\.\nLast ship mode: subagent\n/);
-assert.strictEqual(h.json(root, 'ticket-queue.js').shipMode, 'subagent');
+assert.match(h.ok(root, 'ticket-queue.js').out, /3 done\.\nLast ship mode: delegate\n/);
+assert.strictEqual(h.json(root, 'ticket-queue.js').shipMode, 'delegate');
+// A pre-3.0 session keeps working: its stored mode reads as delegate, and the read rewrites nothing.
+for (const legacy of ['subagent', 'subagent+inline']) {
+  const cfgPath = path.join(h.sessionDir(root), '.session-config.json');
+  fs.writeFileSync(cfgPath, JSON.stringify({ ...JSON.parse(fs.readFileSync(cfgPath, 'utf-8')), ship_mode: legacy }));
+  assert.strictEqual(h.json(root, 'ticket-queue.js').shipMode, 'delegate');
+  assert.strictEqual(h.readConfig(root).ship_mode, legacy);
+}
 
-// Done tickets drop out of the hints; all done points at /gps finish.
+// All done points at /gps finish.
 h.completeTicket(root, 1, 'toggle');
 data = h.json(root, 'ticket-queue.js');
 assert.strictEqual(data.nextPending.slug, 'persist');
-assert.doesNotMatch(h.ok(root, 'ticket-queue.js').out, /\n1: fast/);
 h.completeTicket(root, 2, 'persist');
 h.completeTicket(root, 3, 'docs');
 assert.match(h.ok(root, 'ticket-queue.js').out, /3\/3 done[\s\S]*All tickets are done\. Next: \/gps finish/);
@@ -67,13 +72,13 @@ h.assertFails(h.run(root, 'ticket-queue.js', ['1']), 2);
   h.shipReady(r, 'effort', [{ slug: 'a', model: 'medium', effort: 'high' }, { slug: 'b', effort: 'low' }]);
   let out = h.ok(r, 'ticket-queue.js');
   assert.match(out.out, /- 01 a — pending — model medium, effort high/);
-  assert.match(out.out, /1: medium\/high\n2: inherit\/low/);
+  assert.match(out.out, /- 02 b — pending — model inherit, effort low/);
   assert.deepStrictEqual(h.json(r, 'ticket-queue.js').tickets.map((t) => [t.effort, t.effortInvalid]), [['high', null], ['low', null]]);
   const b = path.join(h.sessionDir(r), '02-plan', 'tickets', '02-b.md');
   fs.writeFileSync(b, fs.readFileSync(b, 'utf-8').replace('**Effort:** low', '**Effort:** max'));
   out = h.ok(r, 'ticket-queue.js');
   assert.match(out.err, /Ticket 02-b: unknown effort "max", using inherit \(gps effort hints stop at xhigh/);
-  assert.match(out.out, /2: inherit\/inherit/);
+  assert.match(out.out, /- 02 b — pending — model inherit, effort inherit/);
 }
 
 h.done('ticket-queue.test.js');

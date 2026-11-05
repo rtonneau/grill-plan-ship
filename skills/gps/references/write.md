@@ -1,13 +1,13 @@
 # /gps write
 
-**When:** the grill design, or the plan's tickets, were approved in this conversation. `/gps plan`, `/gps ship` and `/gps auto` run these steps first when their phase is pending.
+**When:** the design or tickets were agreed in this conversation. `/gps plan`, `/gps ship` and `/gps auto` run these steps first when their phase is pending.
 
-This is transcription, not design: copy what was agreed. Don't re-brainstorm, re-plan, read templates or explore the code; the user approved this content, and anything new would reach disk unreviewed.
+This is transcription: copy what was agreed, so nothing new reaches disk unreviewed.
 
 1. `write-prepare.js`. If it says nothing is pending, relay it and stop.
-2. Fill its skeleton with the agreed content and write it to the payload path it prints. On the plan phase of a GitHub project, name the `**Branch:**` after the plan yourself (e.g. `feat/dark-mode-toggle`); don't ask.
+2. Fill its skeleton and write it to the payload path it prints. On the plan phase of a GitHub project, name the `**Branch:**` after the plan yourself (e.g. `feat/dark-mode-toggle`).
 3. `write-apply.js`. A `❌` with a list means nothing was written: fix those items in the payload and run it again. Relay its `✅`, `🌿` (session branch), `🗂️` (session record committed, plan phase) and `📌` (GitHub issue) lines.
 
-For a GitHub plan, a detached linked worktree is supported when GPS can identify one local branch at HEAD (preferably the branch checked out in another worktree). GPS creates the session branch from the detached commit and records that identified branch as the PR base. An ambiguous or inaccessible Git state is refused without consuming the payload.
+A GitHub plan in a detached linked worktree works when GPS can identify one local branch at HEAD; it records that branch as the PR base. An ambiguous Git state is refused without consuming the payload.
 
 **Example:** `/gps write`

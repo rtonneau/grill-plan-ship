@@ -1,11 +1,11 @@
 #!/usr/bin/env node
 
 /**
- * auto-route.js [plan|ship|finish] [--delegate] [--json]
+ * auto-route.js [plan|ship|finish] [--delegate|--inline] [--json]
  *
  * /gps auto: prints the steps that take the current session from its phase
- * to the target (default finish) and the questions to ask before running
- * them. --delegate presets the ship mode to subagent + inline follow-up.
+ * to the target (default finish). --delegate or --inline presets the ship mode;
+ * otherwise the agent chooses per ticket.
  * Records an auto_started event once the route is valid. Runs no step
  * itself: references/auto.md drives them.
  */
@@ -15,18 +15,19 @@ const { computeRoute } = require('./lib/auto-route');
 const { resolveSession } = require('./lib/session-store');
 const { recordEvent } = require('./lib/history');
 const { shipSettings } = require('./lib/project-config');
-
-const DELEGATE_SHIP_MODE = 'subagent+inline';
+const { UsageError } = require('./lib/guard');
 
 main({
-  usage: 'auto-route.js [plan|ship|finish] [--delegate] [--json]',
+  usage: 'auto-route.js [plan|ship|finish] [--delegate|--inline] [--json]',
   positionals: { min: 0, max: 1 },
-  options: { delegate: 'boolean' },
+  options: { delegate: 'boolean', inline: 'boolean' },
   run({ positionals, options, projectRoot, warn }) {
+    if (options.delegate && options.inline) throw new UsageError('Give --delegate or --inline, not both.');
+    const preset = (options.delegate && 'delegate') || (options.inline && 'inline') || undefined;
     const { sessionId, sessionDir, configPath, config } = resolveSession(projectRoot);
-    const { target, steps, questions, shipMode, chainedFinish } = computeRoute(sessionDir, config, positionals[0] || 'finish',
-      { shipMode: options.delegate ? DELEGATE_SHIP_MODE : undefined, autoFinish: shipSettings(projectRoot).autoFinish });
-    if (options.delegate && !shipMode) warn('--delegate ignored: this route has no ship step.');
+    const { target, steps, shipMode, chainedFinish } = computeRoute(sessionDir, config, positionals[0] || 'finish',
+      { shipMode: preset, autoFinish: shipSettings(projectRoot).autoFinish });
+    if (preset && !shipMode) warn(`--${preset} ignored: this route has no ship step.`);
 
     recordEvent(configPath, config, sessionDir, {
       event: 'auto_started',
@@ -35,13 +36,7 @@ main({
 
     const lines = [`Route for ${sessionId} (target ${target}): ${steps.join(' → ')}`];
     if (chainedFinish) lines.push('finish follows ship because ship.autoFinish is on.');
-    if (questions.includes('ship-mode')) {
-      lines.push('Ask once, before the first step: the ship mode (subagent + inline follow-up (Recommended), subagent, or inline).');
-    } else if (shipMode) {
-      lines.push(`Ship mode: ${shipMode} (preset by --delegate); ask nothing.`);
-    } else {
-      lines.push('Ask nothing.');
-    }
-    return { text: lines.join('\n'), data: { sessionId, target, steps, questions, ...(chainedFinish && { chainedFinish }), ...(shipMode && { shipMode }) } };
+    if (shipMode) lines.push(`Ship mode: ${shipMode} (preset).`);
+    return { text: lines.join('\n'), data: { sessionId, target, steps, ...(chainedFinish && { chainedFinish }), ...(shipMode && { shipMode }) } };
   },
 });

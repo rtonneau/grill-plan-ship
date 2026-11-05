@@ -15,7 +15,7 @@ const h = require('./helpers');
     assert.match(res.out, new RegExp(`^\\| \`/gps ${name}\\b`, 'm'), `help lists /gps ${name}`);
   }
   // The table cell of /gps auto keeps its pipes escaped.
-  assert.match(res.out, /\| `\/gps auto \[--delegate\] \[plan\\\|ship\\\|finish\]` \| You trust the direction/);
+  assert.match(res.out, /\| `\/gps auto \[--delegate\\\|--inline\] \[plan\\\|ship\\\|finish\]` \| You trust the direction/);
   assert.match(res.out, /Next: \/gps start <feature-name>/);
   assert.ok(!fs.existsSync(path.join(root, '.work')), 'help.js creates nothing');
 
@@ -23,18 +23,18 @@ const h = require('./helpers');
   assert.strictEqual(data.sessionId, null);
   assert.strictEqual(data.suggestedNext.command, '/gps start <feature-name>');
   const ship = data.commands.find((c) => c.name === 'ship');
-  assert.strictEqual(ship.usage, '/gps ship [N]');
-  assert.match(ship.when, /the tickets are approved/);
+  assert.strictEqual(ship.usage, '/gps ship [N] [--inline|--delegate]');
+  assert.match(ship.when, /the tickets are drafted/);
   assert.match(ship.examples, /`\/gps ship 3`/);
 
   // One command, named bare or as typed.
   for (const arg of ['ship', '/gps ship', 'SHIP']) {
     const one = h.ok(root, 'help.js', [arg]).out;
     assert.match(one, /^## \/gps ship \[N\]/);
-    assert.match(one, /\*\*When:\*\* the tickets are approved/);
+    assert.match(one, /\*\*When:\*\* the tickets are drafted/);
     assert.match(one, /\*\*Examples:\*\* `\/gps ship`/);
   }
-  assert.strictEqual(h.json(root, 'help.js', ['auto']).command.usage, '/gps auto [--delegate] [plan|ship|finish]');
+  assert.strictEqual(h.json(root, 'help.js', ['auto']).command.usage, '/gps auto [--delegate|--inline] [plan|ship|finish]');
 
   h.assertFails(h.run(root, 'help.js', ['bogus']), 2, /Unknown command "bogus"[\s\S]*Commands: init, scout, start/);
   h.assertFails(h.run(root, 'help.js', ['a', 'b']), 2, /Unexpected argument/);

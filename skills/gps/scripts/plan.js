@@ -54,7 +54,7 @@ main({
 
     return {
       text: `✅ Plan started for ${sessionId}: ${planPath}\n`
-        + 'Next: draft the tickets (writing-plans, then unslop), each with a **Model:** hint; once they are approved, /gps ship saves and implements them.',
+        + 'Next: draft the tickets; /gps ship saves and implements them.',
       data: { sessionId, planPath, resumePath },
     };
   },

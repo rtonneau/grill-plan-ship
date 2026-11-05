@@ -1,10 +1,12 @@
 # grill-plan-ship
 
-A Claude Code and Codex plugin that runs any code change through four phases:
+A Claude Code and Codex plugin that takes a code change from request to delivery, with as much process as the work deserves:
 
-**grill** (spec the work) → **plan** (atomic tickets) → **ship** (one commit per ticket) → **finish** (changelog entry, summary, and a pull request on GitHub projects) → **release** (when you choose).
+- **Small change:** implement, verify, commit, finish.
+- **Standard:** **grill** (settle the design) → **plan** (reviewable tickets) → **ship** (one commit per ticket) → **finish** (changelog entry, summary, and a pull request on GitHub projects) → **release** (when you choose).
+- **High-risk:** the same, plus rollback in the design and approval of the tickets.
 
-The coding agent does the judgment work: asking questions, planning, reviewing and summarizing. Everything deterministic (session files, templates, validation, git and gh calls, report formatting) is done by small Node.js scripts with no dependencies.
+The coding agent does the judgment work and decides routine implementation matters itself; you keep product decisions and consequential actions. Whatever must be exact (session files, validation, git and gh calls, changelog) is done by small Node.js scripts with no dependencies, so a session can be resumed on either host. Design: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md). Tested and untested host behavior: [docs/COMPATIBILITY.md](docs/COMPATIBILITY.md). Upgrading: [docs/MIGRATION-3.0.md](docs/MIGRATION-3.0.md).
 
 ![Diagram of the GPS workflow: optional SCOUT, then GRILL, PLAN, SHIP and FINISH with command, activity and output columns, a /gps auto lane, the commands usable at any time, and the script contract.](docs/gps-workflow.png)
 
@@ -12,47 +14,46 @@ The coding agent does the judgment work: asking questions, planning, reviewing a
 
 ### Codex
 
-Follow the [Windows Codex setup guide](docs/CODEX-SETUP.md) to register this checkout as a marketplace and install GPS. CLI installation was verified with Codex 0.162.1; desktop and runtime verification status is recorded in [the smoke results](docs/CODEX-SMOKE-TEST.md). Then invoke the skill as `$gps <subcommand> [arguments]` (for example, `$gps config --rescan`). It runs against the current local checkout and requires Node.js 20+ and git. GitHub features also require an authenticated `gh` CLI. GPS sessions use the same `.work/` files in Codex and Claude Code and are designed to be continued in either host; live cross-host resume remains unverified. ChatGPT web does not provide the local checkout and scripts needed for the complete workflow.
+Follow the [Windows Codex setup guide](docs/CODEX-SETUP.md) to register this checkout as a marketplace and install GPS, then invoke the skill as `$gps <subcommand> [arguments]` (for example, `$gps config --rescan`). It needs Node.js 20+ and git; GitHub features also need an authenticated `gh` CLI. Under `workspace-write`, Codex keeps `.git` read-only, so commits need approval. ChatGPT web does not provide the local checkout the workflow needs.
 
 ### Claude Code
 
 ```
-/plugin marketplace add rtonneau/grill-plan-ship
-/plugin install grill-plan-ship
+/plugin install grill-plan-ship --marketplace rtonneau/grill-plan-ship
 ```
 
 Restart Claude Code. Update later with `/plugin marketplace update rtonneau/grill-plan-ship`.
 
-**Requirements:** Claude Code, Node.js 20+ and git. The GitHub features (session branches, pull requests, issues) also need the [GitHub CLI](https://cli.github.com/) logged in; without it gps works locally. The grill and plan conversations work best with other plugins: `mattpocock-skills` (`grilling`, `domain-modeling`) or `superpowers` (`brainstorming`), plus `superpowers` (`writing-plans`) and, optionally, `unslop`. Without them, `/gps` falls back to a built-in grill (an interview that also keeps a project glossary and ADRs in `.work/`, adapted from the `grilling` and `domain-modeling` skills of [mattpocock-skills](https://github.com/mattpocock/skills.git)) and drafts the tickets itself.
+**Requirements:** Claude Code 2.1.292+ (for effort on delegated tickets), Node.js 20+ and git. The GitHub features (session branches, pull requests, issues) also need the [GitHub CLI](https://cli.github.com/) logged in; without it gps works locally. No other plugin is needed. The built-in grill is adapted from the `grilling` and `domain-modeling` skills of [mattpocock-skills](https://github.com/mattpocock/skills.git), and it also keeps a project glossary and ADRs; name another skill in your request to use it instead.
 
 ## Quick start
 
 ```
-/gps init                  # optional, once per project: checks it and commits gps's setup
-/gps start add-dark-mode   # creates the session, then the grill conversation starts
-/gps plan                  # once the design is approved: saves it, then drafts tickets
-/gps ship                  # once the tickets are approved: saves them, implements each, one commit each, then finishes
-/gps finish                # changelog fragment, INDEX.md; on GitHub, push and PR (/gps ship runs it: ship.autoFinish)
+/gps start fix-header-typo # a small change: implemented, verified, committed and finished
+
+/gps start add-dark-mode   # bigger work: a focused grill, then one design approval
+/gps plan                  # saves the design, drafts reviewable tickets
+/gps ship                  # implements each ticket, one commit each, then finishes (push and PR on GitHub)
 /gps release               # when you choose: turns the changelog fragments into a version, a tag and a push
 ```
 
-Or, once the direction is clear, `/gps auto` runs from wherever the session is to the end without stopping.
+The agent states the size it chose: say so if you disagree. `/gps init` is an optional first step, once per project, that commits gps's setup. Once the direction is clear, `/gps auto` runs from wherever the session is to the end without stopping.
 
 ## Commands
 
 | Command | What it does |
 |---|---|
-| `/gps init` | Optional first-run setup: check the project (git, GitHub, helper skills) and commit gps's `.gitignore` entries, config and (when missing) CHANGELOG.md on their own |
+| `/gps init` | Optional first-run setup: check the project (git, GitHub) and commit gps's `.gitignore` entries, config and (when missing) CHANGELOG.md on their own |
 | `/gps scout [--from <review-file>] [direction]` | Turn an architecture review, or an existing review file, into seeds for `/gps start` |
-| `/gps start [--issue] <name>` | New session, then the grill (`--issue`: a bug report, filed as a GitHub issue). An unfinished session of the same name is resumed, not duplicated |
+| `/gps start [--issue] <name>` | New session sized to the work: small changes go straight to implementation, others to the grill (`--issue`: a bug report, filed as a GitHub issue). An unfinished session of the same name is resumed, not duplicated |
 | `/gps status` | Every session, scouted seeds, the current phase, a saved handoff, the next command |
 | `/gps clean [id...]` | Delete old sessions or drop seeds, after showing exactly what goes |
-| `/gps config [--rescan]` | Show GitHub/Jev flags, changelog/release and declared delegation settings, or rescan flags |
-| `/gps write` | Save the approved grill or plan to disk (`plan`, `ship` and `auto` do it for you) |
+| `/gps config [--rescan]` | Show GitHub/Jev flags, changelog/release and delegation settings, or rescan flags |
+| `/gps write` | Save the agreed grill or plan to disk (`plan`, `ship` and `auto` do it for you) |
 | `/gps plan` | Save the grill if pending, then draft tickets with model and effort hints |
-| `/gps ship [N]` | Save the plan if pending, then implement every remaining ticket and chain `/gps finish` (or only ticket N) |
+| `/gps ship [N] [--inline\|--delegate]` | Save the plan if pending, then implement every remaining ticket and chain `/gps finish` (or only ticket N) |
 | `/gps finish` | Close the session: changelog fragment, leftovers committed, INDEX.md, PR (a full `/gps ship` runs it for you) |
-| `/gps auto [--delegate] [plan\|ship\|finish]` | Run from the current phase to the target without stopping |
+| `/gps auto [--delegate\|--inline] [plan\|ship\|finish]` | Run from the current phase to the target without stopping |
 | `/gps release` | Turn the changelog fragments into a version: suggest, bump, tag, push |
 | `/gps handoff` | Save an in-flight checkpoint before you stop for the day |
 | `/gps help [command\|question]` | Where you are and what to run next, what a command does, or an answer to any question about the workflow |
@@ -68,11 +69,11 @@ Or, once the direction is clear, `/gps auto` runs from wherever the session is t
 /gps status                                # "dark mode — ship · 1/3 done; next 02 persist" + Next: line
 /gps clean 2026-08-01__old-spike           # dry run first, deletes only after your yes
 /gps config --rescan                       # after adding a github.com origin or running gh auth login
-/gps write                                 # save the approved design now, without starting the plan
-/gps plan                                  # writing-plans drafts the tickets, unslop tightens them
-/gps ship 3                                # implement only ticket 3, inline
+/gps write                                 # save the agreed design now, without starting the plan
+/gps plan                                  # drafts the tickets, then stops: /gps ship is the go-ahead
+/gps ship 3                                # implement only ticket 3
 /gps finish                                # for an issue session it asks "Close issue #N as well?"
-/gps auto --delegate                       # subagent per ticket on its hinted model and effort, reviewed and committed here
+/gps auto --delegate                       # one child per ticket on its hinted model and effort, reviewed and committed here
 /gps release                               # suggests 1.5.0 (minor); after your yes: version files bumped, tag v1.5.0, then "Push and publish?"
 /gps handoff                               # HANDOFF.md: where you stopped, next step, settled decisions
 /gps help what does auto skip?             # explains from the references, names the command to run
@@ -101,40 +102,29 @@ The `idea` skill keeps a backlog of future work apart from gps sessions. An Idea
 
 ## How `/gps ship` works
 
-`/gps ship` asks once how to implement the tickets:
+`/gps ship` runs one ticket at a time and chooses how, per ticket, saying which:
 
-- **inline:** the coding agent implements each ticket in this session.
-- **subagent:** each ticket goes to a fresh subagent on the ticket's portable `**Model:**` tier (`fast`, `medium`, `heavy` or `inherit`) and `**Effort:**` hint (`low`, `medium`, `high`, `xhigh` or `inherit`). The subagent commits through `ticket-complete.js`, and `ticket-check.js` verifies its DONE report before the next ticket starts.
-- **subagent + inline follow-up:** the subagent implements and verifies; this session reviews the diff, re-runs the Verification Step, fixes what's needed and commits. `/gps auto` recommends this mode, since every ticket gets a second look before it is committed.
+- **inline:** the coding agent implements the ticket in this session.
+- **delegate:** a fresh child implements and verifies it, and fills its commit log. This session reviews the diff, fixes small gaps and commits. It is chosen when a ticket's hints differ from the session or the ticket would crowd this context.
 
-**No mode runs tickets in parallel.** In both subagent modes, one subagent is dispatched per ticket, and the next one starts only after the previous ticket is committed (or the run stops). Even tickets that could be done in parallel run one after the other: two live subagents would edit the same working tree, and each commit would pick up the other's changes.
+`--inline` or `--delegate` overrides the choice for the run.
 
-**Effort hints in Claude Code.** An Agent call can pass a model but not an effort, so the plugin ships one subagent per level, `agents/gps-ticket-<level>.md` (`low` to `xhigh`), each setting its `effort:`. `dispatch-prompt.js` picks the one matching the ticket and passes the model on the call; `inherit` uses the general-purpose subagent at the session's own effort. A level the model doesn't support falls back to the highest one it does, and inline mode ignores effort hints, since a running session can't change its own effort. Hints stop at `xhigh` on purpose: `max` is slow and costly for one small ticket, so `/gps write` refuses it and asks you to split the ticket instead, or to run it inline under `/effort max`. The reasoning is recorded in [docs/decisions/0001-effort-hints-stop-at-xhigh.md](docs/decisions/0001-effort-hints-stop-at-xhigh.md).
+**Hints.** A ticket may carry a portable `**Model:**` tier (`fast`, `medium`, `heavy`, `inherit`) and an `**Effort:**` level (`low`, `medium`, `high`, `xhigh`, `inherit`); no line means the session's own. Inline work ignores them, since a running session can't change its own model or effort. Hints stop at `xhigh` on purpose ([decision 0001](docs/decisions/0001-effort-hints-stop-at-xhigh.md)).
 
-**Shared model tiers.** Ticket files use provider-neutral capability names. At dispatch GPS maps `fast`/`medium`/`heavy` to Haiku/Sonnet/Opus for Claude and `gpt-6-luna`/`gpt-6-sol`/`gpt-6-astra` for Codex. Codex mappings can be overridden in `.work/gps-config.json` when a client exposes different native IDs or supported effort levels:
+- **Claude Code:** tiers map to `haiku`, `sonnet` and `opus`; model and effort go on the Agent call.
+- **Codex:** the parent picks the model matching the tier from the list its spawn tool offers, so GPS carries no model IDs that can go stale. To pin one, set it by hand:
 
 ```json
-{
-  "delegation": {
-    "codex": {
-      "models": {
-        "fast": { "model": "<available-model-id>", "efforts": ["low", "medium"] },
-        "medium": { "model": "<available-model-id>", "efforts": ["low", "medium", "high"] },
-        "heavy": { "model": "<available-model-id>", "efforts": ["low", "medium", "high", "xhigh"] }
-      },
-      "inheritEfforts": ["low", "medium", "high"]
-    }
-  }
-}
+{ "delegation": { "codex": { "models": { "heavy": "<available-model-id>" } } } }
 ```
 
-Replace each placeholder with a model available in your client and list only the effort levels that model supports. Omitted tier mappings use the built-in Codex defaults. `inheritEfforts` describes the current session model; update it when that model changes. `dispatch-prompt.js --host codex --json` emits a native spawn call containing the same ticket brief used by Claude, plus explicit model and reasoning overrides. Before ticket-start, `dispatch-preflight.js` validates every pending delegated ticket, including later tickets, without mutation. The host then verifies actual tool/account model and effort support. Unsupported efforts or unknown required parent effort stop before implementation; each dispatch revalidates current settings. Accepted overrides and runtime parent effort must match preflight. `/gps auto --delegate` follows the same checks and cannot run finish after failure. Explicit `inherit/inherit` needs no mapping; inline mode needs no delegation configuration. See [decision 0007](docs/decisions/0007-provider-neutral-model-tiers.md).
+A hint that can't be honored is dropped and the agent tells you. Reasoning: [decision 0014](docs/decisions/0014-one-brief-parent-commits.md).
 
-For a mapped Codex model with effort `inherit`, GPS requires `--parent-effort <low|medium|high|xhigh>` from authoritative current runtime context, validates it and emits it explicitly. Unknown parent effort requires an explicit ticket effort choice; do not infer it from settings, transcripts, model IDs or declared support. Explicit ticket effort takes precedence. Parent effort is runtime input and is never stored in session state. Native `inherit/inherit` omits both overrides; the host resolves these fields, including any host agent defaults.
+**Sequential by design.** Only one writer is live at a time: tickets build on each other and share the working tree and session state.
 
-Only one implementer is ever live. A ticket that can't be finished is recorded with `ticket-block.js` and stops the run; it is never retried automatically. Each ticket's `commit-log.md` gets its test result and review notes from Claude, and its commit and time spent from the script.
+**Recovery.** The agent fixes what it can, or tries one fresh child with what it learned. If the verification still fails or only you can settle it, `ticket-block.js` records why and the run stops with the work left in place. Rerunning `/gps ship` resumes from the existing log, on either host. Each ticket's `commit-log.md` gets its test result and review notes from the agent, and its commit and time spent from the script.
 
-**Ship chains finish.** When a full `/gps ship` reaches "All tickets are done" (also when they were all done already), it runs `/gps finish` for you as a *chained finish*: it asks nothing, keeps any issue open and offers no session switch. `/gps auto` runs its finish the same way, and `/gps auto ship` adds finish after ship. `/gps ship N` and a stopped run (a BLOCKED ticket, a failed check, any `❌`) never chain; a typed `/gps finish` still asks its questions. Set `ship.autoFinish` to `false` to stop after the last ticket instead. Reasoning: [docs/decisions/0011-ship-chains-finish.md](docs/decisions/0011-ship-chains-finish.md).
+**Ship chains finish.** When a full `/gps ship` reaches "All tickets are done" (also when they were all done already), it runs `/gps finish` for you as a *chained finish*: it asks nothing, keeps any issue open and offers no session switch. `/gps auto` runs its finish the same way, and `/gps auto ship` adds finish after ship. `/gps ship N` and a stopped run (a blocked ticket or an unfixable `❌`) never chain; a typed `/gps finish` still asks its questions. Set `ship.autoFinish` to `false` to stop after the last ticket instead. Reasoning: [docs/decisions/0011-ship-chains-finish.md](docs/decisions/0011-ship-chains-finish.md).
 
 ## Changelog and releases
 
@@ -168,7 +158,8 @@ skills/gps/
 ├── scripts/               one script per deterministic step
 │   └── lib/               shared helpers (cli contract, session store, git, gh, phases, ...)
 └── assets/                markdown templates
-agents/gps-ticket-<level>.md   one ticket subagent per effort level, low to xhigh
+docs/ARCHITECTURE.md       the design and its component audit
+docs/COMPATIBILITY.md      host capabilities and test evidence
 docs/decisions/            why gps works the way it does (e.g. effort hints stop at xhigh)
 docs/WORK-DIR.md           what other skills may do in .work/ (gps owns its sessions and config)
 tests/                     one test per script (tests/lib/: one per lib), e2e and GitHub-flow tests
@@ -195,12 +186,10 @@ Every script in `skills/gps/scripts/` follows the same rules (see `scripts/lib/c
 | `write-apply.js` | validate the payload and write resume.md or plan.md + tickets (creates the branch / files the issue on GitHub) |
 | `plan.js` | start the plan phase |
 | `ticket-queue.js` | the tickets, their state, and model and effort hints |
-| `ticket-start.js` | prepare a ticket's workspace (next pending one by default); `--mode` records the ship mode the next `/gps ship` offers first |
-| `dispatch-preflight.js` | read-only validation of every pending delegated ticket before ticket-start; runtime capability checks still required |
-| `dispatch-prompt.js` | the Claude or Codex delegation call for a ticket's subagent |
+| `ticket-start.js` | prepare a ticket's workspace (next pending one by default); `--mode` records the ship mode |
+| `dispatch-prompt.js` | the ticket brief and the Claude or Codex spawn call for its child |
 | `ticket-complete.js` | commit the given files, mark the ticket Done, fill its log |
 | `ticket-block.js` | record why a ticket can't be finished |
-| `ticket-check.js` | verify a ticket really is complete |
 | `changelog-prepare.js` | `/gps finish` step 1: the session's commits, bump floor and payload path for its CHANGELOG entry |
 | `changelog-apply.js` | write the session's fragment `.work/changelog/<session-id>.md` (bump, floor, bullets) |
 | `finish.js` | close the session |
@@ -230,15 +219,15 @@ Every script in `skills/gps/scripts/` follows the same rules (see `scripts/lib/c
 
 The built-in grill uses a project's own domain docs when it has them, the way mattpocock-skills keeps them: a root `GLOSSARY.md` (or `CONTEXT.md`, its older name, when it reads like a glossary), a `GLOSSARY-MAP.md` / `CONTEXT-MAP.md` for several contexts, and ADRs in `docs/adr/`. Only a project without them gets `.work/GLOSSARY.md` and `.work/adr/`. `domain-doc.js where` shows which are in use, and flags a `.work/` copy that duplicates the project's own.
 
-`.work/` is committed with the code, each time in its own `chore(gps): …` commit: after the plan write (on the session branch), after each ticket (its completed commit log) and at `/gps finish` (INDEX.md and the finished state, pushed to the pull request before switching back). A bounded session's record is committed at finish only. Ticket commits themselves never include `.work/` files. gps commits only its own paths in `.work/`; other skills can keep files in `.work/<skill-name>/` by following [docs/WORK-DIR.md](docs/WORK-DIR.md). `/gps start` adds only `.scratch/` to `.gitignore`: the session pointer (`.work/sessions/.current-session`), the seeds (`.pending-seeds.json`) and a write payload in progress are committed with the rest (decision 0012). `/gps init` removes the four ignore lines older gps versions added for them. If `.work/` is git-ignored (older gps versions added it), gps warns and commits none of it: `/gps init` offers to remove the line. Since a session's files live on its branch, the commands find the session only with that branch checked out; when it isn't, the error names the branch to switch to. Every state change is appended to the session's `history` in `.session-config.json`; `/gps finish` turns it into a `## Timeline` table. The phase is always derived from the files, and `/gps status` flags any drift from the recorded one.
+`.work/` is committed with the code, each time in its own `chore(gps): …` commit: after the plan write (on the session branch), after each ticket (its completed commit log) and at `/gps finish` (INDEX.md and the finished state, pushed to the pull request before switching back). Small work's record is committed at finish only. Ticket commits themselves never include `.work/` files. gps commits only its own paths in `.work/`; other skills can keep files in `.work/<skill-name>/` by following [docs/WORK-DIR.md](docs/WORK-DIR.md). `/gps start` adds only `.scratch/` to `.gitignore`: the session pointer (`.work/sessions/.current-session`), the seeds (`.pending-seeds.json`) and a write payload in progress are committed with the rest (decision 0012). `/gps init` removes the four ignore lines older gps versions added for them. If `.work/` is git-ignored (older gps versions added it), gps warns and commits none of it: `/gps init` offers to remove the line. Since a session's files live on its branch, the commands find the session only with that branch checked out; when it isn't, the error names the branch to switch to. Every state change is appended to the session's `history` in `.session-config.json`; `/gps finish` turns it into a `## Timeline` table. The phase is always derived from the files, and `/gps status` flags any drift from the recorded one.
 
 ## GitHub projects
 
 `.work/gps-config.json` says whether the project uses GitHub (`origin` on github.com and `gh auth status` succeeds). It is detected once; `/gps config --rescan` detects it again, and you can edit it by hand (e.g. for GitHub Enterprise).
 
 - **Planned sessions:** saving the plan creates a session branch (`feat/…`, `fix/…`, named by Claude after the plan) from whatever is checked out. `/gps finish` commits leftover tracked changes, pushes, opens a PR against that base branch (or reuses an open one) and switches back to the base.
-- **Bounded sessions** (grill only, no plan) stay on the current branch: no branch, no PR.
-- **Issues:** `/gps start --issue` files the issue when the grill is saved. Bounded work gets a summary comment at finish (and, if you say so, the issue is closed). Planned work's PR says `Closes #N`.
+- **Small work** (no plan) stays on the current branch: no branch, no PR.
+- **Issues:** `/gps start --issue` files the issue when the grill is saved. Small work gets a summary comment at finish (and, if you say so, the issue is closed). Planned work's PR says `Closes #N`.
 - A failed push, `gh` call or switch never fails the finish: the commands to run by hand are printed and written to INDEX.md.
 
 ## What gps runs, writes and sends
@@ -260,7 +249,7 @@ npm test                                  # every tests/**/*.test.js
 node tests/check-skill-size.js --max 200  # the CI check: every SKILL.md at most 200 lines
 ```
 
-Developer notes for working on the plugin itself are in [`.claude/CLAUDE.md`](.claude/CLAUDE.md). The icon and the workflow diagram are PNGs rendered from editable sources kept on the [`design-sources`](https://github.com/rtonneau/grill-plan-ship/tree/design-sources) branch. Changes are listed in [CHANGELOG.md](CHANGELOG.md).
+Developer notes for working on the plugin itself are in [`AGENTS.md`](AGENTS.md). The icon and the workflow diagram are PNGs rendered from editable sources kept on the [`design-sources`](https://github.com/rtonneau/grill-plan-ship/tree/design-sources) branch. Changes are listed in [CHANGELOG.md](CHANGELOG.md).
 
 ## Support
 

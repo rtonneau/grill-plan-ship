@@ -20,7 +20,7 @@ assert.strictEqual(derivePhaseLabel({ target: 'grill' }, empty, { status: 'plan-
 const queue = { tickets: [{ num: '03', slug: 'x' }], nextPending: { num: '03', slug: 'x' } };
 assert.strictEqual(suggestNext('grill').command, '/gps write');
 assert.strictEqual(suggestNext('plan-not-started').command, '/gps plan');
-assert.match(suggestNext('plan-not-started').why, /bounded/);
+assert.match(suggestNext('plan-not-started').why, /small work/);
 assert.strictEqual(suggestNext('plan').command, '/gps write');
 assert.strictEqual(suggestNext('ship', queue).command, '/gps ship');
 assert.match(suggestNext('ship', queue).why, /\/gps ship 3/);

@@ -1,63 +1,65 @@
-// Host adapters share a ticket brief; model aliases stay portable in session files.
-const { GpsError, UsageError } = require('./guard');
-const { TICKET_EFFORTS } = require('./ticket-model');
+// Host adapters over one shared ticket brief. Tiers stay portable in session
+// files. Claude has stable family aliases. Codex has none, and its spawn tool
+// lists the models and efforts this account can use, so the parent resolves
+// the tier against that list unless the project pinned a model (decision 0014).
+const { UsageError } = require('./guard');
 
 const CLAUDE_MODELS = Object.freeze({ fast: 'haiku', medium: 'sonnet', heavy: 'opus' });
-const CODEX_MODELS = Object.freeze({
-  fast: Object.freeze({ model: 'gpt-6-luna', efforts: Object.freeze(['low', 'medium', 'high', 'xhigh']) }),
-  medium: Object.freeze({ model: 'gpt-6-sol', efforts: Object.freeze(['low', 'medium', 'high', 'xhigh']) }),
-  heavy: Object.freeze({ model: 'gpt-6-astra', efforts: Object.freeze(['low', 'medium', 'high', 'xhigh']) }),
+const TIER_INTENT = Object.freeze({
+  fast: 'the most efficient model offered',
+  medium: 'the everyday workhorse model offered',
+  heavy: 'the most capable model offered',
 });
 
-function validateParentEffort(host, parentEffort) {
-  if (parentEffort == null) return;
-  if (host !== 'codex') throw new UsageError('--parent-effort only applies to --host codex.');
-  if (!TICKET_EFFORTS.includes(parentEffort) || parentEffort === 'inherit') {
-    throw new UsageError('--parent-effort must be one of: low, medium, high, xhigh.');
-  }
-}
-
-function resolveCodexHints({ model, effort, parentEffort }, config = {}) {
-  validateParentEffort('codex', parentEffort);
+// delegation.codex.models.<tier>: "<model>" or { model, efforts } (efforts optional).
+function pinnedCodexModel(tier, config = {}) {
   const codex = config.delegation && config.delegation.codex;
-  const configured = model === 'inherit' ? null : codex && codex.models && codex.models[model];
-  const mapping = model === 'inherit' ? null : configured || CODEX_MODELS[model];
-  const hint = 'Configure delegation.codex in .work/gps-config.json using models available in your Codex client, or explicitly choose inherit/inherit.';
-  if (model !== 'inherit' && (!mapping || typeof mapping.model !== 'string' || !mapping.model.trim())) {
-    throw new GpsError(`No Codex model mapping for ${model}.`, hint);
-  }
-  const resolvedEffort = mapping && effort === 'inherit' ? parentEffort : effort;
-  if (mapping && resolvedEffort == null) {
-    throw new GpsError(`Parent effort is unknown for mapped Codex model ${model}.`, 'Choose an explicit supported ticket effort, or supply --parent-effort from authoritative current runtime context.');
-  }
-  const efforts = model === 'inherit' ? codex && codex.inheritEfforts : mapping.efforts;
-  if (resolvedEffort !== 'inherit' && (!Array.isArray(efforts)
-    || !efforts.every((e) => TICKET_EFFORTS.includes(e) && e !== 'inherit') || !efforts.includes(resolvedEffort))) {
-    throw new GpsError(`Codex effort ${resolvedEffort} is not configured as supported for ${model}.`, hint);
-  }
-  return {
-    ...(mapping && { model: mapping.model }),
-    ...(resolvedEffort !== 'inherit' && { reasoning_effort: resolvedEffort }),
-  };
+  const entry = codex && codex.models && codex.models[tier];
+  const model = typeof entry === 'string' ? entry : entry && entry.model;
+  if (typeof model !== 'string' || !model.trim()) return null;
+  return { model, efforts: entry && Array.isArray(entry.efforts) ? entry.efforts : null };
 }
 
-function buildDispatch(host, { model, effort, parentEffort, description, prompt, taskName }, config = {}) {
-  validateParentEffort(host, parentEffort);
+// { call, notes }: `call` holds the host tool's parameters, `notes` what the
+// parent must resolve or tell the user. A hint never fails a dispatch.
+function buildDispatch(host, { model, effort, description, prompt, taskName }, config = {}) {
+  const effortSet = effort !== 'inherit';
   if (host === 'claude') {
     return {
-      subagent_type: effort === 'inherit' ? 'general-purpose' : `grill-plan-ship:gps-ticket-${effort}`,
-      ...(model !== 'inherit' && { model: CLAUDE_MODELS[model] }),
-      description,
-      prompt,
+      call: {
+        subagent_type: 'general-purpose',
+        ...(model !== 'inherit' && { model: CLAUDE_MODELS[model] }),
+        ...(effortSet && { effort }),
+        description,
+        prompt,
+      },
+      notes: [],
     };
   }
   if (host !== 'codex') throw new UsageError('--host must be one of: claude, codex.');
+  const notes = [];
+  const pinned = model === 'inherit' ? null : pinnedCodexModel(model, config);
+  let keepEffort = effortSet;
+  if (pinned && effortSet && pinned.efforts && !pinned.efforts.includes(effort)) {
+    keepEffort = false;
+    notes.push(`Effort ${effort} is not listed for ${pinned.model} in delegation.codex: left out, tell the user.`);
+  }
+  if (model !== 'inherit' && !pinned) {
+    notes.push(`Set model to ${TIER_INTENT[model]} by your spawn tool (tier ${model}). If it offers no such choice, leave model out and tell the user.`);
+  }
+  if (keepEffort && !pinned) {
+    notes.push(`If the chosen model does not list effort ${effort}, use its nearest lower level and tell the user.`);
+  }
   return {
-    task_name: taskName,
-    message: prompt,
-    fork_turns: 'none',
-    ...resolveCodexHints({ model, effort, parentEffort }, config),
+    call: {
+      task_name: taskName,
+      message: prompt,
+      fork_turns: 'none',
+      ...(pinned && { model: pinned.model }),
+      ...(keepEffort && { reasoning_effort: effort }),
+    },
+    notes,
   };
 }
 
-module.exports = { CLAUDE_MODELS, CODEX_MODELS, buildDispatch, resolveCodexHints, validateParentEffort };
+module.exports = { CLAUDE_MODELS, TIER_INTENT, buildDispatch, pinnedCodexModel };
