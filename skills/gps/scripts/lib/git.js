@@ -88,8 +88,15 @@ const lines = (out) => (out ? out.split('\n').map((l) => l.trim()).filter(Boolea
 const nulList = (out) => (out || '').split('\0').filter(Boolean);
 const quote = (text) => `"${String(text).replace(/"/g, '\\"')}"`;
 
+// Asked several times per script run. Only a yes is remembered: a script may
+// be the one that creates the repository, but none ever removes it.
+const knownWorkTrees = new Set();
 function isWorkTree(projectRoot) {
-  return tryGit(projectRoot, ['rev-parse', '--is-inside-work-tree']) === 'true';
+  const key = path.resolve(projectRoot);
+  if (knownWorkTrees.has(key)) return true;
+  const inside = tryGit(projectRoot, ['rev-parse', '--is-inside-work-tree']) === 'true';
+  if (inside) knownWorkTrees.add(key);
+  return inside;
 }
 
 // Per-worktree state, including linked worktrees, outside committed project files.
@@ -267,6 +274,21 @@ function isIgnored(projectRoot, relPath) {
   return tryGit(projectRoot, ['check-ignore', '-q', '--no-index', '--', target]) !== null;
 }
 
+// isIgnored for several ASCII paths with one git process. check-ignore exits 1
+// when nothing matches, which reads as an empty set, as isIgnored reads it as false.
+function ignoredPaths(projectRoot, relPaths) {
+  const target = (p) => (p.endsWith('/') ? `${p}.gps-ignore-probe` : p);
+  const matched = new Set(lines(tryGit(projectRoot, ['check-ignore', '--no-index', '--', ...relPaths.map(target)])));
+  return new Set(relPaths.filter((p) => matched.has(target(p))));
+}
+
+// isTracked for several paths with one git process: a directory is tracked
+// when a file under it is.
+function trackedPaths(projectRoot, relPaths) {
+  const files = nulList(tryGit(projectRoot, ['ls-files', '-z', '--', ...relPaths]));
+  return new Set(relPaths.filter((p) => files.some((f) => f === p || f.startsWith(`${p}/`))));
+}
+
 // Finish has no ownership information for leftover code. Inspect it without
 // staging or committing; the caller must resolve tracked edits explicitly.
 // Untracked files are listed, never committed; .work/ is left out. Never throws:
@@ -291,14 +313,16 @@ function commitRemainingChanges(projectRoot, message) {
 
 // Hooks can change the temporary index used by pathspec commits. Inspect the
 // resulting commit rather than reporting the pre-hook staged list as truth.
-function committedScope(projectRoot, allowed, commands) {
-  const sha = git(projectRoot, ['rev-parse', '--short', 'HEAD']);
+function committedScope(projectRoot, allowed, commands, marker) {
+  // git prints --show-prefix first whatever the order, and nothing but a blank
+  // line at the top level; only the prefix ends in "/".
+  const head = lines(git(projectRoot, ['rev-parse', '--short', 'HEAD', '--show-prefix']));
+  const sha = head.find((l) => !l.endsWith('/'));
+  const prefix = head.find((l) => l.endsWith('/')) || '';
   const files = nulList(git(projectRoot, ['diff-tree', '--root', '--no-commit-id', '--name-only', '--no-renames', '-r', '-z', 'HEAD']));
-  const prefix = git(projectRoot, ['rev-parse', '--show-prefix']);
   const owned = allowed.map((f) => `${prefix}${f}`);
   const unexpected = files.filter((f) => !owned.includes(f));
   if (unexpected.length > 0) {
-    const marker = gitPrivatePath(projectRoot, UNREVIEWED_COMMIT);
     if (!marker) throw new Error(`cannot record unexpected commit ${sha}; inspect it before continuing`);
     writeJsonAtomic(marker, { sha, files: unexpected });
     return { ok: false, sha, files, commands,
@@ -311,13 +335,13 @@ function committedScope(projectRoot, allowed, commands) {
 // write cannot leave an unverified commit available to a later push.
 function commitWithScope(projectRoot, files, pathspecs, message, commands) {
   const marker = gitPrivatePath(projectRoot, UNREVIEWED_COMMIT);
-  const blocked = publicationBlock(projectRoot);
+  const blocked = publicationBlock(projectRoot, marker);
   if (blocked) return { ok: false, reason: blocked, commands: [] };
   const before = headSha(projectRoot);
   writeJsonAtomic(marker, { pending: true, before, files });
   try {
     git(projectRoot, ['commit', '-q', '-m', message, '--', ...pathspecs]);
-    const result = committedScope(projectRoot, files, commands);
+    const result = committedScope(projectRoot, files, commands, marker);
     if (result.ok) fs.unlinkSync(marker);
     return result;
   } catch (err) {
@@ -328,8 +352,7 @@ function commitWithScope(projectRoot, files, pathspecs, message, commands) {
   }
 }
 
-function publicationBlock(projectRoot) {
-  const marker = gitPrivatePath(projectRoot, UNREVIEWED_COMMIT);
+function publicationBlock(projectRoot, marker = gitPrivatePath(projectRoot, UNREVIEWED_COMMIT)) {
   if (!marker) return 'cannot inspect the repository publication guard';
   // Existence is sufficient: corrupt or unreadable journal content cannot
   // accidentally turn a prior scope violation into permission to publish.
@@ -353,13 +376,14 @@ function commitWorkDir(projectRoot, message) {
   const none = (skipped) => ({ ok: true, sha: null, files: [], skipped });
   if (!isWorkTree(projectRoot)) return none('not a git repository');
   if (!fs.existsSync(path.join(projectRoot, '.work'))) return none(null);
-  if (isIgnored(projectRoot, '.work/')) return none('.work/ is git-ignored');
+  const ignored = ignoredPaths(projectRoot, ['.work/', ...GPS_WORK_PATHS]);
+  if (ignored.has('.work/')) return none('.work/ is git-ignored');
   // git add fails on a path that is neither on disk nor tracked, and `add -A`
   // on an ignored one: a tracked path the user ignores only gets `add -u`.
-  const tracked = (p) => isTracked(projectRoot, p);
-  const updateOnly = GPS_WORK_PATHS.filter((p) => tracked(p) && isIgnored(projectRoot, p));
-  const addAll = GPS_WORK_PATHS.filter((p) => !isIgnored(projectRoot, p)
-    && (tracked(p) || fs.existsSync(path.join(projectRoot, p))));
+  const tracked = trackedPaths(projectRoot, GPS_WORK_PATHS);
+  const updateOnly = GPS_WORK_PATHS.filter((p) => tracked.has(p) && ignored.has(p));
+  const addAll = GPS_WORK_PATHS.filter((p) => !ignored.has(p)
+    && (tracked.has(p) || fs.existsSync(path.join(projectRoot, p))));
   const paths = GPS_WORK_PATHS.filter((p) => addAll.includes(p) || updateOnly.includes(p));
   if (paths.length === 0) return none(null);
   const commands = [`git add -- ${paths.join(' ')}`, `git commit -m ${quote(message)} -- ${paths.join(' ')}`];

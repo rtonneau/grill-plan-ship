@@ -40,6 +40,26 @@ function project(prefix, version = '1.4.2') {
   return root;
 }
 
+// A project holding one finished session named "only", the common start of
+// the cases below; each gets its own copy.
+function finished(prefix, type, bump) {
+  return h.copyFixture(`finished-${type}-${bump}`, prefix, () => {
+    const root = project('gps-rel-fixture-');
+    return { root, id: finishSession(root, 'only', type, bump) };
+  });
+}
+
+// The same with .work/ git-ignored.
+function finishedWorkIgnored(prefix) {
+  return h.copyFixture('finished-work-ignored', prefix, () => {
+    const root = project('gps-rel-fixture-');
+    fs.writeFileSync(path.join(root, '.gitignore'), '.work/\n');
+    h.git(root, 'add', '.gitignore');
+    h.git(root, 'commit', '-q', '-m', 'ignore .work');
+    return { root, id: finishSession(root, 'only', 'feat', 'minor') };
+  });
+}
+
 {
   const root = project('gps-rel-');
   fs.writeFileSync(path.join(root, 'plugin.json'), JSON.stringify({ name: 'x', version: '1.4.2' }) + '\n');
@@ -113,8 +133,7 @@ function project(prefix, version = '1.4.2') {
 
 // Level written is the one of the version chosen (current → target), not the fragments'.
 {
-  const root = project('gps-rel2-');
-  finishSession(root, 'only', 'feat', 'minor');
+  const { root } = finished('gps-rel2-', 'feat', 'minor');
   const res = h.ok(root, 'release.js', ['--version', '3.0.0']);
   assert.match(res.out, /1\.4\.2 → 3\.0\.0 \(major\)/);
   assert.match(res.err, /not checked against origin \(no origin remote\)/, 'no origin: a warning, the cut goes on');
@@ -124,11 +143,7 @@ function project(prefix, version = '1.4.2') {
 
 // First release with .work/ git-ignored: the config is saved but stays out of the commit.
 {
-  const root = project('gps-rel13-');
-  fs.writeFileSync(path.join(root, '.gitignore'), '.work/\n');
-  h.git(root, 'add', '.gitignore');
-  h.git(root, 'commit', '-q', '-m', 'ignore .work');
-  const onlyId = finishSession(root, 'only', 'feat', 'minor');
+  const { root, id: onlyId } = finishedWorkIgnored('gps-rel13-');
   assert.ok(fs.existsSync(path.join(root, '.work', 'changelog', `${onlyId}.md`)));
   h.ok(root, 'release.js', ['--version', '1.5.0']);
   assert.match(h.git(root, 'log', '-1', '--format=%s'), /^chore\(release\): 1\.5\.0$/);
@@ -167,8 +182,7 @@ function project(prefix, version = '1.4.2') {
 
 // An invalid fragment: suggest and cut refuse, naming the file; nothing changes.
 {
-  const root = project('gps-rel12-');
-  finishSession(root, 'only', 'fix', 'patch');
+  const { root } = finished('gps-rel12-', 'fix', 'patch');
   fs.writeFileSync(path.join(root, '.work', 'changelog', 'zz-odd.md'), '---\nbump: huge\nfloor: patch\n---\n- odd\n');
   h.git(root, 'add', '.work/changelog/zz-odd.md');
   h.git(root, 'commit', '-q', '-m', 'hand fragment');
@@ -182,8 +196,7 @@ function project(prefix, version = '1.4.2') {
 
 // A fragment whose body is not a changelog entry: refused like any invalid fragment.
 {
-  const root = project('gps-rel16-');
-  finishSession(root, 'only', 'fix', 'patch');
+  const { root } = finished('gps-rel16-', 'fix', 'patch');
   fs.writeFileSync(path.join(root, '.work', 'changelog', 'zz-prose.md'), '---\nbump: patch\nfloor: patch\n---\njust prose\n');
   h.git(root, 'add', '.work/changelog/zz-prose.md');
   h.git(root, 'commit', '-q', '-m', 'hand fragment');
@@ -198,11 +211,7 @@ function project(prefix, version = '1.4.2') {
 // A release commit that fails keeps the fragments on disk (here .work/ is
 // ignored, so they exist nowhere else); a later run releases them.
 {
-  const root = project('gps-rel17-');
-  fs.writeFileSync(path.join(root, '.gitignore'), '.work/\n');
-  h.git(root, 'add', '.gitignore');
-  h.git(root, 'commit', '-q', '-m', 'ignore .work');
-  const id = finishSession(root, 'only', 'feat', 'minor');
+  const { root, id: id } = finishedWorkIgnored('gps-rel17-');
   const fragment = path.join(root, '.work', 'changelog', `${id}.md`);
   const hook = path.join(root, '.git', 'hooks', 'pre-commit');
   fs.writeFileSync(hook, '#!/bin/sh\nexit 1\n', { mode: 0o755 });
@@ -223,8 +232,7 @@ function project(prefix, version = '1.4.2') {
 
 // Tracked fragments and a failed commit: still on disk, nothing committed.
 {
-  const root = project('gps-rel18-');
-  const id = finishSession(root, 'only', 'feat', 'minor');
+  const { root, id } = finished('gps-rel18-', 'feat', 'minor');
   const fragment = path.join(root, '.work', 'changelog', `${id}.md`);
   const hook = path.join(root, '.git', 'hooks', 'pre-commit');
   fs.writeFileSync(hook, '#!/bin/sh\nexit 1\n', { mode: 0o755 });
@@ -241,8 +249,7 @@ function project(prefix, version = '1.4.2') {
 // A failed commit's hint is runnable: tracked fragments get git rm, the
 // command names no pseudo-command.
 {
-  const root = project('gps-rel21-');
-  const id = finishSession(root, 'only', 'feat', 'minor');
+  const { root, id } = finished('gps-rel21-', 'feat', 'minor');
   const hook = path.join(root, '.git', 'hooks', 'pre-commit');
   fs.writeFileSync(hook, '#!/bin/sh\nexit 1\n', { mode: 0o755 });
   const res = h.run(root, 'release.js', ['--version', '1.5.0']);
@@ -254,8 +261,7 @@ function project(prefix, version = '1.4.2') {
 
 // A non-normalized changelog.path ("./CHANGELOG.md") with tracked fragments releases.
 {
-  const root = project('gps-rel19-');
-  const id = finishSession(root, 'only', 'feat', 'minor');
+  const { root, id } = finished('gps-rel19-', 'feat', 'minor');
   const cfgFile = path.join(root, '.work', 'gps-config.json');
   const cfg = JSON.parse(fs.readFileSync(cfgFile, 'utf-8'));
   fs.writeFileSync(cfgFile, JSON.stringify({ ...cfg, changelog: { path: './CHANGELOG.md' }, release: { versionFiles: ['./package.json'] } }, null, 2) + '\n');
@@ -269,8 +275,7 @@ function project(prefix, version = '1.4.2') {
 
 // A nested changelog (docs/CHANGELOG.md) with tracked fragments releases.
 {
-  const root = project('gps-rel20-');
-  const id = finishSession(root, 'only', 'feat', 'minor');
+  const { root, id } = finished('gps-rel20-', 'feat', 'minor');
   const cfgFile = path.join(root, '.work', 'gps-config.json');
   const cfg = JSON.parse(fs.readFileSync(cfgFile, 'utf-8'));
   fs.writeFileSync(cfgFile, JSON.stringify({ ...cfg, changelog: { path: 'docs\\CHANGELOG.md' } }, null, 2) + '\n');
@@ -283,11 +288,7 @@ function project(prefix, version = '1.4.2') {
 
 // A fragment force-added under an ignored .work/: the release commit records its deletion.
 {
-  const root = project('gps-rel22-');
-  fs.writeFileSync(path.join(root, '.gitignore'), '.work/\n');
-  h.git(root, 'add', '.gitignore');
-  h.git(root, 'commit', '-q', '-m', 'ignore .work');
-  const id = finishSession(root, 'only', 'feat', 'minor');
+  const { root, id: id } = finishedWorkIgnored('gps-rel22-');
   h.git(root, 'add', '-f', '--', `.work/changelog/${id}.md`);
   h.git(root, 'commit', '-q', '-m', 'force-add fragment');
   h.ok(root, 'release.js', ['--version', '1.5.0']);
@@ -335,8 +336,7 @@ function project(prefix, version = '1.4.2') {
 
 // A failed tag resumes: the commit exists, only the tag is recreated.
 {
-  const root = project('gps-rel6-');
-  finishSession(root, 'only', 'feat', 'minor');
+  const { root } = finished('gps-rel6-', 'feat', 'minor');
   h.ok(root, 'release.js', ['--version', '1.5.0']);
   const head = h.git(root, 'rev-parse', 'HEAD');
   h.git(root, 'tag', '-d', 'v1.5.0');
@@ -349,8 +349,7 @@ function project(prefix, version = '1.4.2') {
 
 // Tag exists while Unreleased still has entries: refused.
 {
-  const root = project('gps-rel7-');
-  finishSession(root, 'only', 'feat', 'minor');
+  const { root } = finished('gps-rel7-', 'feat', 'minor');
   h.git(root, 'tag', 'v1.5.0');
   const head = h.git(root, 'rev-parse', 'HEAD');
   h.assertFails(h.run(root, 'release.js', ['--version', '1.5.0']), 1, /Tag v1\.5\.0 already exists/);
@@ -439,8 +438,7 @@ function project(prefix, version = '1.4.2') {
 
 // --push checks the base branch and the config before pushing anything.
 {
-  const root = project('gps-rel11-');
-  finishSession(root, 'only', 'feat', 'minor');
+  const { root } = finished('gps-rel11-', 'feat', 'minor');
   h.git(root, 'switch', '-q', '-c', 'feature');
   h.git(root, 'switch', '-q', 'main');
   h.ok(root, 'release.js', ['--version', '1.5.0']);

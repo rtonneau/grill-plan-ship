@@ -53,7 +53,7 @@ node tests/check-skill-size.js --max 200  # the CI size check
 claude plugin validate .                  # the manifest
 ```
 
-Tests run real scripts in throwaway directories (`tests/helpers.js`) and drive sessions through the scripts, never by writing session state by hand, except to simulate state from an older version. The GitHub flow uses a stub `gh` (`GPS_GH_BIN`) and a local bare repo. Passing tests don't prove host compatibility: when a host-facing change matters, run it live in a disposable repo.
+Tests run real scripts in throwaway directories (`tests/helpers.js`) and drive sessions through the scripts, never by writing session state by hand, except to simulate state from an older version. Process spawns are what make the suite slow: when many cases share a start, build it once through the scripts and take copies with `copyFixture`. The GitHub flow uses a stub `gh` (`GPS_GH_BIN`) and a local bare repo. Passing tests don't prove host compatibility: when a host-facing change matters, run it live in a disposable repo.
 
 ## Session files
 
