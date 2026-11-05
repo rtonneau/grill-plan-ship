@@ -10,8 +10,8 @@
 
 **Chained finish** (run by a full `/gps ship` or by `/gps auto`, not typed): ask nothing. If step 3 stops on the issue question, run it again with `--keep-issue` without asking; step 5 is skipped. A typed `/gps finish` asks both.
 
-It commits leftover changes to tracked files, pushes the branch and opens (or reuses) the pull request for a GitHub session, writes INDEX.md, commits `.work/` (the session record and its changelog fragment; CHANGELOG.md is left for `/gps release`) and pushes it, then switches back to the base branch. Running `/gps finish` is the go-ahead: ask nothing else, except the issue question of step 3 and the switch of step 5.
+It refuses tracked leftovers without staging them: review their ownership and commit only the session's intended files. It then pushes the branch and opens (or reuses) the pull request for a GitHub session, writes INDEX.md, commits and pushes `.work/`, then switches back to the base branch. Running `/gps finish` is the go-ahead for delivery; retain any narrower user restriction on publication.
 
-If the remaining-changes commit fails, finish stops before publishing or closing the session. Fix the Git error and retry; changes may have been staged.
+Failed delivery retains a local finish journal; fix the cause and rerun `finish.js` even if the session pointer was already cleared. Follow a reported `--commit` recovery after interrupted ticket completion. An unexpected hook commit blocks GPS pushes until the user reviews it and explicitly removes the named publication marker. Preserve user edits and native permission boundaries.
 
 **Example:** `/gps finish`

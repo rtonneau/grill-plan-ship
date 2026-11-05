@@ -2,6 +2,8 @@
 
 _Recorded 2026-10-08, version 2.6.2._
 
+_Activation superseded by [decision 0015](0015-explicit-ownership-and-recoverable-delivery.md): credentials establish availability, not authorization to transmit ticket content._
+
 ## Context
 
 TypeSafe's Jev (a System One model, reachable over HTTP with a `TYPESAFE_API_KEY`) can judge a ticket's `**Model:**`/`**Effort:**` hint during `/gps plan` instead of leaving the choice to Claude's own heuristic (`references/plan.md`). Not every gps user has a TypeSafe account, so the integration must change nothing for a project that never sets the key.

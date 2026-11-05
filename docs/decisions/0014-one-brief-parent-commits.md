@@ -10,7 +10,7 @@ GPS shipped four Claude agents only to set effort, a Codex model and effort tabl
 - **Two modes: `inline` and `delegate`.** The agent chooses per ticket; `--inline` or `--delegate` overrides.
 - **The child implements, verifies and fills the commit log. The parent reviews the diff and runs `ticket-complete.js`.** Git and session state have one writer, so a sandboxed child needs no `.git` access and an interrupted child loses no state.
 - **Claude tiers stay family aliases** (decision 0004). **Codex tiers are intent** ("the most capable model offered"), resolved by the parent against its spawn tool. A project may pin a tier in `delegation.codex.models`.
-- **A hint never fails a dispatch.** When it can't be honored, it is dropped and the user is told, so no capability is substituted silently.
+- **Ticket hints are preferences.** When one can't be honored, it may be dropped with disclosure. Explicit user overrides are requirements: the parent verifies current host support and blocks rather than silently lowering them (decision 0015).
 - **One writer at a time.** Tickets stay sequential.
 
 ## Alternatives rejected

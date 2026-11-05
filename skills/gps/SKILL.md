@@ -46,7 +46,7 @@ Turn a request into verified, delivered code, with as much process as the work d
 | `/gps write` | Save the approved grill or plan to disk | `references/write.md` |
 | `/gps plan` | Save the grill if pending, start the plan, draft tickets | `references/plan.md` |
 | `/gps ship [N] [--inline\|--delegate]` | Save the plan if pending, implement every remaining ticket (or only ticket N), inline or delegated | `references/ship.md` |
-| `/gps finish` | Close the session: leftovers committed, INDEX.md, PR | `references/finish.md` |
+| `/gps finish` | Close the session: check leftovers, INDEX.md, PR | `references/finish.md` |
 | `/gps auto [--delegate\|--inline] [plan\|ship\|finish]` | Run from the current phase to the target without stopping | `references/auto.md` |
 | `/gps handoff` | Save an in-flight checkpoint (HANDOFF.md) | `references/handoff.md` |
 | `/gps release` | Merge the changelog fragments (and Unreleased bullets) into a version: suggest, bump, tag, push | `references/release.md` |
@@ -60,7 +60,7 @@ Read the command's references file before acting, on every run: script flags cha
 
 - **stdout** is text to relay as is; with `--json` it is one JSON object.
 - **`⚠️` lines** (stderr) are warnings: relay them and carry on.
-- **Exit 1** prints `❌ <what failed>` and a hint; **exit 2** is a usage error. Read the hint, fix the cause and rerun: a refused script changed nothing and rerunning is safe. Report it when the same cause fails twice or needs the user.
+- **Exit 1** prints `❌ <what failed>` and a recovery hint; **exit 2** is a usage error. Check for partial commits or saved checkpoints before retrying; follow the hint. Report it when the same cause fails twice or needs the user.
 - **`Next:` lines** name the usual next command.
 
 ## Autonomy
