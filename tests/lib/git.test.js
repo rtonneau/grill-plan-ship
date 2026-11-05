@@ -71,7 +71,12 @@ const readGitStatusSummary = (root, dir) => readGitStatus(root, dir).session;
   assert.strictEqual(gitPrivatePath(root, 'gps-finish.json'), path.join(root, '.git', 'gps-finish.json'));
   const linked = path.join(root, 'linked');
   fixtureGit(root, 'worktree', 'add', '-q', '-b', 'fix/linked', linked);
-  assert.strictEqual(gitPrivatePath(linked, 'gps-finish.json'), path.join(root, '.git', 'worktrees', 'linked', 'gps-finish.json'));
+  const linkedJournal = gitPrivatePath(linked, 'gps-finish.json');
+  assert.strictEqual(path.basename(linkedJournal), 'gps-finish.json');
+  assert.strictEqual(
+    fs.realpathSync(path.dirname(linkedJournal)),
+    fs.realpathSync(path.join(root, '.git', 'worktrees', 'linked')),
+  );
   fs.rmSync(root, { recursive: true, force: true });
   const plain = fs.mkdtempSync(path.join(os.tmpdir(), 'gps-no-private-path-'));
   assert.strictEqual(gitPrivatePath(plain, 'gps-finish.json'), null);
