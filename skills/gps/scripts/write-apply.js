@@ -47,7 +47,7 @@ const { validateBranchName, createSessionBranch, commitWorkDir, describeWorkComm
 const { createIssue, buildIssueBody } = require('./lib/github');
 const { githubEnabled } = require('./lib/project-config');
 const { computeSessionState } = require('./lib/phase');
-const { GpsError, writeJsonAtomic } = require('./lib/guard');
+const { GpsError, replaceFile, writeJsonAtomic } = require('./lib/guard');
 
 const NOTHING_PENDING_HINT = {
   'plan-not-started': 'Run /gps plan first.',
@@ -157,12 +157,12 @@ function apply({ projectRoot, warn }) {
   if (target === 'plan') {
     fs.mkdirSync(ticketsDir, { recursive: true });
     for (const ticket of payload.tickets) {
-      fs.writeFileSync(path.join(ticketsDir, ticket.fileName), renderTicket(ticket));
+      replaceFile(path.join(ticketsDir, ticket.fileName), renderTicket(ticket));
     }
     for (const stub of stubs) fs.unlinkSync(path.join(ticketsDir, stub));
   }
   fs.mkdirSync(path.dirname(targetPath), { recursive: true });
-  fs.writeFileSync(targetPath, rendered);
+  replaceFile(targetPath, rendered);
 
   if (target === 'grill') {
     recordEvent(configPath, config, sessionDir, { event: 'grill_written', files: ['01-grill/resume.md'] });

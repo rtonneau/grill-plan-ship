@@ -108,24 +108,20 @@ function readJsonOrNull(filePath) {
   }
 }
 
-// Replaces a file via a sibling temp file. Windows workspace sandboxes can
-// allow writes while denying replacement-by-rename; only for that permission
-// failure, fall back to writing the already-serialized content directly.
+// Replaces a file via a sibling temp file. A failed write or rename keeps
+// the destination intact, including permission denials from a host sandbox.
 function replaceFile(filePath, content, io = fs) {
   const nonce = `${process.pid}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
   const tmpPath = `${filePath}.tmp-${nonce}`;
-  io.writeFileSync(tmpPath, content);
   try {
+    io.writeFileSync(tmpPath, content);
     io.renameSync(tmpPath, filePath);
-  } catch (err) {
-    if (!err || !['EPERM', 'EACCES'].includes(err.code)) throw err;
-    io.writeFileSync(filePath, content);
   } finally {
     if (io.existsSync(tmpPath)) io.unlinkSync(tmpPath);
   }
 }
 
-// Writes JSON through replaceFile; interrupted normal writes remain atomic.
+// Writes JSON through replaceFile; failures never truncate the previous state.
 function writeJsonAtomic(filePath, data, io = fs) {
   replaceFile(filePath, JSON.stringify(data, null, 2), io);
 }

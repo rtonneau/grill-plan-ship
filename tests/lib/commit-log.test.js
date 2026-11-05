@@ -12,7 +12,8 @@ const filled = fresh.replace(/<!--\s*gps:fill[\s\S]*?-->/g, 'Checked.');
 // Only the narrative sections count as unfilled; script sections never do.
 assert.deepStrictEqual(unfilledSections(fresh), ['Local Test Result', 'Review Notes', 'Blockers / Challenges']);
 assert.deepStrictEqual(unfilledSections(filled), []);
-assert.deepStrictEqual(unfilledSections('## Review Notes\n\n'), ['Review Notes'], 'an empty section is unfilled');
+assert.deepStrictEqual(unfilledSections('## Review Notes\n\n'), ['Local Test Result', 'Review Notes', 'Blockers / Challenges'], 'missing required sections are unfilled');
+assert.deepStrictEqual(unfilledSections(''), ['Local Test Result', 'Review Notes', 'Blockers / Challenges'], 'an empty log cannot prove verification');
 // Older logs had gps:fill markers in Commits / Time Spent: ignored.
 assert.deepStrictEqual(unfilledSections(`${filled}\n## Commits\n\n- <!-- gps:fill hash -->\n`), []);
 
