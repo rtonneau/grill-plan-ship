@@ -2,6 +2,10 @@
 
 All notable changes to grill-plan-ship. Versions follow [semantic versioning](https://semver.org/).
 
+## 3.1.1 (2026-11-05)
+
+- Grill and other questions now go through the host's question tool (with concrete options and a recommended answer) instead of plain chat text.
+
 ## 3.1.0 (2026-11-05)
 
 - Shared implementer and reviewer briefs for Claude Code and Codex, with fixed review bases and native host invocation/result guidance.
