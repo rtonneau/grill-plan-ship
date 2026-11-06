@@ -4,6 +4,8 @@
 // package.json, the plugin manifests, pyproject.toml, Cargo.toml and
 // CMakeLists.txt. JSON files are rewritten whole (2-space indent, trailing
 // newline); text files are edited by replacing the version token only.
+// Cargo.toml takes [package] or [workspace.package]; rewriteCargoPins moves the
+// path-dependency pins of a workspace along with it.
 
 const fs = require('fs');
 const path = require('path');
@@ -23,7 +25,7 @@ const KNOWN_VERSION_FILES = [
 
 const TOML_TABLES = {
   'pyproject.toml': ['project', 'tool.poetry'],
-  'Cargo.toml': ['package'],
+  'Cargo.toml': ['package', 'workspace.package'],
 };
 
 const isMarketplace = (file) => path.basename(file) === 'marketplace.json';
@@ -148,4 +150,139 @@ function writeVersion(projectRoot, file, version) {
   replaceFile(filePath, text.slice(0, found.from) + version + text.slice(found.to));
 }
 
-module.exports = { KNOWN_VERSION_FILES, detectVersionFiles, readVersions, writeVersion };
+// Cargo workspace pins. A path dependency that also names a version (member
+// crates, [workspace.dependencies]) must follow the workspace version, or
+// cargo refuses the release. Only a version equal to the previous one moves.
+
+const DEP_TABLE_RE = /(?:^|\.)(?:dependencies|dev-dependencies|build-dependencies)$/;
+const DEP_SUBTABLE_RE = /(?:^|\.)(?:dependencies|dev-dependencies|build-dependencies)\.[^.]+$/;
+
+// Index of the "}" closing the inline table opened at `open`, or -1.
+function inlineTableEnd(line, open) {
+  let depth = 0;
+  for (let i = open; i < line.length; i++) {
+    const c = line[i];
+    if (c === '#') return -1;
+    if (c === '"' || c === "'") {
+      i++;
+      while (i < line.length && line[i] !== c) i += c === '"' && line[i] === '\\' ? 2 : 1;
+    } else if (c === '{') {
+      depth++;
+    } else if (c === '}' && --depth === 0) {
+      return i;
+    }
+  }
+  return -1;
+}
+
+// `foo = { path = "../foo", version = "<previous>" }` with the version moved, or null.
+function pinInlineLine(line, previous, next) {
+  const head = /^(\s*(?:[\w-]+|"[^"]*"|'[^']*')\s*=\s*)\{/.exec(line);
+  if (!head) return null;
+  const open = head[0].length - 1;
+  const close = inlineTableEnd(line, open);
+  if (close === -1) return null;
+  const body = line.slice(open + 1, close);
+  if (!/(?:^|,)\s*path\s*=\s*["']/.test(body)) return null;
+  const v = /(?:^|,)\s*version\s*=\s*(["'])([^"'\r\n]*)\1/.exec(body);
+  if (!v || v[2] !== previous) return null;
+  const from = open + 1 + v.index + v[0].length - 1 - v[2].length;
+  return line.slice(0, from) + next + line.slice(from + previous.length);
+}
+
+// The text with every pinned path dependency moved from `previous` to `next`.
+function pinLines(lines, previous, next) {
+  const withPath = new Set();
+  for (const e of lines) {
+    if (!e.isHeader && DEP_SUBTABLE_RE.test(e.table || '') && /^\s*path\s*=\s*["']/.test(e.line)) withPath.add(e.table);
+  }
+  return lines.map((e) => {
+    if (e.isHeader || !e.table) return e.line;
+    if (DEP_TABLE_RE.test(e.table)) return pinInlineLine(e.line, previous, next) || e.line;
+    if (withPath.has(e.table)) {
+      const m = TOML_VERSION_RE.exec(e.line);
+      if (m && m[3] === previous) return m[1] + m[2] + next + m[2] + e.line.slice(m[0].length);
+    }
+    return e.line;
+  }).join('');
+}
+
+// The strings of `key = [ ... ]` in `table` (single or multi-line), or null.
+function tomlStringArray(lines, table, key) {
+  const re = new RegExp(`^\\s*${key}\\s*=\\s*\\[`);
+  const start = lines.findIndex((e) => !e.isHeader && e.table === table && re.test(e.line));
+  if (start === -1) return null;
+  const out = [];
+  let depth = 0;
+  for (let i = start; i < lines.length && (i === start || !lines[i].isHeader); i++) {
+    const { line } = lines[i];
+    const text = i === start ? line.slice(line.indexOf('[', line.indexOf('='))) : line;
+    for (let j = 0; j < text.length; j++) {
+      const c = text[j];
+      if (c === '#') break;
+      if (c === '[') {
+        depth++;
+      } else if (c === ']') {
+        if (--depth === 0) return out;
+      } else if (c === '"' || c === "'") {
+        let k = j + 1;
+        while (k < text.length && text[k] !== c) k += c === '"' && text[k] === '\\' ? 2 : 1;
+        out.push(text.slice(j + 1, k));
+        j = k;
+      }
+    }
+  }
+  return out;
+}
+
+const cleanMember = (m) => m.replace(/\\/g, '/').replace(/^(\.\/)+/, '').replace(/\/+$/, '');
+
+// Manifests (relative, '/'-separated) of the crates in [workspace] members:
+// literal paths and a trailing "/*" glob; anything else is warned about.
+function workspaceManifests(projectRoot, lines, warn) {
+  const excluded = new Set((tomlStringArray(lines, 'workspace', 'exclude') || []).map(cleanMember));
+  const manifests = new Set();
+  const addIfCrate = (dir, quiet) => {
+    const manifest = `${dir}/Cargo.toml`;
+    if (excluded.has(dir)) return;
+    if (fs.existsSync(abs(projectRoot, manifest))) manifests.add(manifest);
+    else if (!quiet) warn(`Workspace member "${dir}" has no Cargo.toml: skipped.`);
+  };
+  for (const member of (tomlStringArray(lines, 'workspace', 'members') || []).map(cleanMember)) {
+    const glob = member.endsWith('/*');
+    const base = glob ? member.slice(0, -2) : member;
+    if (/[*?[\]{}]/.test(base)) {
+      warn(`Workspace member "${member}" is not a literal path or a trailing "/*" glob: its path dependencies were not checked.`);
+    } else if (glob) {
+      const parent = abs(projectRoot, base);
+      if (!fs.existsSync(parent)) continue;
+      const names = fs.readdirSync(parent, { withFileTypes: true }).filter((d) => d.isDirectory()).map((d) => d.name).sort();
+      for (const name of names) addIfCrate(`${base}/${name}`, true);
+    } else if (base && base !== '.') {
+      addIfCrate(base, false);
+    }
+  }
+  return [...manifests];
+}
+
+// Moves the pinned path dependencies of the root Cargo.toml and of its
+// workspace members from `previous` to `next`. Returns the files it changed
+// (relative, '/'-separated); a root without [workspace] changes nothing.
+function rewriteCargoPins(projectRoot, previous, next, { warn = () => {} } = {}) {
+  if (!parseVersion(next)) throw new GpsError(`Not a valid version: ${next}`, 'Use X.Y.Z.');
+  const rootFile = 'Cargo.toml';
+  if (!fs.existsSync(abs(projectRoot, rootFile))) return [];
+  const rootLines = tomlLines(fs.readFileSync(abs(projectRoot, rootFile), 'utf-8'));
+  if (!rootLines.some((e) => e.table === 'workspace' || (e.table || '').startsWith('workspace.'))) return [];
+  const changed = [];
+  for (const file of [rootFile, ...workspaceManifests(projectRoot, rootLines, warn)]) {
+    const text = fs.readFileSync(abs(projectRoot, file), 'utf-8');
+    const updated = pinLines(tomlLines(text), previous, next);
+    if (updated === text) continue;
+    replaceFile(abs(projectRoot, file), updated);
+    changed.push(file);
+  }
+  return changed;
+}
+
+module.exports = { KNOWN_VERSION_FILES, detectVersionFiles, readVersions, writeVersion, rewriteCargoPins };

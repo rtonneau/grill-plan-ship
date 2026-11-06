@@ -166,6 +166,53 @@ function finishedWorkIgnored(prefix) {
   assert.ok(h.git(root, 'tag').includes('v0.1.0'));
 }
 
+// A Cargo workspace: [workspace.package] version is bumped and the path pins
+// that equal it follow, in the release commit; other pins and registry deps stay.
+{
+  const root = h.gitProject('gps-rel-cargo-');
+  const put = (rel, text) => {
+    fs.mkdirSync(path.dirname(path.join(root, rel)), { recursive: true });
+    fs.writeFileSync(path.join(root, rel), text);
+  };
+  const get = (rel) => fs.readFileSync(path.join(root, rel), 'utf-8');
+  const rootManifest = [
+    '[workspace]',
+    'members = ["crates/*", "tools/cli"]',
+    '',
+    '[workspace.package]',
+    'version = "0.3.0" # the one version',
+    '',
+    '[workspace.dependencies]',
+    'core = { path = "crates/core", version = "0.3.0" }',
+    'old = { path = "crates/old", version = "0.2.0" }',
+    'serde = { version = "0.3.0" }',
+    '',
+  ].join('\n');
+  const coreManifest = '[package]\r\nname = "core"\r\nversion.workspace = true\r\n\r\n[dependencies]\r\nutil = { path = "../util", version = "0.3.0" } # keep\r\n';
+  const utilManifest = '[package]\nname = "util"\nversion.workspace = true\n\n[dependencies.core]\npath = "../core"\nversion = "0.3.0"\n';
+  const cliManifest = '[package]\nname = "cli"\nversion.workspace = true\n\n[dev-dependencies]\nutil = { path = "../../crates/util", version = "0.2.0" }\nlog = "0.3.0"\n';
+  put('Cargo.toml', rootManifest);
+  put('crates/core/Cargo.toml', coreManifest);
+  put('crates/util/Cargo.toml', utilManifest);
+  put('tools/cli/Cargo.toml', cliManifest);
+  h.git(root, 'add', '.');
+  h.git(root, 'commit', '-q', '-m', 'add workspace');
+  finishSession(root, 'only', 'feat', 'minor');
+
+  const res = h.ok(root, 'release.js', ['--version', '0.4.0']);
+  assert.match(res.out, /0\.3\.0 → 0\.4\.0/);
+  assert.strictEqual(get('Cargo.toml'), rootManifest
+    .replace('version = "0.3.0" # the one version', 'version = "0.4.0" # the one version')
+    .replace('core = { path = "crates/core", version = "0.3.0" }', 'core = { path = "crates/core", version = "0.4.0" }'));
+  assert.strictEqual(get('crates/core/Cargo.toml'), coreManifest.replace('"0.3.0"', '"0.4.0"'));
+  assert.strictEqual(get('crates/util/Cargo.toml'), utilManifest.replace('version = "0.3.0"', 'version = "0.4.0"'));
+  assert.strictEqual(get('tools/cli/Cargo.toml'), cliManifest, 'a different pin and a registry dependency are left alone');
+  const files = h.git(root, 'show', '--name-only', '--format=', 'HEAD').split('\n');
+  for (const f of ['Cargo.toml', 'crates/core/Cargo.toml', 'crates/util/Cargo.toml']) assert.ok(files.includes(f), `${f} in the release commit`);
+  assert.ok(!files.includes('tools/cli/Cargo.toml'));
+  assert.strictEqual(h.git(root, 'status', '--porcelain'), '');
+}
+
 // Disagreeing version files: a warning names both.
 {
   const root = project('gps-rel4-');

@@ -17,7 +17,8 @@
  * highest bump wins; hand-written Unreleased bullets alone suggest patch).
  * With --version: writes the release section "## X.Y.Z (date)" (hand-written
  * Unreleased bullets first, then the fragments in file order), writes the
- * version into the version files, deletes the fragments, commits those files
+ * version into the version files (and, for a Cargo workspace, the path
+ * dependencies pinned to the previous version), deletes the fragments, commits those files
  * alone as `chore(release): X.Y.Z` (body `Bump: <level>`) and tags vX.Y.Z.
  * Refuses, changing nothing, off the base branch, on a dirty tree, with the
  * changelog disabled, nothing to release or an invalid fragment, or when the
@@ -37,7 +38,7 @@ const { unreleasedHasEntries, latestVersion, renderRelease, sectionNotes } = req
 const { FRAGMENTS_DIR, listFragments, deleteFragments } = require('./lib/changelog-fragments');
 const { releaseExists, createRelease } = require('./lib/github');
 const { LEVELS, parseVersion, formatVersion, compareVersions, bumpVersion, maxLevel, levelBetween, levelRank } = require('./lib/semver');
-const { detectVersionFiles, readVersions, writeVersion } = require('./lib/version-files');
+const { detectVersionFiles, readVersions, writeVersion, rewriteCargoPins } = require('./lib/version-files');
 const {
   defaultBranch, currentBranch, isCleanTree, isIgnored, isTracked, tagExists, createTag, commitFiles, restoreFromHead, headCommit,
   pushWithTags, remoteHasTag, remoteBranchAt, headSha, fetchBehind,
@@ -292,6 +293,10 @@ function cutRelease({ options, projectRoot, warn }) {
   fs.mkdirSync(path.dirname(changelogPath), { recursive: true });
   fs.writeFileSync(changelogPath, updated);
   for (const file of writable) writeVersion(projectRoot, file, target);
+  // A Cargo workspace also moves the path dependencies pinned to its old version.
+  const cargoBefore = found.find((v) => v.file === 'Cargo.toml');
+  const pinned = cargoBefore ? rewriteCargoPins(projectRoot, cargoBefore.version, target, { warn }) : [];
+  const released = [...new Set([...writable, ...pinned])];
   // The released fragments go. Tracked ones (even force-added under an
   // ignored .work/) are deleted now and committed as deletions, and put back
   // from HEAD if the commit fails; the others are deleted only once the
@@ -306,7 +311,7 @@ function cutRelease({ options, projectRoot, warn }) {
   if (saveConfig) saveVersionFiles(projectRoot, versionFiles);
   const commitConfig = saveConfig && (isTracked(projectRoot, configFile) || !isIgnored(projectRoot, configFile));
   deleteFragments(projectRoot, tracked);
-  const record = commitFiles(projectRoot, [settings.path, ...writable, ...(commitConfig ? [configFile] : []), ...tracked],
+  const record = commitFiles(projectRoot, [settings.path, ...released, ...(commitConfig ? [configFile] : []), ...tracked],
     `chore(release): ${target}\n\nBump: ${chosen}`);
   if (!record.ok) {
     const restored = restoreFromHead(projectRoot, tracked);
@@ -320,7 +325,7 @@ function cutRelease({ options, projectRoot, warn }) {
   if (!tag.ok) throw tagFailure(`v${target}`, tag);
   return {
     text: `🏷️ ${current ? `${current} → ` : ''}${target} (${chosen}) committed (${record.sha}), tagged v${target}\n${pushNext(projectRoot)}`,
-    data: { current, version: target, level: chosen, tag: `v${target}`, record, versionFiles: writable },
+    data: { current, version: target, level: chosen, tag: `v${target}`, record, versionFiles: writable, pinFiles: pinned },
   };
 }
 
