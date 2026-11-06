@@ -131,6 +131,26 @@ assert.strictEqual(readVersions(tmp, ['Cargo.toml'])[0].version, '0.1.0');
   assert.ok(get('Cargo.toml').includes('a = { path = "a", version = "1.0.0" }'));
 }
 
+// A member outside the project is warned about and never written; "./" and "a/../" forms still resolve inside.
+{
+  const warnings = [];
+  const outer = fs.mkdtempSync(path.join(os.tmpdir(), 'gps-vf-outside-'));
+  const inner = path.join(outer, 'project');
+  const pin = '[dependencies]\na = { path = "../a", version = "1.0.0" }\n';
+  const write = (rel, text) => {
+    fs.mkdirSync(path.dirname(path.join(outer, rel)), { recursive: true });
+    fs.writeFileSync(path.join(outer, rel), text);
+  };
+  write('project/Cargo.toml', '[workspace]\nmembers = ["../shared", "../many/*", "crates/../../shared", "./inside", "crates/../other"]\n\n[workspace.package]\nversion = "1.0.0"\n');
+  for (const rel of ['shared', 'many/one', 'project/inside', 'project/other']) write(`${rel}/Cargo.toml`, pin);
+  const changed = rewriteCargoPins(inner, '1.0.0', '1.1.0', { warn: (m) => warnings.push(m) });
+  assert.deepStrictEqual(changed.sort(), ['inside/Cargo.toml', 'other/Cargo.toml']);
+  for (const rel of ['shared', 'many/one']) assert.strictEqual(fs.readFileSync(path.join(outer, rel, 'Cargo.toml'), 'utf-8'), pin, `${rel} untouched`);
+  assert.strictEqual(warnings.length, 3);
+  for (const w of warnings) assert.match(w, /outside the project/);
+  fs.rmSync(outer, { recursive: true, force: true });
+}
+
 // No readable version: null, not detected, and writing throws.
 put('Cargo.toml', '[package]\nname = "x"\nversion.workspace = true\n');
 assert.strictEqual(readVersions(tmp, ['Cargo.toml'])[0].version, null);

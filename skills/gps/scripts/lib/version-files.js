@@ -235,10 +235,12 @@ function tomlStringArray(lines, table, key) {
   return out;
 }
 
-const cleanMember = (m) => m.replace(/\\/g, '/').replace(/^(\.\/)+/, '').replace(/\/+$/, '');
+const cleanMember = (m) => path.posix.normalize(m.replace(/\\/g, '/')).replace(/\/+$/, '');
+const isOutside = (m) => m === '..' || m.startsWith('../') || path.posix.isAbsolute(m) || path.win32.isAbsolute(m);
 
 // Manifests (relative, '/'-separated) of the crates in [workspace] members:
-// literal paths and a trailing "/*" glob; anything else is warned about.
+// literal paths and a trailing "/*" glob; anything else is warned about, and
+// a member outside the project is too: a release commit cannot hold its file.
 function workspaceManifests(projectRoot, lines, warn) {
   const excluded = new Set((tomlStringArray(lines, 'workspace', 'exclude') || []).map(cleanMember));
   const manifests = new Set();
@@ -251,7 +253,9 @@ function workspaceManifests(projectRoot, lines, warn) {
   for (const member of (tomlStringArray(lines, 'workspace', 'members') || []).map(cleanMember)) {
     const glob = member.endsWith('/*');
     const base = glob ? member.slice(0, -2) : member;
-    if (/[*?[\]{}]/.test(base)) {
+    if (isOutside(base)) {
+      warn(`Workspace member "${member}" is outside the project: its path dependencies were not checked.`);
+    } else if (/[*?[\]{}]/.test(base)) {
       warn(`Workspace member "${member}" is not a literal path or a trailing "/*" glob: its path dependencies were not checked.`);
     } else if (glob) {
       const parent = abs(projectRoot, base);
