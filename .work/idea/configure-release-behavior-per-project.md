@@ -1,5 +1,5 @@
 ---
-status: grilled
+status: planned
 scope: project
 created: 2026-11-06
 reviews: 0
@@ -23,6 +23,15 @@ promoted_to: null
 - Pinned internal dependency versions (path dependencies carrying `version = "x.y.z"`): a built-in rewrite, or left to `postBump`?
 - How the release commit picks up the files a command changed: a declared `release.postBumpFiles` list, or everything modified by the commands.
 
+## Plan
+
+1. Cargo `[workspace.package] version` is detected and bumped by `/gps release` with no configuration; the existing `[package]` and `pyproject.toml` cases still pass their tests.
+2. An explicit `release.versionFiles` entry still overrides detection, covered by a regression test.
+3. The open question on pinned internal dependency versions is decided and implemented, so a workspace release leaves no stale `version = "x.y.z"` pin.
+4. `release.postBump` commands run after the bump and before the release commit; their changed files land in the release commit (rule for picking them up decided).
+5. Consent is stored once per command list in `.work/gps-config.json` and asked again when the list changes.
+6. A failing command aborts before any commit or tag and leaves the tree for inspection; `docs/COMPATIBILITY.md`, `references/release.md`, the config docs and a decision record are updated.
+
 ## Risks
 
 - Arbitrary shell in committed config; consent per config limits it but a shared config can still change under a user.
@@ -33,3 +42,4 @@ promoted_to: null
 
 - 2026-11-06 — capture — Configure release behavior per project (grill-plan-ship @ feat/release-publish-flag)
 - 2026-11-06 — grill
+- 2026-11-06 — plan
