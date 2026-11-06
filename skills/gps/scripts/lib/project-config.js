@@ -22,6 +22,8 @@ function configPath(projectRoot) {
 }
 
 const GITHUB_RELEASE_MODES = ['none', 'minor+', 'all'];
+// detected (or absent): every release re-detects the list; manual: used as is.
+const VERSION_FILES_SOURCES = ['detected', 'manual'];
 const SCRATCH_DEFAULT_POLICY = 'build-artifacts';
 
 function invalid(what, filePath) {
@@ -78,6 +80,9 @@ function validate(config, filePath) {
     if (release.githubRelease !== undefined && !GITHUB_RELEASE_MODES.includes(release.githubRelease)) {
       throw invalid(`"release.githubRelease" must be one of ${GITHUB_RELEASE_MODES.join(', ')}`, filePath);
     }
+    if (release.versionFilesSource !== undefined && !VERSION_FILES_SOURCES.includes(release.versionFilesSource)) {
+      throw invalid(`"release.versionFilesSource" must be one of ${VERSION_FILES_SOURCES.join(', ')}`, filePath);
+    }
     const files = release.versionFiles;
     if (files !== undefined && files !== null) {
       if (!(Array.isArray(files) && files.every((f) => typeof f === 'string' && f))) {
@@ -85,6 +90,12 @@ function validate(config, filePath) {
       }
       if (!files.every((f) => insideProject(projectRoot, normalizeRelPath(f)))) {
         throw invalid('"release.versionFiles" must hold relative paths inside the project', filePath);
+      }
+    }
+    for (const key of ['postBump', 'postBumpApproved']) {
+      const list = release[key];
+      if (list !== undefined && !(Array.isArray(list) && list.every((c) => typeof c === 'string' && c.trim()))) {
+        throw invalid(`"release.${key}" must be a list of command strings`, filePath);
       }
     }
   }
@@ -251,17 +262,33 @@ function releaseSettings(projectRoot) {
   const release = (readConfig(projectRoot) || {}).release || {};
   return {
     versionFiles: release.versionFiles ? release.versionFiles.map(normalizeRelPath) : null,
+    versionFilesSource: release.versionFilesSource || 'detected',
     githubRelease: release.githubRelease || 'minor+',
+    postBump: release.postBump ? [...release.postBump] : [],
+    postBumpApproved: release.postBumpApproved ? [...release.postBumpApproved] : [],
   };
 }
 
-function saveVersionFiles(projectRoot, files) {
+// True when the commands to run are exactly the approved list (same commands, same order).
+function postBumpApproved(settings) {
+  return settings.postBump.length === settings.postBumpApproved.length
+    && settings.postBump.every((c, i) => c === settings.postBumpApproved[i]);
+}
+
+// Records the exact list as approved. The commands are shell strings read from a
+// committed file, so a changed list is a new list to approve.
+function approvePostBump(projectRoot, commands) {
   const config = ensureProjectConfig(projectRoot);
-  writeConfig(projectRoot, { ...config, release: { ...config.release, versionFiles: files } });
+  writeConfig(projectRoot, { ...config, release: { ...config.release, postBumpApproved: [...commands] } });
+}
+
+function saveVersionFiles(projectRoot, files, source = 'detected') {
+  const config = ensureProjectConfig(projectRoot);
+  writeConfig(projectRoot, { ...config, release: { ...config.release, versionFiles: files, versionFilesSource: source } });
 }
 
 module.exports = {
   CONFIG_FILENAME, readConfig, ensureProjectConfig, githubEnabled, rescanProjectConfig,
-  jevEnabled, rescanJevConfig, enableJev, changelogSettings, releaseSettings, saveVersionFiles,
+  jevEnabled, rescanJevConfig, enableJev, changelogSettings, releaseSettings, saveVersionFiles, postBumpApproved, approvePostBump,
   scratchSettings, shipSettings, allDoneNext, SCRATCH_POLICIES,
 };

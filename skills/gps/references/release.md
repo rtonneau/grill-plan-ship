@@ -3,11 +3,11 @@
 **When:** finished sessions left changelog fragments in `.work/changelog/` (or the CHANGELOG has hand-written Unreleased bullets) and the user wants them turned into a version. Never under `/gps auto`: a release is always the user's call.
 
 1. `release.js`. It suggests the next version from the fragments' bumps and lists the candidates (`Candidates:` line); relay it, `⚠️` lines included. A `❌` stops the command.
-2. Ask "Release X.Y.Z?" using the host question rule: the suggested version first, marked "(Recommended)", then the other versions of the `Candidates:` line as printed (don't compute versions). Other = a custom version.
-3. `release.js --version <version>`. It writes the release section into the CHANGELOG (Unreleased bullets, then the fragments), bumps the version files, deletes the fragments, commits it all and tags `vX.Y.Z`.
+2. Ask "Release X.Y.Z?" using the host question rule: the suggested version first, marked "(Recommended)", then the other versions of the `Candidates:` line as printed (don't compute versions). Other = a custom version. When the output lists `Post-bump commands (NOT approved yet)`, put those commands in the same question: the yes approves them. Nothing runs unseen.
+3. `release.js --version <version>`, with `--approve-post-bump` when step 2 showed unapproved commands. It writes the release section into the CHANGELOG (Unreleased bullets, then the fragments), bumps the version files, runs the approved post-bump commands (their tracked changes join the commit; a failing command undoes the cut: relay its output), deletes the fragments, commits it all and tags `vX.Y.Z`.
 4. Ask "Push and publish?" using the host question rule. On yes, `release.js --push`: it pushes the commit and tag, then creates the GitHub Release when the project's policy allows. On no, relay the by-hand push command from step 3's `Next:` line (`git push --atomic --follow-tags origin <branch>`).
 
-**Preapproved:** `/gps release --publish [--version X.Y.Z]` is the user's yes to the version and the push. Skip steps 2 and 4: run `release.js --publish` (passing the version through when given), which cuts the version, pushes and creates the GitHub Release by policy, asking nothing. After a failed push, run it again: it resumes at the push. Relay its output; on a refusal, relay the hint.
+**Preapproved:** `/gps release --publish [--version X.Y.Z]` is the user's yes to the version and the push. Skip steps 2 and 4, except that unapproved post-bump commands still need their approval (pass `--approve-post-bump`): run `release.js --publish` (passing the version through when given), which cuts the version, pushes and creates the GitHub Release by policy, asking nothing. After a failed push, run it again: it resumes at the push. Relay its output; on a refusal, relay the hint.
 
 Run it from the base branch, up to date with origin, with a clean tree; the script refuses otherwise. When it refuses, relay the hint; don't work around it.
 

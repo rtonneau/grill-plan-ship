@@ -9,10 +9,26 @@ const {
   readRecentCommits, readGitStatus, commitFiles, restoreFromHead, commitExists, describeCommit,
   commitWorkDir, commitRemainingChanges, describeWorkCommit, branchesHolding, isIgnored, GPS_WORK_PATHS,
   failureReason, commitMessages, defaultBranch, isCleanTree, tagExists, createTag, headCommit, pushWithTags, remoteHasTag, remoteBranchAt, headSha, fetchBehind,
-  safeGitArgs, gitPrivatePath, pushBranch,
+  safeGitArgs, gitPrivatePath, pushBranch, changedTrackedFiles,
 } = require('../../skills/gps/scripts/lib/git');
 
 const readGitStatusSummary = (root, dir) => readGitStatus(root, dir).session;
+
+// changedTrackedFiles lists what differs from HEAD and reports a git error rather than an empty list.
+{
+  const root = gitProject('gps-changed-tracked-');
+  fs.writeFileSync(path.join(root, 'app.js'), 'changed\n');
+  fixtureGit(root, 'add', 'app.js');
+  fixtureGit(root, 'commit', '-q', '-m', 'add app');
+  assert.deepStrictEqual(changedTrackedFiles(root), { ok: true, files: [] });
+  fs.writeFileSync(path.join(root, 'app.js'), 'changed again\n');
+  assert.deepStrictEqual(changedTrackedFiles(root), { ok: true, files: ['app.js'] });
+  fs.writeFileSync(path.join(root, '.git', 'index'), 'junk');
+  const broken = changedTrackedFiles(root);
+  assert.strictEqual(broken.ok, false);
+  assert.ok(broken.reason);
+  fs.rmSync(root, { recursive: true, force: true });
+}
 
 // A denied safety journal must stop before a hook can create an unguarded commit.
 {

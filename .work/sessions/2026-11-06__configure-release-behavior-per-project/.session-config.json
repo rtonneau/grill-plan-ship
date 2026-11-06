@@ -1,0 +1,191 @@
+{
+  "session_id": "2026-11-06__configure-release-behavior-per-project",
+  "feature_name": "configure-release-behavior-per-project",
+  "scratch_dir": ".scratch/tests/2026-11-06__configure-release-behavior-per-project",
+  "created_at": "2026-11-06T09:48:37.572Z",
+  "template_version": 2,
+  "history": [
+    {
+      "at": "2026-11-06T09:48:37.572Z",
+      "event": "session_started",
+      "phase": "grill",
+      "files": [
+        "01-grill/resume.md"
+      ]
+    },
+    {
+      "at": "2026-11-06T09:51:20.221Z",
+      "event": "grill_written",
+      "phase": "plan-not-started",
+      "files": [
+        "01-grill/resume.md"
+      ]
+    },
+    {
+      "at": "2026-11-06T09:52:50.745Z",
+      "event": "auto_started",
+      "phase": "plan-not-started",
+      "detail": {
+        "target": "finish",
+        "steps": "plan → write:plan → ship → finish",
+        "shipMode": "delegate"
+      }
+    },
+    {
+      "at": "2026-11-06T09:52:51.036Z",
+      "event": "plan_started",
+      "phase": "plan",
+      "files": [
+        "02-plan/plan.md"
+      ]
+    },
+    {
+      "at": "2026-11-06T09:53:19.455Z",
+      "event": "branch_created",
+      "phase": "plan",
+      "detail": {
+        "branch": "feat/release-workspace-versions-post-bump",
+        "base": "main"
+      }
+    },
+    {
+      "at": "2026-11-06T09:53:19.503Z",
+      "event": "plan_written",
+      "phase": "ship",
+      "files": [
+        "02-plan/plan.md",
+        "02-plan/tickets/01-cargo-workspace-version-and-pins.md",
+        "02-plan/tickets/02-redetect-saved-version-files.md",
+        "02-plan/tickets/03-post-bump-commands.md"
+      ],
+      "detail": {
+        "tickets": 3
+      }
+    },
+    {
+      "at": "2026-11-06T09:53:20.982Z",
+      "event": "ticket_started",
+      "phase": "ship",
+      "files": [
+        "02-plan/tickets/01-cargo-workspace-version-and-pins.md",
+        "03-implement/01-cargo-workspace-version-and-pins/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "01-cargo-workspace-version-and-pins"
+      }
+    },
+    {
+      "at": "2026-11-06T10:06:27.202Z",
+      "event": "ticket_done",
+      "phase": "ship",
+      "files": [
+        "03-implement/01-cargo-workspace-version-and-pins/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "01-cargo-workspace-version-and-pins",
+        "commit": "72b9e24"
+      }
+    },
+    {
+      "at": "2026-11-06T10:06:28.267Z",
+      "event": "ticket_started",
+      "phase": "ship",
+      "files": [
+        "02-plan/tickets/02-redetect-saved-version-files.md",
+        "03-implement/02-redetect-saved-version-files/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "02-redetect-saved-version-files"
+      }
+    },
+    {
+      "at": "2026-11-06T10:23:31.461Z",
+      "event": "ticket_done",
+      "phase": "ship",
+      "files": [
+        "03-implement/02-redetect-saved-version-files/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "02-redetect-saved-version-files",
+        "commit": "f3953a3"
+      }
+    },
+    {
+      "at": "2026-11-06T10:23:32.399Z",
+      "event": "ticket_started",
+      "phase": "ship",
+      "files": [
+        "02-plan/tickets/03-post-bump-commands.md",
+        "03-implement/03-post-bump-commands/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "03-post-bump-commands"
+      }
+    },
+    {
+      "at": "2026-11-06T10:45:57.354Z",
+      "event": "ticket_blocked",
+      "phase": "ship",
+      "files": [
+        "03-implement/03-post-bump-commands/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "03-post-bump-commands",
+        "reason": "Review found unresolved actionable issues (P2: post-bump output over 1 MB fails with ENOBUFS; three P3s); the one recovery pass was used by the host-restart recovery, so another pass needs the user's go-ahead."
+      }
+    },
+    {
+      "at": "2026-11-06T11:08:47.706Z",
+      "event": "ticket_done",
+      "phase": "finish-pending",
+      "files": [
+        "03-implement/03-post-bump-commands/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "03-post-bump-commands",
+        "commit": "09aa7d3"
+      }
+    },
+    {
+      "at": "2026-11-06T11:09:01.155Z",
+      "event": "changelog_written",
+      "phase": "finish-pending",
+      "detail": {
+        "bump": "minor"
+      }
+    },
+    {
+      "at": "2026-11-06T11:09:07.643Z",
+      "event": "pr_opened",
+      "phase": "finish-pending",
+      "detail": {
+        "url": "https://github.com/rtonneau/grill-plan-ship/pull/57"
+      }
+    },
+    {
+      "at": "2026-11-06T11:09:01.745Z",
+      "event": "session_finished",
+      "phase": "finished",
+      "files": [
+        "INDEX.md"
+      ]
+    }
+  ],
+  "current_phase": "finished",
+  "git": {
+    "branch": "feat/release-workspace-versions-post-bump",
+    "base_branch": "main",
+    "branch_created_at": "2026-11-06T09:53:19.455Z",
+    "pr_url": "https://github.com/rtonneau/grill-plan-ship/pull/57"
+  },
+  "ship_mode": "inline",
+  "changelog": {
+    "bump": "minor",
+    "floor": "minor",
+    "reason": null,
+    "bullets": 3,
+    "path": ".work/changelog/2026-11-06__configure-release-behavior-per-project.md",
+    "written_at": "2026-11-06T11:09:01.145Z"
+  },
+  "finished_at": "2026-11-06T11:09:01.745Z"
+}

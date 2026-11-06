@@ -8,7 +8,7 @@ Your skill may read these, but never write, move or delete them.
 
 | Path | What it is |
 |---|---|
-| `.work/gps-config.json` | project-wide gps settings |
+| `.work/gps-config.json` | project-wide gps settings, including `release.postBump` (shell commands `/gps release` runs after the version bump) and `release.postBumpApproved` (the exact list the user approved); `/gps release` commits the file when it saves an approval or the version files (decision 0017) |
 | `.work/GLOSSARY.md`, `.work/adr/` | gps's fallback glossary and ADRs, used only when the project has none of its own (a root `GLOSSARY.md`, `docs/adr/`) |
 | `.work/sessions/` | the whole tree: session directories, `.current-session`, `.pending-seeds.json*`, `scout-reports/` and every file inside a session |
 | `.work/changelog/` | one changelog fragment per finished session (`<session-id>.md`), written by `/gps finish` and merged into the CHANGELOG, then deleted, by `/gps release` |

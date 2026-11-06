@@ -166,6 +166,53 @@ function finishedWorkIgnored(prefix) {
   assert.ok(h.git(root, 'tag').includes('v0.1.0'));
 }
 
+// A Cargo workspace: [workspace.package] version is bumped and the path pins
+// that equal it follow, in the release commit; other pins and registry deps stay.
+{
+  const root = h.gitProject('gps-rel-cargo-');
+  const put = (rel, text) => {
+    fs.mkdirSync(path.dirname(path.join(root, rel)), { recursive: true });
+    fs.writeFileSync(path.join(root, rel), text);
+  };
+  const get = (rel) => fs.readFileSync(path.join(root, rel), 'utf-8');
+  const rootManifest = [
+    '[workspace]',
+    'members = ["crates/*", "tools/cli"]',
+    '',
+    '[workspace.package]',
+    'version = "0.3.0" # the one version',
+    '',
+    '[workspace.dependencies]',
+    'core = { path = "crates/core", version = "0.3.0" }',
+    'old = { path = "crates/old", version = "0.2.0" }',
+    'serde = { version = "0.3.0" }',
+    '',
+  ].join('\n');
+  const coreManifest = '[package]\r\nname = "core"\r\nversion.workspace = true\r\n\r\n[dependencies]\r\nutil = { path = "../util", version = "0.3.0" } # keep\r\n';
+  const utilManifest = '[package]\nname = "util"\nversion.workspace = true\n\n[dependencies.core]\npath = "../core"\nversion = "0.3.0"\n';
+  const cliManifest = '[package]\nname = "cli"\nversion.workspace = true\n\n[dev-dependencies]\nutil = { path = "../../crates/util", version = "0.2.0" }\nlog = "0.3.0"\n';
+  put('Cargo.toml', rootManifest);
+  put('crates/core/Cargo.toml', coreManifest);
+  put('crates/util/Cargo.toml', utilManifest);
+  put('tools/cli/Cargo.toml', cliManifest);
+  h.git(root, 'add', '.');
+  h.git(root, 'commit', '-q', '-m', 'add workspace');
+  finishSession(root, 'only', 'feat', 'minor');
+
+  const res = h.ok(root, 'release.js', ['--version', '0.4.0']);
+  assert.match(res.out, /0\.3\.0 → 0\.4\.0/);
+  assert.strictEqual(get('Cargo.toml'), rootManifest
+    .replace('version = "0.3.0" # the one version', 'version = "0.4.0" # the one version')
+    .replace('core = { path = "crates/core", version = "0.3.0" }', 'core = { path = "crates/core", version = "0.4.0" }'));
+  assert.strictEqual(get('crates/core/Cargo.toml'), coreManifest.replace('"0.3.0"', '"0.4.0"'));
+  assert.strictEqual(get('crates/util/Cargo.toml'), utilManifest.replace('version = "0.3.0"', 'version = "0.4.0"'));
+  assert.strictEqual(get('tools/cli/Cargo.toml'), cliManifest, 'a different pin and a registry dependency are left alone');
+  const files = h.git(root, 'show', '--name-only', '--format=', 'HEAD').split('\n');
+  for (const f of ['Cargo.toml', 'crates/core/Cargo.toml', 'crates/util/Cargo.toml']) assert.ok(files.includes(f), `${f} in the release commit`);
+  assert.ok(!files.includes('tools/cli/Cargo.toml'));
+  assert.strictEqual(h.git(root, 'status', '--porcelain'), '');
+}
+
 // Disagreeing version files: a warning names both.
 {
   const root = project('gps-rel4-');
@@ -271,6 +318,67 @@ function finishedWorkIgnored(prefix) {
     [`D\t.work/changelog/${id}.md`, 'A\tCHANGELOG.md', 'M\tpackage.json'].sort());
   assert.strictEqual(h.git(root, 'status', '--porcelain'), '');
   assert.ok(h.git(root, 'tag').split('\n').includes('v1.5.0'));
+}
+
+// A release saves the source beside the list; a legacy config without a source
+// is re-detected and the new list lands in the release commit; manual is kept.
+{
+  const readCfg = (root) => JSON.parse(fs.readFileSync(path.join(root, '.work', 'gps-config.json'), 'utf-8')).release;
+  const withList = (prefix, release) => {
+    const { root } = finished(prefix, 'feat', 'minor');
+    fs.writeFileSync(path.join(root, 'plugin.json'), JSON.stringify({ name: 'x', version: '1.4.2' }) + '\n');
+    const cfgFile = path.join(root, '.work', 'gps-config.json');
+    const cfg = JSON.parse(fs.readFileSync(cfgFile, 'utf-8'));
+    fs.writeFileSync(cfgFile, JSON.stringify({ ...cfg, release }, null, 2) + '\n');
+    h.git(root, 'add', 'plugin.json', '.work/gps-config.json');
+    h.git(root, 'commit', '-q', '-m', 'cfg and manifest');
+    return root;
+  };
+
+  const first = finished('gps-rel23-', 'feat', 'minor').root;
+  h.ok(first, 'release.js', ['--version', '1.5.0']);
+  assert.strictEqual(readCfg(first).versionFilesSource, 'detected');
+
+  const legacy = withList('gps-rel24-', { versionFiles: ['package.json'] });
+  // The suggestion changes nothing, and does not say it did.
+  const preview = h.ok(legacy, 'release.js');
+  assert.match(preview.err, /does not hold: plugin\.json \(a cut adds them\)/);
+  assert.doesNotMatch(preview.err, /saved list updated/);
+  assert.deepStrictEqual(readCfg(legacy).versionFiles, ['package.json']);
+  assert.strictEqual(h.git(legacy, 'status', '--porcelain'), '');
+  // Nor does a cut undone by a failing post-bump command.
+  const undone = withList('gps-rel27-', { versionFiles: ['package.json'], postBump: ['node -e "process.exit(3)"'] });
+  const undoneRes = h.run(undone, 'release.js', ['--version', '1.5.0', '--approve-post-bump']);
+  h.assertFails(undoneRes, 1, /Post-bump command failed/);
+  assert.doesNotMatch(undoneRes.err, /saved list updated/);
+  assert.deepStrictEqual(readCfg(undone).versionFiles, ['package.json']);
+  const res = h.ok(legacy, 'release.js', ['--version', '1.5.0']);
+  assert.match(res.err, /did not hold: plugin\.json/);
+  assert.deepStrictEqual(readCfg(legacy).versionFiles, ['package.json', 'plugin.json']);
+  assert.strictEqual(readCfg(legacy).versionFilesSource, 'detected');
+  assert.strictEqual(JSON.parse(fs.readFileSync(path.join(legacy, 'plugin.json'), 'utf-8')).version, '1.5.0');
+  assert.ok(h.git(legacy, 'show', '--name-only', '--format=', 'HEAD').split('\n').includes('.work/gps-config.json'));
+  assert.strictEqual(h.git(legacy, 'status', '--porcelain'), '');
+
+  // Re-detection never drops a saved entry detection does not know.
+  const custom = withList('gps-rel26-', { versionFiles: ['packages/a/package.json', 'package.json'] });
+  fs.mkdirSync(path.join(custom, 'packages', 'a'), { recursive: true });
+  fs.writeFileSync(path.join(custom, 'packages', 'a', 'package.json'), JSON.stringify({ name: 'a', version: '1.4.2' }) + '\n');
+  h.git(custom, 'add', 'packages');
+  h.git(custom, 'commit', '-q', '-m', 'add package a');
+  const kept = h.ok(custom, 'release.js', ['--version', '1.5.0']);
+  assert.match(kept.err, /did not hold: plugin\.json/);
+  assert.deepStrictEqual(readCfg(custom).versionFiles, ['packages/a/package.json', 'package.json', 'plugin.json']);
+  const customVersion = (rel) => JSON.parse(fs.readFileSync(path.join(custom, rel), 'utf-8')).version;
+  assert.deepStrictEqual(['packages/a/package.json', 'package.json', 'plugin.json'].map(customVersion), ['1.5.0', '1.5.0', '1.5.0']);
+  assert.ok(h.git(custom, 'show', '--name-only', '--format=', 'HEAD').split('\n').includes('packages/a/package.json'));
+  assert.strictEqual(h.git(custom, 'status', '--porcelain'), '');
+
+  const manual = withList('gps-rel25-', { versionFiles: ['package.json'], versionFilesSource: 'manual' });
+  h.ok(manual, 'release.js', ['--version', '1.5.0']);
+  assert.deepStrictEqual(readCfg(manual), { versionFiles: ['package.json'], versionFilesSource: 'manual' });
+  assert.strictEqual(JSON.parse(fs.readFileSync(path.join(manual, 'plugin.json'), 'utf-8')).version, '1.4.2', 'manual list is never re-detected');
+  assert.ok(!h.git(manual, 'show', '--name-only', '--format=', 'HEAD').split('\n').includes('.work/gps-config.json'));
 }
 
 // A nested changelog (docs/CHANGELOG.md) with tracked fragments releases.
@@ -448,6 +556,162 @@ function finishedWorkIgnored(prefix) {
   h.git(root, 'switch', '-q', 'main');
   fs.writeFileSync(path.join(root, '.work', 'gps-config.json'), '{ "github": { "enabled": "yes" } }');
   h.assertFails(h.run(root, 'release.js', ['--push']), 1, /gps-config.json is invalid/);
+}
+
+// release.postBump: consent per exact list, run in order, changes join the release
+// commit, a failure puts everything back.
+{
+  const cfgOf = (root) => JSON.parse(fs.readFileSync(path.join(root, '.work', 'gps-config.json'), 'utf-8'));
+  // Line endings as git checks them out (core.autocrlf) do not matter here.
+  const read = (root, rel) => fs.readFileSync(path.join(root, rel), 'utf-8').replace(/\r\n/g, '\n');
+  const STEP = 'node step.js';
+  // A finished project (version files already saved) holding lock.txt, step.js (appends its argument to lock.txt; "c" also creates
+  // made.txt) and fail.js, with the given lists in the committed config.
+  const withPost = (prefix, postBump, postBumpApproved) => {
+    const { root } = finished(prefix, 'feat', 'minor');
+    fs.writeFileSync(path.join(root, 'lock.txt'), 'old\n');
+    fs.writeFileSync(path.join(root, 'step.js'), "const fs = require('fs'); fs.appendFileSync('lock.txt', process.argv[2] + '\\n'); if (process.argv[2] === 'c') fs.writeFileSync('made.txt', 'x');\n");
+    fs.writeFileSync(path.join(root, 'fail.js'), "console.log('partial'); console.error('boom'); process.exit(3);\n");
+    const cfg = cfgOf(root);
+    fs.writeFileSync(path.join(root, '.work', 'gps-config.json'),
+      JSON.stringify({ ...cfg, release: { ...cfg.release, versionFiles: ['package.json'], versionFilesSource: 'detected', postBump, ...(postBumpApproved ? { postBumpApproved } : {}) } }, null, 2) + '\n');
+    h.git(root, 'add', 'lock.txt', 'step.js', 'fail.js', '.work/gps-config.json');
+    h.git(root, 'commit', '-q', '-m', 'add post-bump setup');
+    return root;
+  };
+  const committed = (root) => h.git(root, 'show', '--name-only', '--format=', 'HEAD').split('\n').sort();
+
+  // Unapproved: the suggestion shows them, every cut refuses before writing anything.
+  const fresh = withPost('gps-rel-pb1-', [`${STEP} a`, `${STEP} b`]);
+  const head = h.git(fresh, 'rev-parse', 'HEAD');
+  const sug = h.ok(fresh, 'release.js');
+  assert.match(sug.out, /Post-bump commands \(NOT approved yet\):\n  node step\.js a\n  node step\.js b/);
+  assert.match(sug.out, /Next: .*approve the post-bump commands.*release\.js --version 1\.5\.0 --approve-post-bump/);
+  assert.deepStrictEqual([h.json(fresh, 'release.js').postBump, h.json(fresh, 'release.js').postBumpApproved], [[`${STEP} a`, `${STEP} b`], false]);
+  for (const args of [['--version', '1.5.0'], ['--publish'], ['--publish', '--version', '1.5.0']]) {
+    const res = h.run(fresh, 'release.js', args);
+    h.assertFails(res, 1, /release\.postBump is not approved; nothing was changed/);
+    assert.match(res.err, /node step\.js a\n\s+node step\.js b/, 'names the commands');
+    assert.match(res.err, /--version 1\.5\.0 --approve-post-bump/);
+  }
+  assert.strictEqual(h.git(fresh, 'rev-parse', 'HEAD'), head);
+  assert.strictEqual(h.git(fresh, 'status', '--porcelain'), '', 'a refusal writes nothing');
+  assert.strictEqual(read(fresh, 'lock.txt'), 'old\n');
+  assert.ok(!h.git(fresh, 'tag').includes('v1.5.0'));
+  h.assertFails(h.run(fresh, 'release.js', ['--approve-post-bump']), 2, /--version or --publish/);
+  h.assertFails(h.run(fresh, 'release.js', ['--push', '--approve-post-bump']), 2);
+
+  // Approving records the exact list; the commands ran in order, the config joins the commit and the tree is clean.
+  const res = h.ok(fresh, 'release.js', ['--version', '1.5.0', '--approve-post-bump']);
+  assert.match(res.out, /Post-bump: ran 2 command\(s\), 1 changed file\(s\) joined the commit\./);
+  assert.strictEqual(read(fresh, 'lock.txt'), 'old\na\nb\n');
+  assert.deepStrictEqual(cfgOf(fresh).release.postBumpApproved, [`${STEP} a`, `${STEP} b`]);
+  assert.ok(committed(fresh).includes('lock.txt'));
+  assert.ok(committed(fresh).includes('.work/gps-config.json'));
+  assert.strictEqual(h.git(fresh, 'status', '--porcelain'), '', 'approval leaves a clean tree');
+  assert.ok(h.git(fresh, 'tag').split('\n').includes('v1.5.0'));
+
+  // An approved list runs without the flag, and writes no config.
+  const approved = withPost('gps-rel-pb2-', [`${STEP} a`, `${STEP} c`], [`${STEP} a`, `${STEP} c`]);
+  assert.match(h.ok(approved, 'release.js').out, /Post-bump commands \(approved\)/);
+  assert.doesNotMatch(h.ok(approved, 'release.js').out, /--approve-post-bump/);
+  const cut = h.ok(approved, 'release.js', ['--version', '1.5.0']);
+  assert.match(cut.err, /created untracked file\(s\), left out of the release commit: made\.txt/);
+  assert.strictEqual(read(approved, 'lock.txt'), 'old\na\nc\n');
+  assert.ok(committed(approved).includes('lock.txt'));
+  assert.ok(!committed(approved).includes('made.txt'));
+  assert.ok(!committed(approved).includes('.work/gps-config.json'), 'nothing changed in the config');
+  assert.strictEqual(h.git(approved, 'status', '--porcelain'), '?? made.txt', 'the untracked file stays out');
+
+  // A changed list (a command added, or reordered) refuses again, naming the commands.
+  for (const list of [[`${STEP} a`, `${STEP} b`], [`${STEP} c`, `${STEP} a`], [`${STEP} a`]]) {
+    const changed = withPost('gps-rel-pb3-', list, [`${STEP} a`, `${STEP} c`]);
+    const refused = h.run(changed, 'release.js', ['--version', '1.5.0']);
+    h.assertFails(refused, 1, /release\.postBump changed since it was approved; nothing was changed/);
+    assert.ok(refused.err.includes(list[0]), 'names the commands');
+    assert.strictEqual(h.git(changed, 'status', '--porcelain'), '');
+    assert.strictEqual(read(changed, 'lock.txt'), 'old\n');
+  }
+
+  // A failing command undoes the cut: changelog, version files, config, tracked changes; nothing committed or tagged.
+  const failing = withPost('gps-rel-pb4-', [`${STEP} a`, 'node fail.js'], null);
+  const failHead = h.git(failing, 'rev-parse', 'HEAD');
+  const cfgBefore = read(failing, '.work/gps-config.json');
+  const fragmentsBefore = fs.readdirSync(path.join(failing, '.work', 'changelog')).sort();
+  const failed = h.run(failing, 'release.js', ['--version', '1.5.0', '--approve-post-bump']);
+  h.assertFails(failed, 1, /Post-bump command failed: node fail\.js/);
+  assert.match(failed.err, /boom/);
+  assert.match(failed.err, /nothing was committed or tagged/);
+  assert.strictEqual(h.git(failing, 'rev-parse', 'HEAD'), failHead);
+  assert.strictEqual(h.git(failing, 'status', '--porcelain'), '', 'the tree is clean again');
+  assert.strictEqual(read(failing, 'lock.txt'), 'old\n', 'the first command\'s change is undone');
+  assert.strictEqual(read(failing, '.work/gps-config.json'), cfgBefore, 'the approval is not kept');
+  assert.strictEqual(JSON.parse(read(failing, 'package.json')).version, '1.4.2');
+  assert.ok(!fs.existsSync(path.join(failing, 'CHANGELOG.md')));
+  assert.deepStrictEqual(fs.readdirSync(path.join(failing, '.work', 'changelog')).sort(), fragmentsBefore);
+  assert.ok(!h.git(failing, 'tag').includes('v1.5.0'));
+  // Fix the list; the rerun works.
+  const cfg = cfgOf(failing);
+  fs.writeFileSync(path.join(failing, '.work', 'gps-config.json'), JSON.stringify({ ...cfg, release: { ...cfg.release, postBump: [`${STEP} a`] } }, null, 2) + '\n');
+  h.git(failing, 'commit', '-q', '-m', 'fix list', '--', '.work/gps-config.json');
+  h.ok(failing, 'release.js', ['--version', '1.5.0', '--approve-post-bump']);
+  assert.strictEqual(read(failing, 'lock.txt'), 'old\na\n');
+  assert.ok(h.git(failing, 'tag').split('\n').includes('v1.5.0'));
+  assert.strictEqual(h.git(failing, 'status', '--porcelain'), '');
+
+  // Failure with a first-ever release (no CHANGELOG yet) and a command that created a file: reported, not deleted.
+  const created = withPost('gps-rel-pb5-', [`${STEP} c`, 'node fail.js'], null);
+  const createdFail = h.run(created, 'release.js', ['--version', '1.5.0', '--approve-post-bump']);
+  h.assertFails(createdFail, 1, /Untracked files left behind: made\.txt/);
+  assert.match(createdFail.err, /Remove or commit those untracked files/);
+  assert.doesNotMatch(failed.err, /Remove or commit those untracked files/, 'only when some are left');
+  assert.strictEqual(read(created, 'lock.txt'), 'old\n');
+  assert.strictEqual(h.git(created, 'status', '--porcelain'), '?? made.txt');
+  h.assertFails(h.run(created, 'release.js', ['--version', '1.5.0', '--approve-post-bump']), 1, /uncommitted changes/);
+
+  // A command printing more than the default 1 MB buffer: a success stays one, a failure still reports its end.
+  const big = withPost('gps-rel-pb6-', ['node big.js'], ['node big.js']);
+  fs.writeFileSync(path.join(big, 'big.js'), "process.stdout.write('x'.repeat(2 * 1024 * 1024)); require('fs').appendFileSync('lock.txt', 'big\\n'); if (process.argv[2] === 'fail') { console.error('boom'); process.exitCode = 3; }\n");
+  h.git(big, 'add', 'big.js');
+  h.git(big, 'commit', '-q', '-m', 'add big');
+  h.ok(big, 'release.js', ['--version', '1.5.0']);
+  assert.strictEqual(read(big, 'lock.txt'), 'old\nbig\n');
+  assert.ok(committed(big).includes('lock.txt'));
+  const bigFail = withPost('gps-rel-pb7-', ['node big.js fail'], ['node big.js fail']);
+  fs.copyFileSync(path.join(big, 'big.js'), path.join(bigFail, 'big.js'));
+  h.git(bigFail, 'add', 'big.js');
+  h.git(bigFail, 'commit', '-q', '-m', 'add big');
+  const bigFailed = h.run(bigFail, 'release.js', ['--version', '1.5.0']);
+  h.assertFails(bigFailed, 1, /Post-bump command failed: node big\.js fail/);
+  assert.match(bigFailed.err, /boom/);
+  assert.ok(bigFailed.err.length < 10000, 'the output is cut down');
+  assert.strictEqual(h.git(bigFail, 'status', '--porcelain'), '');
+
+  // git cannot list the changes: the cut stops rather than commit without them.
+  const broken = withPost('gps-rel-pb8-', ['node breakindex.js'], ['node breakindex.js']);
+  fs.writeFileSync(path.join(broken, 'breakindex.js'), "require('fs').writeFileSync('.git/index', 'junk');\n");
+  h.git(broken, 'add', 'breakindex.js');
+  h.git(broken, 'commit', '-q', '-m', 'add breakindex');
+  const brokenHead = h.git(broken, 'rev-parse', 'HEAD');
+  const brokenRes = h.run(broken, 'release.js', ['--version', '1.5.0']);
+  h.assertFails(brokenRes, 1, /Cannot list the files the post-bump commands changed/);
+  assert.match(brokenRes.err, /restore them by hand/);
+  assert.strictEqual(h.git(broken, 'rev-parse', 'HEAD'), brokenHead);
+  assert.ok(!h.git(broken, 'tag').includes('v1.5.0'));
+
+  // --publish --approve-post-bump: approved, cut, pushed, all in one call.
+  const { execFileSync } = require('child_process');
+  const pub = withPost('gps-rel-pb9-', [`${STEP} a`]);
+  const origin = fs.mkdtempSync(path.join(require('os').tmpdir(), 'gps-rel-pb9-origin-'));
+  execFileSync('git', ['init', '-q', '--bare', origin], { stdio: 'ignore' });
+  h.git(pub, 'remote', 'add', 'origin', origin);
+  h.ok(pub, 'release.js', ['--publish', '--approve-post-bump']);
+  const inOrigin = (...a) => execFileSync('git', ['--git-dir', origin, ...a], { encoding: 'utf-8' }).trim();
+  assert.strictEqual(inOrigin('rev-parse', 'refs/heads/main'), h.git(pub, 'rev-parse', 'HEAD'));
+  assert.ok(inOrigin('tag').split('\n').includes('v1.5.0'));
+  assert.strictEqual(inOrigin('show', 'main:lock.txt').replace(/\r\n/g, '\n'), 'old\na');
+  assert.deepStrictEqual(JSON.parse(inOrigin('show', 'main:.work/gps-config.json')).release.postBumpApproved, [`${STEP} a`]);
+  assert.strictEqual(h.git(pub, 'status', '--porcelain'), '');
 }
 
 h.done('release.test.js');

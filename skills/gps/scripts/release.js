@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 /**
- * release.js [--version X.Y.Z | --push | --publish [--version X.Y.Z]] [--json]
+ * release.js [--version X.Y.Z | --push | --publish [--version X.Y.Z]] [--approve-post-bump] [--json]
  *
  * --publish is the preapproved path: cut (the given or the suggested
  * version), then step 3, in one call and asking nothing. Re-runnable: HEAD
@@ -17,8 +17,9 @@
  * highest bump wins; hand-written Unreleased bullets alone suggest patch).
  * With --version: writes the release section "## X.Y.Z (date)" (hand-written
  * Unreleased bullets first, then the fragments in file order), writes the
- * version into the version files, deletes the fragments, commits those files
- * alone as `chore(release): X.Y.Z` (body `Bump: <level>`) and tags vX.Y.Z.
+ * version into the version files (and, for a Cargo workspace, the path
+ * dependencies pinned to the previous version), runs release.postBump (below),
+ * deletes the fragments, commits those files alone as `chore(release): X.Y.Z` (body `Bump: <level>`) and tags vX.Y.Z.
  * Refuses, changing nothing, off the base branch, on a dirty tree, with the
  * changelog disabled, nothing to release or an invalid fragment, or when the
  * version is not a new one. A cut
@@ -26,21 +27,31 @@
  * origin or a failed fetch only warns). The suggestion also lists the
  * patch, minor and major candidates (data.alternatives); the text lists each
  * distinct version once.
+ *
+ * release.postBump: shell commands run in order from the project root after the
+ * version files are written and before the commit. They run only when the
+ * list equals release.postBumpApproved; otherwise the cut refuses, naming
+ * them, before writing anything. --approve-post-bump (with --version or
+ * --publish) records the exact list there and the config joins the release
+ * commit. The tracked files the commands changed join the commit; untracked
+ * files they created only warn. A failing command puts the changelog, version
+ * files, config and the files it touched back, and commits and tags nothing.
  */
 
 const fs = require('fs');
 const path = require('path');
+const { execFileSync } = require('child_process');
 const { main } = require('./lib/cli');
 const { GpsError, UsageError, localDate } = require('./lib/guard');
-const { changelogSettings, releaseSettings, saveVersionFiles, readConfig } = require('./lib/project-config');
+const { changelogSettings, releaseSettings, saveVersionFiles, postBumpApproved, approvePostBump, readConfig } = require('./lib/project-config');
 const { unreleasedHasEntries, latestVersion, renderRelease, sectionNotes } = require('./lib/changelog');
 const { FRAGMENTS_DIR, listFragments, deleteFragments } = require('./lib/changelog-fragments');
 const { releaseExists, createRelease } = require('./lib/github');
 const { LEVELS, parseVersion, formatVersion, compareVersions, bumpVersion, maxLevel, levelBetween, levelRank } = require('./lib/semver');
-const { detectVersionFiles, readVersions, writeVersion } = require('./lib/version-files');
+const { detectVersionFiles, readVersions, writeVersion, rewriteCargoPins } = require('./lib/version-files');
 const {
   defaultBranch, currentBranch, isCleanTree, isIgnored, isTracked, tagExists, createTag, commitFiles, restoreFromHead, headCommit,
-  pushWithTags, remoteHasTag, remoteBranchAt, headSha, fetchBehind,
+  pushWithTags, remoteHasTag, remoteBranchAt, headSha, fetchBehind, changedTrackedFiles, untrackedFiles, discardTrackedChanges,
 } = require('./lib/git');
 const { sessionsDirOf, listSessionDirs, readConfigOrNull } = require('./lib/session-store');
 
@@ -68,6 +79,53 @@ const BUMP_LINE_RE = /^Bump: (\w+)/m;
 
 // The level in a release commit's "Bump:" line, or null.
 const bumpOf = (body) => (BUMP_LINE_RE.exec(body || '') || [])[1] || null;
+
+// Runs one release.postBump command through the platform shell from the
+// project root, capturing its output so stdout stays the script's own.
+// Never throws: { ok: true } or { ok: false, output }.
+function runShell(projectRoot, command) {
+  const win = process.platform === 'win32';
+  try {
+    execFileSync(win ? (process.env.ComSpec || 'cmd.exe') : '/bin/sh',
+      win ? ['/d', '/s', '/c', `"${command}"`] : ['-c', command],
+      { cwd: projectRoot, encoding: 'utf-8', stdio: ['ignore', 'pipe', 'pipe'], windowsVerbatimArguments: win, maxBuffer: Infinity });
+    return { ok: true };
+  } catch (err) {
+    const output = [err.stdout, err.stderr].map((t) => String(t || '').trim()).filter(Boolean).join('\n') || err.message;
+    return { ok: false, output: output.length > 4000 ? `...${output.slice(-4000)}` : output };
+  }
+}
+
+const readOrNull = (file) => (fs.existsSync(file) ? fs.readFileSync(file) : null);
+
+// Puts a cut back as it was: tracked files from HEAD, then the files that are
+// not tracked (untracked or ignored) from their saved content (null: delete them).
+// Never throws: { ok: true } or { ok: false, reason, commands }.
+function undoCut(projectRoot, saved) {
+  const discarded = discardTrackedChanges(projectRoot);
+  try {
+    for (const [file, content] of saved) {
+      if (content === null) fs.rmSync(file, { force: true });
+      else if (isTracked(projectRoot, path.relative(projectRoot, file).split(path.sep).join('/'))) continue;
+      else if (!fs.existsSync(file) || !fs.readFileSync(file).equals(content)) fs.writeFileSync(file, content);
+    }
+  } catch (err) {
+    return { ok: false, reason: err.message, commands: ['git status'] };
+  }
+  return discarded;
+}
+
+// Undoes a cut that cannot go on and throws: the message, what happened to the
+// files, and the untracked files left behind (the rerun refuses until they go).
+function abortCut(projectRoot, saved, message, hint) {
+  const undone = undoCut(projectRoot, saved);
+  const left = untrackedFiles(projectRoot);
+  const note = undone.ok
+    ? 'The changelog, version files and config were put back; nothing was committed or tagged.'
+    : `Putting the files back failed (${undone.reason}): restore them by hand (${undone.commands.join(' && ')}). Nothing was committed or tagged.`;
+  throw new GpsError(`${message}\n${note}${left.length ? ` Untracked files left behind: ${left.join(', ')}.` : ''}`,
+    `${left.length ? 'Remove or commit those untracked files (a cut needs a clean tree). ' : ''}${hint}`);
+}
 
 function pushNext(projectRoot) {
   const branch = currentBranch(projectRoot);
@@ -142,7 +200,7 @@ function publish({ options, projectRoot, warn }) {
   let cut = null;
   if (!resume) {
     const typed = options.version != null ? options.version : cutSuggested({ options, projectRoot, warn });
-    cut = cutRelease({ options: { version: typed }, projectRoot, warn });
+    cut = cutRelease({ options: { version: typed, 'approve-post-bump': options['approve-post-bump'] }, projectRoot, warn });
   }
   const pushed = push({ projectRoot, warn });
   return {
@@ -162,7 +220,11 @@ function release({ options, projectRoot, warn }) {
   }
   if (options.push) {
     if (options.version != null) throw new UsageError('--push and --version cannot be combined.');
+    if (options['approve-post-bump']) throw new UsageError('--approve-post-bump goes with a cut (--version or --publish), not --push.');
     return push({ projectRoot, warn });
+  }
+  if (options['approve-post-bump'] && options.version == null) {
+    throw new UsageError('--approve-post-bump goes with --version or --publish: the cut records the approval.');
   }
   return cutRelease({ options, projectRoot, warn });
 }
@@ -235,8 +297,17 @@ function cutRelease({ options, projectRoot, warn }) {
     .filter((f) => levelRank(f.bump) > levelRank(f.floor))
     .map((f) => ({ sessionId: f.sessionId, reason: f.reason }));
 
-  const storedFiles = releaseSettings(projectRoot).versionFiles;
-  const versionFiles = storedFiles || detectVersionFiles(projectRoot);
+  // A manual list is used as is; otherwise (detected, or a legacy config
+  // without a source) the list is detected again on every release.
+  const releaseConfig = releaseSettings(projectRoot);
+  const { versionFiles: storedFiles, versionFilesSource, postBump } = releaseConfig;
+  const approved = postBumpApproved(releaseConfig);
+  const manual = Boolean(storedFiles) && versionFilesSource === 'manual';
+  // Re-detection only adds: saved entries stay first, in their saved order.
+  const detectedFiles = manual ? [] : detectVersionFiles(projectRoot);
+  const versionFiles = manual ? storedFiles : [...(storedFiles || []), ...detectedFiles.filter((f) => !(storedFiles || []).includes(f))];
+  const added = storedFiles ? versionFiles.filter((f) => !storedFiles.includes(f)) : [];
+  if (added.length && !typed) warn(`Detected version file(s) the saved list does not hold: ${added.join(', ')} (a cut adds them).`);
   const found = readVersions(projectRoot, versionFiles).filter((v) => v.version !== null);
   const parsed = found.map((v) => parseVersion(v.version)).filter(Boolean);
   const heading = parseVersion(latestVersion(text) || '');
@@ -268,15 +339,17 @@ function cutRelease({ options, projectRoot, warn }) {
     const suggested = formatVersion(bumpVersion(currentV, level));
     const alternatives = Object.fromEntries(LEVELS.map((l) => [l, formatVersion(bumpVersion(currentV, l))]));
     // Each distinct version once, with every level that gives it (0.x: minor/major).
+    const ask = postBump.length > 0 && !approved;
     const byVersion = new Map();
     for (const l of LEVELS) byVersion.set(alternatives[l], [...(byVersion.get(alternatives[l]) || []), l]);
     const lines = [`${current} → ${suggested} (${level}: ${fragments.length} session(s))`,
       ...raised.map((r) => `  raised by Claude (${r.sessionId}): ${r.reason || '(no reason given)'}`),
       `Candidates: ${[...byVersion].map(([v, levels]) => `${levels.join('/')} ${v}`).join(', ')}`,
-      `Next: ask the user to confirm, then release.js --version ${suggested}`];
+      ...(postBump.length ? [`Post-bump commands (${approved ? 'approved' : 'NOT approved yet'}):`, ...postBump.map((c) => `  ${c}`)] : []),
+      `Next: ask the user to confirm${ask ? ' and to approve the post-bump commands' : ''}, then release.js --version ${suggested}${ask ? ' --approve-post-bump' : ''}`];
     return {
       text: lines.join('\n'),
-      data: { current, suggested, level, alternatives, sessions: fragments.length, raised, versionFiles, mismatches },
+      data: { current, suggested, level, alternatives, sessions: fragments.length, raised, versionFiles, mismatches, postBump, postBumpApproved: approved },
     };
   }
 
@@ -284,14 +357,27 @@ function cutRelease({ options, projectRoot, warn }) {
   // level when there is no current version), so a user who picks a minor
   // version over patch fragments gets the minor+ release policy.
   const chosen = currentV ? levelBetween(currentV, typed) : level;
+  // The commands are shell strings from a committed file: they run only as approved.
+  if (postBump.length && !approved && !options['approve-post-bump']) {
+    const why = releaseConfig.postBumpApproved.length ? 'release.postBump changed since it was approved' : 'release.postBump is not approved';
+    throw new GpsError(`${why}; nothing was changed. Commands:\n${postBump.map((c) => `  ${c}`).join('\n')}`,
+      `Show the user these commands; once they approve, run release.js --version ${target} --approve-post-bump.`);
+  }
   const updated = renderRelease(text, target, localDate(), fragments.map((f) => f.body));
   const writable = found.map((v) => v.file);
   for (const file of versionFiles) {
     if (!writable.includes(file)) warn(`${file} has no readable version: left as is.`);
   }
+  const configFile = '.work/gps-config.json';
+  const configPath = path.join(projectRoot, configFile);
+  const saved = new Map([[changelogPath, readOrNull(changelogPath)], [configPath, readOrNull(configPath)]]);
   fs.mkdirSync(path.dirname(changelogPath), { recursive: true });
   fs.writeFileSync(changelogPath, updated);
   for (const file of writable) writeVersion(projectRoot, file, target);
+  // A Cargo workspace also moves the path dependencies pinned to its old version.
+  const cargoBefore = found.find((v) => v.file === 'Cargo.toml');
+  const pinned = cargoBefore ? rewriteCargoPins(projectRoot, cargoBefore.version, target, { warn }) : [];
+  const released = [...new Set([...writable, ...pinned])];
   // The released fragments go. Tracked ones (even force-added under an
   // ignored .work/) are deleted now and committed as deletions, and put back
   // from HEAD if the commit fails; the others are deleted only once the
@@ -301,12 +387,37 @@ function cutRelease({ options, projectRoot, warn }) {
   const untracked = files.filter((f) => !tracked.includes(f));
   // First release: remember which files carry the version, in the same commit.
   // A git-ignored (and untracked) config is saved but stays out of the commit.
-  const configFile = '.work/gps-config.json';
-  const saveConfig = !storedFiles;
-  if (saveConfig) saveVersionFiles(projectRoot, versionFiles);
+  const saveFiles = !manual && (!storedFiles || versionFiles.join('\n') !== storedFiles.join('\n'));
+  if (saveFiles) saveVersionFiles(projectRoot, versionFiles);
+  // An approval joins the release commit too, so the next release starts clean.
+  const saveApproval = postBump.length > 0 && !approved;
+  if (saveApproval) approvePostBump(projectRoot, postBump);
+  const saveConfig = saveFiles || saveApproval;
   const commitConfig = saveConfig && (isTracked(projectRoot, configFile) || !isIgnored(projectRoot, configFile));
+
+  // Post-bump commands run before the fragments go, so a failure has only the
+  // written files to put back (and untracked files the commands created to report).
+  const planned = [settings.path, ...released, ...(commitConfig ? [configFile] : [])];
+  for (const command of postBump) {
+    const res = runShell(projectRoot, command);
+    if (res.ok) continue;
+    abortCut(projectRoot, saved, `Post-bump command failed: ${command}\n${res.output}`,
+      'Fix the command (release.postBump in .work/gps-config.json, committed) or its cause, then run this again (add --approve-post-bump if the list is not approved).');
+  }
+  let postBumpFiles = [];
+  if (postBump.length) {
+    // Without this list the commands' changes would silently miss the release commit.
+    const changed = changedTrackedFiles(projectRoot);
+    if (!changed.ok) {
+      abortCut(projectRoot, saved, `Cannot list the files the post-bump commands changed (${changed.reason}).`,
+        'Fix what git reports (git status), then run this again.');
+    }
+    postBumpFiles = changed.files.filter((f) => !planned.includes(f));
+    const created = untrackedFiles(projectRoot).filter((f) => !planned.includes(f));
+    if (created.length) warn(`Post-bump commands created untracked file(s), left out of the release commit: ${created.join(', ')}.`);
+  }
   deleteFragments(projectRoot, tracked);
-  const record = commitFiles(projectRoot, [settings.path, ...writable, ...(commitConfig ? [configFile] : []), ...tracked],
+  const record = commitFiles(projectRoot, [...new Set([...planned, ...postBumpFiles, ...tracked])],
     `chore(release): ${target}\n\nBump: ${chosen}`);
   if (!record.ok) {
     const restored = restoreFromHead(projectRoot, tracked);
@@ -316,16 +427,19 @@ function cutRelease({ options, projectRoot, warn }) {
       `Run by hand: ${record.commands.join(' && ')} && git tag -a v${target} -m ${target}${del}`);
   }
   deleteFragments(projectRoot, untracked);
+  if (added.length) warn(`Detected version file(s) the saved list did not hold: ${added.join(', ')} (saved list updated).`);
   const tag = createTag(projectRoot, `v${target}`, target);
   if (!tag.ok) throw tagFailure(`v${target}`, tag);
   return {
-    text: `🏷️ ${current ? `${current} → ` : ''}${target} (${chosen}) committed (${record.sha}), tagged v${target}\n${pushNext(projectRoot)}`,
-    data: { current, version: target, level: chosen, tag: `v${target}`, record, versionFiles: writable },
+    text: [`🏷️ ${current ? `${current} → ` : ''}${target} (${chosen}) committed (${record.sha}), tagged v${target}`,
+      ...(postBump.length ? [`Post-bump: ran ${postBump.length} command(s), ${postBumpFiles.length} changed file(s) joined the commit.`] : []),
+      pushNext(projectRoot)].join('\n'),
+    data: { current, version: target, level: chosen, tag: `v${target}`, record, versionFiles: writable, pinFiles: pinned, postBumpFiles },
   };
 }
 
 main({
-  usage: 'release.js [--version X.Y.Z | --push | --publish [--version X.Y.Z]] [--json]',
-  options: { version: 'string', push: 'boolean', publish: 'boolean' },
+  usage: 'release.js [--version X.Y.Z | --push | --publish [--version X.Y.Z]] [--approve-post-bump] [--json]',
+  options: { version: 'string', push: 'boolean', publish: 'boolean', 'approve-post-bump': 'boolean' },
   run: release,
 });

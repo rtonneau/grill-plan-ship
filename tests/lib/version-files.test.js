@@ -4,7 +4,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { GpsError } = require('../../skills/gps/scripts/lib/guard');
-const { KNOWN_VERSION_FILES, detectVersionFiles, readVersions, writeVersion } = require('../../skills/gps/scripts/lib/version-files');
+const { KNOWN_VERSION_FILES, detectVersionFiles, readVersions, writeVersion, rewriteCargoPins } = require('../../skills/gps/scripts/lib/version-files');
 
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'gps-verfiles-'));
 const put = (rel, text) => {
@@ -65,6 +65,91 @@ assert.strictEqual(get('pyproject.toml'), '[tool.poetry]\nversion = "0.2.0"\n');
 put('Cargo.toml', '[dependencies]\nfoo = { version = "1" }\n\n[package]\r\nname = "x"\r\nversion = "0.1.0"\r\n');
 writeVersion(tmp, 'Cargo.toml', '0.2.0');
 assert.strictEqual(get('Cargo.toml'), '[dependencies]\nfoo = { version = "1" }\n\n[package]\r\nname = "x"\r\nversion = "0.2.0"\r\n');
+
+// Cargo workspace: [workspace.package] version is read and written, comments kept.
+put('Cargo.toml', '[workspace]\r\nmembers = ["a"]\r\n\r\n[workspace.package]\r\nversion = "0.1.0" # shared\r\nedition = "2021"\r\n');
+assert.strictEqual(readVersions(tmp, ['Cargo.toml'])[0].version, '0.1.0');
+assert.ok(detectVersionFiles(tmp).includes('Cargo.toml'));
+writeVersion(tmp, 'Cargo.toml', '0.2.0');
+assert.strictEqual(get('Cargo.toml'), '[workspace]\r\nmembers = ["a"]\r\n\r\n[workspace.package]\r\nversion = "0.2.0" # shared\r\nedition = "2021"\r\n');
+// [package] with an inherited version stays unreadable even beside [workspace.package].
+put('Cargo.toml', '[package]\nname = "x"\nversion = "0.1.0"\n\n[workspace.package]\nauthors = ["a"]\n');
+assert.strictEqual(readVersions(tmp, ['Cargo.toml'])[0].version, '0.1.0');
+
+// Pins: path dependencies whose version equals the previous one move; the rest do not.
+{
+  const warnings = [];
+  const warn = (m) => warnings.push(m);
+  put('Cargo.toml', [
+    '[workspace]',
+    'members = [',
+    '  "crates/*", # glob',
+    '  "single",',
+    '  "weird/*/x",',
+    ']',
+    'exclude = ["crates/skipped"]',
+    '',
+    '[workspace.package]',
+    'version = "1.0.0"',
+    '',
+    '[workspace.dependencies]',
+    'a = { path = "crates/a", version = "1.0.0" }',
+    'b = { path = "crates/b", version = "0.9.0" }',
+    'reg = { version = "1.0.0" }',
+    'single = { version = "1.0.0", path = "single" } # c1',
+    'sub = { path = "x", version = "1.0.0", features = ["version = \\"1.0.0\\""] }',
+    '',
+  ].join('\r\n'));
+  const a = '[package]\nname = "a"\nversion.workspace = true\n\n[dependencies]\nb = { path = "../b", version = "1.0.0" }\nreg = "1.0.0"\n\n[build-dependencies.single]\npath = "../../single"\nversion = "1.0.0"\n\n[dependencies.other]\nversion = "1.0.0"\n\n[target.\'cfg(unix)\'.dependencies]\nb = { path = "../b", version = "1.0.0" }\n';
+  put('crates/a/Cargo.toml', a);
+  put('crates/b/Cargo.toml', '[package]\nname = "b"\nversion.workspace = true\n');
+  put('crates/skipped/Cargo.toml', '[dependencies]\na = { path = "../a", version = "1.0.0" }\n');
+  put('crates/not-a-crate/readme.txt', 'x');
+  put('single/Cargo.toml', '[dependencies]\na = { path = "../crates/a", version = "1.0.0" }\n');
+  const changed = rewriteCargoPins(tmp, '1.0.0', '1.1.0', { warn });
+  assert.deepStrictEqual(changed.sort(), ['Cargo.toml', 'crates/a/Cargo.toml', 'single/Cargo.toml']);
+  const root = get('Cargo.toml');
+  assert.ok(root.includes('a = { path = "crates/a", version = "1.1.0" }\r\n'), root);
+  assert.ok(root.includes('b = { path = "crates/b", version = "0.9.0" }\r\n'));
+  assert.ok(root.includes('reg = { version = "1.0.0" }\r\n'));
+  assert.ok(root.includes('single = { version = "1.1.0", path = "single" } # c1\r\n'));
+  assert.ok(root.includes('version = "1.0.0"\r\n\r\n[workspace.dependencies]'), 'the workspace version itself is not a pin');
+  assert.ok(root.includes('sub = { path = "x", version = "1.1.0", features = ["version = \\"1.0.0\\""] }\r\n'), root);
+  assert.strictEqual(get('crates/a/Cargo.toml'), a
+    .replace('b = { path = "../b", version = "1.0.0" }\nreg', 'b = { path = "../b", version = "1.1.0" }\nreg')
+    .replace('path = "../../single"\nversion = "1.0.0"', 'path = "../../single"\nversion = "1.1.0"')
+    .replace('cfg(unix)\'.dependencies]\nb = { path = "../b", version = "1.0.0" }', 'cfg(unix)\'.dependencies]\nb = { path = "../b", version = "1.1.0" }'));
+  assert.strictEqual(get('crates/skipped/Cargo.toml'), '[dependencies]\na = { path = "../a", version = "1.0.0" }\n', 'excluded member untouched');
+  assert.strictEqual(get('single/Cargo.toml'), '[dependencies]\na = { path = "../crates/a", version = "1.1.0" }\n');
+  assert.strictEqual(warnings.length, 1);
+  assert.match(warnings[0], /weird\/\*\/x/);
+  assert.deepStrictEqual(rewriteCargoPins(tmp, '1.0.0', '1.1.0', { warn }), [], 'nothing left to move');
+  assert.throws(() => rewriteCargoPins(tmp, '1.1.0', 'abc'), GpsError);
+  // Without [workspace], nothing is touched.
+  put('Cargo.toml', '[package]\nname = "x"\nversion = "1.0.0"\n\n[dependencies]\na = { path = "a", version = "1.0.0" }\n');
+  assert.deepStrictEqual(rewriteCargoPins(tmp, '1.0.0', '1.1.0'), []);
+  assert.ok(get('Cargo.toml').includes('a = { path = "a", version = "1.0.0" }'));
+}
+
+// A member outside the project is warned about and never written; "./" and "a/../" forms still resolve inside.
+{
+  const warnings = [];
+  const outer = fs.mkdtempSync(path.join(os.tmpdir(), 'gps-vf-outside-'));
+  const inner = path.join(outer, 'project');
+  const pin = '[dependencies]\na = { path = "../a", version = "1.0.0" }\n';
+  const write = (rel, text) => {
+    fs.mkdirSync(path.dirname(path.join(outer, rel)), { recursive: true });
+    fs.writeFileSync(path.join(outer, rel), text);
+  };
+  write('project/Cargo.toml', '[workspace]\nmembers = ["../shared", "../many/*", "crates/../../shared", "./inside", "crates/../other"]\n\n[workspace.package]\nversion = "1.0.0"\n');
+  for (const rel of ['shared', 'many/one', 'project/inside', 'project/other']) write(`${rel}/Cargo.toml`, pin);
+  const changed = rewriteCargoPins(inner, '1.0.0', '1.1.0', { warn: (m) => warnings.push(m) });
+  assert.deepStrictEqual(changed.sort(), ['inside/Cargo.toml', 'other/Cargo.toml']);
+  for (const rel of ['shared', 'many/one']) assert.strictEqual(fs.readFileSync(path.join(outer, rel, 'Cargo.toml'), 'utf-8'), pin, `${rel} untouched`);
+  assert.strictEqual(warnings.length, 3);
+  for (const w of warnings) assert.match(w, /outside the project/);
+  fs.rmSync(outer, { recursive: true, force: true });
+}
 
 // No readable version: null, not detected, and writing throws.
 put('Cargo.toml', '[package]\nname = "x"\nversion.workspace = true\n');
