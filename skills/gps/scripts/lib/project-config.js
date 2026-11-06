@@ -22,6 +22,8 @@ function configPath(projectRoot) {
 }
 
 const GITHUB_RELEASE_MODES = ['none', 'minor+', 'all'];
+// detected (or absent): every release re-detects the list; manual: used as is.
+const VERSION_FILES_SOURCES = ['detected', 'manual'];
 const SCRATCH_DEFAULT_POLICY = 'build-artifacts';
 
 function invalid(what, filePath) {
@@ -77,6 +79,9 @@ function validate(config, filePath) {
     if (!isObject(release)) throw invalid('"release" must be an object', filePath);
     if (release.githubRelease !== undefined && !GITHUB_RELEASE_MODES.includes(release.githubRelease)) {
       throw invalid(`"release.githubRelease" must be one of ${GITHUB_RELEASE_MODES.join(', ')}`, filePath);
+    }
+    if (release.versionFilesSource !== undefined && !VERSION_FILES_SOURCES.includes(release.versionFilesSource)) {
+      throw invalid(`"release.versionFilesSource" must be one of ${VERSION_FILES_SOURCES.join(', ')}`, filePath);
     }
     const files = release.versionFiles;
     if (files !== undefined && files !== null) {
@@ -251,13 +256,14 @@ function releaseSettings(projectRoot) {
   const release = (readConfig(projectRoot) || {}).release || {};
   return {
     versionFiles: release.versionFiles ? release.versionFiles.map(normalizeRelPath) : null,
+    versionFilesSource: release.versionFilesSource || 'detected',
     githubRelease: release.githubRelease || 'minor+',
   };
 }
 
-function saveVersionFiles(projectRoot, files) {
+function saveVersionFiles(projectRoot, files, source = 'detected') {
   const config = ensureProjectConfig(projectRoot);
-  writeConfig(projectRoot, { ...config, release: { ...config.release, versionFiles: files } });
+  writeConfig(projectRoot, { ...config, release: { ...config.release, versionFiles: files, versionFilesSource: source } });
 }
 
 module.exports = {

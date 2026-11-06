@@ -236,8 +236,15 @@ function cutRelease({ options, projectRoot, warn }) {
     .filter((f) => levelRank(f.bump) > levelRank(f.floor))
     .map((f) => ({ sessionId: f.sessionId, reason: f.reason }));
 
-  const storedFiles = releaseSettings(projectRoot).versionFiles;
-  const versionFiles = storedFiles || detectVersionFiles(projectRoot);
+  // A manual list is used as is; otherwise (detected, or a legacy config
+  // without a source) the list is detected again on every release.
+  const { versionFiles: storedFiles, versionFilesSource } = releaseSettings(projectRoot);
+  const manual = Boolean(storedFiles) && versionFilesSource === 'manual';
+  // Re-detection only adds: saved entries stay first, in their saved order.
+  const detectedFiles = manual ? [] : detectVersionFiles(projectRoot);
+  const versionFiles = manual ? storedFiles : [...(storedFiles || []), ...detectedFiles.filter((f) => !(storedFiles || []).includes(f))];
+  const added = storedFiles ? versionFiles.filter((f) => !storedFiles.includes(f)) : [];
+  if (added.length) warn(`Detected version file(s) the saved list did not hold: ${added.join(', ')} (saved list updated).`);
   const found = readVersions(projectRoot, versionFiles).filter((v) => v.version !== null);
   const parsed = found.map((v) => parseVersion(v.version)).filter(Boolean);
   const heading = parseVersion(latestVersion(text) || '');
@@ -307,7 +314,7 @@ function cutRelease({ options, projectRoot, warn }) {
   // First release: remember which files carry the version, in the same commit.
   // A git-ignored (and untracked) config is saved but stays out of the commit.
   const configFile = '.work/gps-config.json';
-  const saveConfig = !storedFiles;
+  const saveConfig = !manual && (!storedFiles || versionFiles.join('\n') !== storedFiles.join('\n'));
   if (saveConfig) saveVersionFiles(projectRoot, versionFiles);
   const commitConfig = saveConfig && (isTracked(projectRoot, configFile) || !isIgnored(projectRoot, configFile));
   deleteFragments(projectRoot, tracked);

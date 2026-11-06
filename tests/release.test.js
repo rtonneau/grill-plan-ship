@@ -320,6 +320,55 @@ function finishedWorkIgnored(prefix) {
   assert.ok(h.git(root, 'tag').split('\n').includes('v1.5.0'));
 }
 
+// A release saves the source beside the list; a legacy config without a source
+// is re-detected and the new list lands in the release commit; manual is kept.
+{
+  const readCfg = (root) => JSON.parse(fs.readFileSync(path.join(root, '.work', 'gps-config.json'), 'utf-8')).release;
+  const withList = (prefix, release) => {
+    const { root } = finished(prefix, 'feat', 'minor');
+    fs.writeFileSync(path.join(root, 'plugin.json'), JSON.stringify({ name: 'x', version: '1.4.2' }) + '\n');
+    const cfgFile = path.join(root, '.work', 'gps-config.json');
+    const cfg = JSON.parse(fs.readFileSync(cfgFile, 'utf-8'));
+    fs.writeFileSync(cfgFile, JSON.stringify({ ...cfg, release }, null, 2) + '\n');
+    h.git(root, 'add', 'plugin.json', '.work/gps-config.json');
+    h.git(root, 'commit', '-q', '-m', 'cfg and manifest');
+    return root;
+  };
+
+  const first = finished('gps-rel23-', 'feat', 'minor').root;
+  h.ok(first, 'release.js', ['--version', '1.5.0']);
+  assert.strictEqual(readCfg(first).versionFilesSource, 'detected');
+
+  const legacy = withList('gps-rel24-', { versionFiles: ['package.json'] });
+  const res = h.ok(legacy, 'release.js', ['--version', '1.5.0']);
+  assert.match(res.err, /did not hold: plugin\.json/);
+  assert.deepStrictEqual(readCfg(legacy).versionFiles, ['package.json', 'plugin.json']);
+  assert.strictEqual(readCfg(legacy).versionFilesSource, 'detected');
+  assert.strictEqual(JSON.parse(fs.readFileSync(path.join(legacy, 'plugin.json'), 'utf-8')).version, '1.5.0');
+  assert.ok(h.git(legacy, 'show', '--name-only', '--format=', 'HEAD').split('\n').includes('.work/gps-config.json'));
+  assert.strictEqual(h.git(legacy, 'status', '--porcelain'), '');
+
+  // Re-detection never drops a saved entry detection does not know.
+  const custom = withList('gps-rel26-', { versionFiles: ['packages/a/package.json', 'package.json'] });
+  fs.mkdirSync(path.join(custom, 'packages', 'a'), { recursive: true });
+  fs.writeFileSync(path.join(custom, 'packages', 'a', 'package.json'), JSON.stringify({ name: 'a', version: '1.4.2' }) + '\n');
+  h.git(custom, 'add', 'packages');
+  h.git(custom, 'commit', '-q', '-m', 'add package a');
+  const kept = h.ok(custom, 'release.js', ['--version', '1.5.0']);
+  assert.match(kept.err, /did not hold: plugin\.json/);
+  assert.deepStrictEqual(readCfg(custom).versionFiles, ['packages/a/package.json', 'package.json', 'plugin.json']);
+  const customVersion = (rel) => JSON.parse(fs.readFileSync(path.join(custom, rel), 'utf-8')).version;
+  assert.deepStrictEqual(['packages/a/package.json', 'package.json', 'plugin.json'].map(customVersion), ['1.5.0', '1.5.0', '1.5.0']);
+  assert.ok(h.git(custom, 'show', '--name-only', '--format=', 'HEAD').split('\n').includes('packages/a/package.json'));
+  assert.strictEqual(h.git(custom, 'status', '--porcelain'), '');
+
+  const manual = withList('gps-rel25-', { versionFiles: ['package.json'], versionFilesSource: 'manual' });
+  h.ok(manual, 'release.js', ['--version', '1.5.0']);
+  assert.deepStrictEqual(readCfg(manual), { versionFiles: ['package.json'], versionFilesSource: 'manual' });
+  assert.strictEqual(JSON.parse(fs.readFileSync(path.join(manual, 'plugin.json'), 'utf-8')).version, '1.4.2', 'manual list is never re-detected');
+  assert.ok(!h.git(manual, 'show', '--name-only', '--format=', 'HEAD').split('\n').includes('.work/gps-config.json'));
+}
+
 // A nested changelog (docs/CHANGELOG.md) with tracked fragments releases.
 {
   const { root, id } = finished('gps-rel20-', 'feat', 'minor');

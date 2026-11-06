@@ -127,19 +127,23 @@ assert.strictEqual(fs.readFileSync(configFile(fresh), 'utf-8'), '{ not json');
 // changelog / release settings: defaults on read, never written by a read.
 const cfgDir = makeProject('settings');
 assert.deepStrictEqual(changelogSettings(cfgDir), { enabled: true, path: 'CHANGELOG.md' });
-assert.deepStrictEqual(releaseSettings(cfgDir), { versionFiles: null, githubRelease: 'minor+' });
+assert.deepStrictEqual(releaseSettings(cfgDir), { versionFiles: null, versionFilesSource: 'detected', githubRelease: 'minor+' });
 assert.ok(!fs.existsSync(configFile(cfgDir)));
 ensureProjectConfig(cfgDir);
 const cfgBefore = fs.readFileSync(configFile(cfgDir), 'utf-8');
-assert.deepStrictEqual(releaseSettings(cfgDir), { versionFiles: null, githubRelease: 'minor+' });
+assert.deepStrictEqual(releaseSettings(cfgDir), { versionFiles: null, versionFilesSource: 'detected', githubRelease: 'minor+' });
 assert.strictEqual(fs.readFileSync(configFile(cfgDir), 'utf-8'), cfgBefore);
 saveVersionFiles(cfgDir, ['package.json']);
 assert.deepStrictEqual(releaseSettings(cfgDir).versionFiles, ['package.json']);
+assert.strictEqual(readFile(cfgDir).release.versionFilesSource, 'detected', 'a save records the source');
+saveVersionFiles(cfgDir, ['package.json'], 'manual');
+assert.strictEqual(releaseSettings(cfgDir).versionFilesSource, 'manual');
 assert.strictEqual(readFile(cfgDir).github.enabled, false);
 fs.writeFileSync(configFile(cfgDir), JSON.stringify({ github: { enabled: false }, changelog: { enabled: false, path: 'docs/CL.md' }, release: { githubRelease: 'all' } }));
 assert.deepStrictEqual(changelogSettings(cfgDir), { enabled: false, path: 'docs/CL.md' });
-assert.deepStrictEqual(releaseSettings(cfgDir), { versionFiles: null, githubRelease: 'all' });
+assert.deepStrictEqual(releaseSettings(cfgDir), { versionFiles: null, versionFilesSource: 'detected', githubRelease: 'all' });
 const invalidCases = [
+  [{ release: { versionFilesSource: 'auto' } }, /versionFilesSource/], [{ release: { versionFilesSource: true } }, /versionFilesSource/],
   [{ changelog: { enabled: 'yes' } }, /changelog.enabled/], [{ changelog: { path: 3 } }, /changelog.path/],
   [{ release: { githubRelease: 'sometimes' } }, /githubRelease/],
   // Not an object: a GpsError, never a TypeError.
