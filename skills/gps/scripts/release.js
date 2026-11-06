@@ -307,7 +307,7 @@ function cutRelease({ options, projectRoot, warn }) {
   const detectedFiles = manual ? [] : detectVersionFiles(projectRoot);
   const versionFiles = manual ? storedFiles : [...(storedFiles || []), ...detectedFiles.filter((f) => !(storedFiles || []).includes(f))];
   const added = storedFiles ? versionFiles.filter((f) => !storedFiles.includes(f)) : [];
-  if (added.length) warn(`Detected version file(s) the saved list did not hold: ${added.join(', ')} (saved list updated).`);
+  if (added.length && !typed) warn(`Detected version file(s) the saved list does not hold: ${added.join(', ')} (a cut adds them).`);
   const found = readVersions(projectRoot, versionFiles).filter((v) => v.version !== null);
   const parsed = found.map((v) => parseVersion(v.version)).filter(Boolean);
   const heading = parseVersion(latestVersion(text) || '');
@@ -427,6 +427,7 @@ function cutRelease({ options, projectRoot, warn }) {
       `Run by hand: ${record.commands.join(' && ')} && git tag -a v${target} -m ${target}${del}`);
   }
   deleteFragments(projectRoot, untracked);
+  if (added.length) warn(`Detected version file(s) the saved list did not hold: ${added.join(', ')} (saved list updated).`);
   const tag = createTag(projectRoot, `v${target}`, target);
   if (!tag.ok) throw tagFailure(`v${target}`, tag);
   return {

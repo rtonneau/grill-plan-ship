@@ -340,6 +340,18 @@ function finishedWorkIgnored(prefix) {
   assert.strictEqual(readCfg(first).versionFilesSource, 'detected');
 
   const legacy = withList('gps-rel24-', { versionFiles: ['package.json'] });
+  // The suggestion changes nothing, and does not say it did.
+  const preview = h.ok(legacy, 'release.js');
+  assert.match(preview.err, /does not hold: plugin\.json \(a cut adds them\)/);
+  assert.doesNotMatch(preview.err, /saved list updated/);
+  assert.deepStrictEqual(readCfg(legacy).versionFiles, ['package.json']);
+  assert.strictEqual(h.git(legacy, 'status', '--porcelain'), '');
+  // Nor does a cut undone by a failing post-bump command.
+  const undone = withList('gps-rel27-', { versionFiles: ['package.json'], postBump: ['node -e "process.exit(3)"'] });
+  const undoneRes = h.run(undone, 'release.js', ['--version', '1.5.0', '--approve-post-bump']);
+  h.assertFails(undoneRes, 1, /Post-bump command failed/);
+  assert.doesNotMatch(undoneRes.err, /saved list updated/);
+  assert.deepStrictEqual(readCfg(undone).versionFiles, ['package.json']);
   const res = h.ok(legacy, 'release.js', ['--version', '1.5.0']);
   assert.match(res.err, /did not hold: plugin\.json/);
   assert.deepStrictEqual(readCfg(legacy).versionFiles, ['package.json', 'plugin.json']);
