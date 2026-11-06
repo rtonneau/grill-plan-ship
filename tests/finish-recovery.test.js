@@ -73,7 +73,7 @@ if (args[1] === 'create') {
 {
   const f = fixture('record-failure');
   const hook = path.join(f.root, '.git', 'hooks', 'pre-commit');
-  fs.writeFileSync(hook, '#!/bin/sh\necho record-denied >&2\nexit 1\n');
+  fs.writeFileSync(hook, '#!/bin/sh\necho record-denied >&2\nexit 1\n', { mode: 0o755 });
   h.assertFails(h.run(f.root, 'finish.js', [], f.env), 1, /record.*failed|record-denied/i);
   assert.strictEqual(h.git(f.root, 'branch', '--show-current'), 'feat/record-failure');
   const status = h.json(f.root, 'status.js', [], f.env);
@@ -130,7 +130,7 @@ fs.writeFileSync = function(file, content, ...args) {
 {
   const f = fixture('record-push-failure');
   const hook = path.join(f.remote, 'hooks', 'pre-receive');
-  fs.writeFileSync(hook, '#!/bin/sh\ncount=$(cat push-count 2>/dev/null || echo 0)\ncount=$((count + 1))\necho "$count" > push-count\nif [ "$count" = 2 ]; then echo final-push-denied >&2; exit 1; fi\n');
+  fs.writeFileSync(hook, '#!/bin/sh\ncount=$(cat push-count 2>/dev/null || echo 0)\ncount=$((count + 1))\necho "$count" > push-count\nif [ "$count" = 2 ]; then echo final-push-denied >&2; exit 1; fi\n', { mode: 0o755 });
   h.assertFails(h.run(f.root, 'finish.js', [], f.env), 1, /record push failed/);
   assert.strictEqual(h.git(f.root, 'branch', '--show-current'), 'feat/record-push-failure');
   h.ok(f.root, 'finish.js', [], f.env);
