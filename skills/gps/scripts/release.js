@@ -1,7 +1,11 @@
 #!/usr/bin/env node
 
 /**
- * release.js [--version X.Y.Z | --push] [--json]
+ * release.js [--version X.Y.Z | --push | --publish [--version X.Y.Z]] [--json]
+ *
+ * --publish is the preapproved path: cut (the given or the suggested
+ * version), then step 3, in one call and asking nothing. Re-runnable: HEAD
+ * already a tagged release commit goes straight to the push.
  *
  * --push (step 3) pushes the release commit and its tag, then creates the
  * GitHub Release when GitHub is on and release.githubRelease allows it for
@@ -130,11 +134,40 @@ function push({ projectRoot, warn }) {
   return { text: lines.join('\n'), data: { version, pushed, release: result } };
 }
 
+// --publish: cut, then push, in one call.
+function publish({ options, projectRoot, warn }) {
+  const head = headCommit(projectRoot);
+  const m = head && RELEASE_COMMIT_RE.exec(head.subject);
+  const resume = m && head.tags.includes(`v${m[1]}`) && (options.version == null || options.version === m[1]);
+  let cut = null;
+  if (!resume) {
+    const typed = options.version != null ? options.version : cutSuggested({ options, projectRoot, warn });
+    cut = cutRelease({ options: { version: typed }, projectRoot, warn });
+  }
+  const pushed = push({ projectRoot, warn });
+  return {
+    text: [cut ? cut.text.split('\n')[0] : null, pushed.text].filter(Boolean).join('\n'),
+    data: { ...pushed.data, cut: cut ? cut.data : null },
+  };
+}
+
+function cutSuggested(args) {
+  return cutRelease({ ...args, options: {} }).data.suggested;
+}
+
 function release({ options, projectRoot, warn }) {
+  if (options.publish) {
+    if (options.push) throw new UsageError('--publish and --push cannot be combined.');
+    return publish({ options, projectRoot, warn });
+  }
   if (options.push) {
     if (options.version != null) throw new UsageError('--push and --version cannot be combined.');
     return push({ projectRoot, warn });
   }
+  return cutRelease({ options, projectRoot, warn });
+}
+
+function cutRelease({ options, projectRoot, warn }) {
   const typed = options.version == null ? null : parseVersion(options.version);
   if (options.version != null && !typed) {
     throw new UsageError(`"${options.version}" is not a version. Use X.Y.Z.`);
@@ -292,7 +325,7 @@ function release({ options, projectRoot, warn }) {
 }
 
 main({
-  usage: 'release.js [--version X.Y.Z | --push] [--json]',
-  options: { version: 'string', push: 'boolean' },
+  usage: 'release.js [--version X.Y.Z | --push | --publish [--version X.Y.Z]] [--json]',
+  options: { version: 'string', push: 'boolean', publish: 'boolean' },
   run: release,
 });

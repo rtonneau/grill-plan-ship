@@ -451,3 +451,38 @@ function finishedWorkIgnored(prefix) {
 }
 
 h.done('release.test.js');
+
+// --publish: cut and push in one call; resumes after a failed push.
+{
+  const { execFileSync } = require('child_process');
+  const root = project('gps-rel10-');
+  const bare = fs.mkdtempSync(path.join(require('os').tmpdir(), 'gps-rel10-origin-'));
+  execFileSync('git', ['init', '-q', '--bare', bare], { stdio: 'ignore' });
+  h.git(root, 'remote', 'add', 'origin', path.join(bare, 'missing'));
+  finishSession(root, 'only', 'feat', 'minor');
+  h.assertFails(h.run(root, 'release.js', ['--publish', '--push']), 2);
+  // The push fails: the release is cut and tagged, and nothing else happens.
+  h.assertFails(h.run(root, 'release.js', ['--publish']), 1, /git push --atomic --follow-tags origin main/);
+  assert.match(h.git(root, 'log', '-1', '--format=%s'), /^chore\(release\): 1\.5\.0$/);
+  // Fix the origin and run it again: it goes straight to the push.
+  h.git(root, 'remote', 'set-url', 'origin', bare);
+  const before = h.git(root, 'rev-parse', 'HEAD');
+  const res = h.ok(root, 'release.js', ['--publish']);
+  assert.match(res.out, /1.5.0/);
+  assert.strictEqual(h.git(root, 'rev-parse', 'HEAD'), before, 'no second release commit');
+  const remote = (...a) => execFileSync('git', ['--git-dir', bare, ...a], { encoding: 'utf-8' }).trim();
+  assert.strictEqual(remote('rev-parse', 'refs/heads/main'), before);
+  assert.ok(remote('tag').split('\n').includes('v1.5.0'));
+
+  // With a given version.
+  const root2 = project('gps-rel11-');
+  const bare2 = fs.mkdtempSync(path.join(require('os').tmpdir(), 'gps-rel11-origin-'));
+  execFileSync('git', ['init', '-q', '--bare', bare2], { stdio: 'ignore' });
+  h.git(root2, 'remote', 'add', 'origin', bare2);
+  finishSession(root2, 'only', 'feat', 'minor');
+  const data = JSON.parse(h.ok(root2, 'release.js', ['--publish', '--version', '2.0.0', '--json']).out);
+  assert.strictEqual(data.version, '2.0.0');
+  assert.strictEqual(data.pushed, true);
+  // A refusal (nothing left to release, HEAD pushed) stops before any push.
+  h.assertFails(h.run(root2, 'release.js', ['--publish', '--version', '2.1.0']), 1, /Nothing to release/);
+}
