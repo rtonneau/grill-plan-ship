@@ -61,6 +61,30 @@
       "detail": {
         "tickets": 3
       }
+    },
+    {
+      "at": "2026-11-06T09:53:20.982Z",
+      "event": "ticket_started",
+      "phase": "ship",
+      "files": [
+        "02-plan/tickets/01-cargo-workspace-version-and-pins.md",
+        "03-implement/01-cargo-workspace-version-and-pins/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "01-cargo-workspace-version-and-pins"
+      }
+    },
+    {
+      "at": "2026-11-06T10:06:27.202Z",
+      "event": "ticket_done",
+      "phase": "ship",
+      "files": [
+        "03-implement/01-cargo-workspace-version-and-pins/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "01-cargo-workspace-version-and-pins",
+        "commit": "72b9e24"
+      }
     }
   ],
   "current_phase": "ship",
@@ -69,5 +93,6 @@
     "base_branch": "main",
     "branch_created_at": "2026-11-06T09:53:19.455Z",
     "pr_url": null
-  }
+  },
+  "ship_mode": "delegate"
 }
