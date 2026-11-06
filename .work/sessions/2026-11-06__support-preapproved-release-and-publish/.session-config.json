@@ -83,14 +83,47 @@
         "ticket": "01-release-publish-flag",
         "commit": "42ee399"
       }
+    },
+    {
+      "at": "2026-11-06T09:19:11.406Z",
+      "event": "changelog_written",
+      "phase": "finish-pending",
+      "detail": {
+        "bump": "minor"
+      }
+    },
+    {
+      "at": "2026-11-06T09:19:18.588Z",
+      "event": "pr_opened",
+      "phase": "finish-pending",
+      "detail": {
+        "url": "https://github.com/rtonneau/grill-plan-ship/pull/56"
+      }
+    },
+    {
+      "at": "2026-11-06T09:19:11.878Z",
+      "event": "session_finished",
+      "phase": "finished",
+      "files": [
+        "INDEX.md"
+      ]
     }
   ],
-  "current_phase": "finish-pending",
+  "current_phase": "finished",
   "git": {
     "branch": "feat/release-publish-flag",
     "base_branch": "main",
     "branch_created_at": "2026-11-06T09:01:19.787Z",
-    "pr_url": null
+    "pr_url": "https://github.com/rtonneau/grill-plan-ship/pull/56"
   },
-  "ship_mode": "delegate"
+  "ship_mode": "delegate",
+  "changelog": {
+    "bump": "minor",
+    "floor": "minor",
+    "reason": null,
+    "bullets": 1,
+    "path": ".work/changelog/2026-11-06__support-preapproved-release-and-publish.md",
+    "written_at": "2026-11-06T09:19:11.394Z"
+  },
+  "finished_at": "2026-11-06T09:19:11.878Z"
 }
