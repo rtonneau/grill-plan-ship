@@ -7,7 +7,7 @@ const { execFileSync } = require('child_process');
 const { GpsError } = require('../../skills/gps/scripts/lib/guard');
 const {
   CONFIG_FILENAME, ensureProjectConfig, githubEnabled, rescanProjectConfig, changelogSettings, releaseSettings, saveVersionFiles,
-  jevEnabled, rescanJevConfig, enableJev, scratchSettings, shipSettings, SCRATCH_POLICIES,
+  postBumpApproved, approvePostBump, jevEnabled, rescanJevConfig, enableJev, scratchSettings, shipSettings, SCRATCH_POLICIES,
 } = require('../../skills/gps/scripts/lib/project-config');
 
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'gps-projcfg-'));
@@ -127,11 +127,11 @@ assert.strictEqual(fs.readFileSync(configFile(fresh), 'utf-8'), '{ not json');
 // changelog / release settings: defaults on read, never written by a read.
 const cfgDir = makeProject('settings');
 assert.deepStrictEqual(changelogSettings(cfgDir), { enabled: true, path: 'CHANGELOG.md' });
-assert.deepStrictEqual(releaseSettings(cfgDir), { versionFiles: null, versionFilesSource: 'detected', githubRelease: 'minor+' });
+assert.deepStrictEqual(releaseSettings(cfgDir), { versionFiles: null, versionFilesSource: 'detected', githubRelease: 'minor+', postBump: [], postBumpApproved: [] });
 assert.ok(!fs.existsSync(configFile(cfgDir)));
 ensureProjectConfig(cfgDir);
 const cfgBefore = fs.readFileSync(configFile(cfgDir), 'utf-8');
-assert.deepStrictEqual(releaseSettings(cfgDir), { versionFiles: null, versionFilesSource: 'detected', githubRelease: 'minor+' });
+assert.deepStrictEqual(releaseSettings(cfgDir), { versionFiles: null, versionFilesSource: 'detected', githubRelease: 'minor+', postBump: [], postBumpApproved: [] });
 assert.strictEqual(fs.readFileSync(configFile(cfgDir), 'utf-8'), cfgBefore);
 saveVersionFiles(cfgDir, ['package.json']);
 assert.deepStrictEqual(releaseSettings(cfgDir).versionFiles, ['package.json']);
@@ -141,11 +141,27 @@ assert.strictEqual(releaseSettings(cfgDir).versionFilesSource, 'manual');
 assert.strictEqual(readFile(cfgDir).github.enabled, false);
 fs.writeFileSync(configFile(cfgDir), JSON.stringify({ github: { enabled: false }, changelog: { enabled: false, path: 'docs/CL.md' }, release: { githubRelease: 'all' } }));
 assert.deepStrictEqual(changelogSettings(cfgDir), { enabled: false, path: 'docs/CL.md' });
-assert.deepStrictEqual(releaseSettings(cfgDir), { versionFiles: null, versionFilesSource: 'detected', githubRelease: 'all' });
+assert.deepStrictEqual(releaseSettings(cfgDir), { versionFiles: null, versionFilesSource: 'detected', githubRelease: 'all', postBump: [], postBumpApproved: [] });
+// release.postBump: the exact-list approval compares commands and their order.
+fs.writeFileSync(configFile(cfgDir), JSON.stringify({ github: { enabled: false }, release: { postBump: ['a', 'b'] } }));
+assert.deepStrictEqual(releaseSettings(cfgDir).postBump, ['a', 'b']);
+assert.strictEqual(postBumpApproved(releaseSettings(cfgDir)), false);
+approvePostBump(cfgDir, ['a', 'b']);
+assert.deepStrictEqual(readFile(cfgDir).release, { postBump: ['a', 'b'], postBumpApproved: ['a', 'b'] });
+assert.strictEqual(postBumpApproved(releaseSettings(cfgDir)), true);
+for (const list of [['b', 'a'], ['a'], ['a', 'b', 'c']]) {
+  fs.writeFileSync(configFile(cfgDir), JSON.stringify({ github: { enabled: false }, release: { postBump: list, postBumpApproved: ['a', 'b'] } }));
+  assert.strictEqual(postBumpApproved(releaseSettings(cfgDir)), false, list.join());
+}
+fs.writeFileSync(configFile(cfgDir), JSON.stringify({ github: { enabled: false } }));
+assert.strictEqual(postBumpApproved(releaseSettings(cfgDir)), true, 'no commands: nothing to approve');
 const invalidCases = [
   [{ release: { versionFilesSource: 'auto' } }, /versionFilesSource/], [{ release: { versionFilesSource: true } }, /versionFilesSource/],
   [{ changelog: { enabled: 'yes' } }, /changelog.enabled/], [{ changelog: { path: 3 } }, /changelog.path/],
   [{ release: { githubRelease: 'sometimes' } }, /githubRelease/],
+  [{ release: { postBump: 'make' } }, /release.postBump.*list of command strings/], [{ release: { postBump: [3] } }, /release.postBump/],
+  [{ release: { postBump: [' '] } }, /release.postBump/], [{ release: { postBumpApproved: 'make' } }, /release.postBumpApproved/],
+  [{ release: { postBumpApproved: [null] } }, /release.postBumpApproved/],
   // Not an object: a GpsError, never a TypeError.
   [{ changelog: null }, /"changelog" must be an object/], [{ changelog: 'yes' }, /"changelog" must be an object/],
   [{ release: null }, /"release" must be an object/], [{ release: [] }, /"release" must be an object/],

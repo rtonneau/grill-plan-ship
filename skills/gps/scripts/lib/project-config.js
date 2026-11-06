@@ -92,6 +92,12 @@ function validate(config, filePath) {
         throw invalid('"release.versionFiles" must hold relative paths inside the project', filePath);
       }
     }
+    for (const key of ['postBump', 'postBumpApproved']) {
+      const list = release[key];
+      if (list !== undefined && !(Array.isArray(list) && list.every((c) => typeof c === 'string' && c.trim()))) {
+        throw invalid(`"release.${key}" must be a list of command strings`, filePath);
+      }
+    }
   }
   if (scratch !== undefined) {
     if (!isObject(scratch)) throw invalid('"scratch" must be an object', filePath);
@@ -258,7 +264,22 @@ function releaseSettings(projectRoot) {
     versionFiles: release.versionFiles ? release.versionFiles.map(normalizeRelPath) : null,
     versionFilesSource: release.versionFilesSource || 'detected',
     githubRelease: release.githubRelease || 'minor+',
+    postBump: release.postBump ? [...release.postBump] : [],
+    postBumpApproved: release.postBumpApproved ? [...release.postBumpApproved] : [],
   };
+}
+
+// True when the commands to run are exactly the approved list (same commands, same order).
+function postBumpApproved(settings) {
+  return settings.postBump.length === settings.postBumpApproved.length
+    && settings.postBump.every((c, i) => c === settings.postBumpApproved[i]);
+}
+
+// Records the exact list as approved. The commands are shell strings read from a
+// committed file, so a changed list is a new list to approve.
+function approvePostBump(projectRoot, commands) {
+  const config = ensureProjectConfig(projectRoot);
+  writeConfig(projectRoot, { ...config, release: { ...config.release, postBumpApproved: [...commands] } });
 }
 
 function saveVersionFiles(projectRoot, files, source = 'detected') {
@@ -268,6 +289,6 @@ function saveVersionFiles(projectRoot, files, source = 'detected') {
 
 module.exports = {
   CONFIG_FILENAME, readConfig, ensureProjectConfig, githubEnabled, rescanProjectConfig,
-  jevEnabled, rescanJevConfig, enableJev, changelogSettings, releaseSettings, saveVersionFiles,
+  jevEnabled, rescanJevConfig, enableJev, changelogSettings, releaseSettings, saveVersionFiles, postBumpApproved, approvePostBump,
   scratchSettings, shipSettings, allDoneNext, SCRATCH_POLICIES,
 };

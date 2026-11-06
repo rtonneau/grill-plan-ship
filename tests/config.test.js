@@ -47,12 +47,14 @@ res = h.ok(root, 'config.js');
 assert.match(res.out, /changelog\.enabled = true/);
 assert.match(res.out, /release\.versionFiles = not saved yet/);
 assert.match(res.out, /release\.githubRelease = minor\+/);
+assert.match(res.out, /release\.postBump = none/);
 fs.writeFileSync(file, JSON.stringify({ version: 1, github: { enabled: false, detected_at: '2026-01-01T00:00:00.000Z' },
-  changelog: { enabled: false }, release: { versionFiles: ['package.json', 'x.json'], githubRelease: 'none' } }));
+  changelog: { enabled: false }, release: { versionFiles: ['package.json', 'x.json'], githubRelease: 'none', postBump: ['make lock'] } }));
 res = h.ok(root, 'config.js');
 assert.match(res.out, /changelog\.enabled = false/);
 assert.match(res.out, /release\.versionFiles = package\.json, x\.json/);
 assert.match(res.out, /release\.githubRelease = none/);
+assert.match(res.out, /release\.postBump = make lock \(not approved/);
 assert.strictEqual(h.json(root, 'config.js').release.githubRelease, 'none');
 
 // jev.enabled shows up next to github.enabled, detected from the env var.

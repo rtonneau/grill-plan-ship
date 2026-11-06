@@ -7,7 +7,7 @@
  * config.js --enable-jev [--json]    authorize ticket transmission to TypeSafe
  *
  * Also shows (read-only) changelog.enabled, release.versionFiles,
- * release.githubRelease, scratch.cleanupOnFinish, scratch.extraDirs and ship.autoFinish.
+ * release.githubRelease, release.postBump, scratch.cleanupOnFinish, scratch.extraDirs and ship.autoFinish.
  *
  * /gps config. Bare config.js is read-only (it only creates a missing
  * file). Claude runs --rescan --apply only after the user confirmed the
@@ -18,7 +18,7 @@ const path = require('path');
 const { main } = require('./lib/cli');
 const { pinnedCodexModel } = require('./lib/host-dispatch');
 const { TICKET_MODELS } = require('./lib/ticket-model');
-const { CONFIG_FILENAME, readConfig, rescanProjectConfig, rescanJevConfig, enableJev, changelogSettings, releaseSettings, scratchSettings, shipSettings } = require('./lib/project-config');
+const { CONFIG_FILENAME, readConfig, rescanProjectConfig, rescanJevConfig, enableJev, changelogSettings, releaseSettings, postBumpApproved, scratchSettings, shipSettings } = require('./lib/project-config');
 const { UsageError } = require('./lib/guard');
 
 const SCOPE_NOTE = 'The flag applies to sessions whose plan is not saved yet; sessions already planned keep their current mode.';
@@ -69,6 +69,7 @@ main({
       `changelog.enabled = ${changelog.enabled} (path ${changelog.path})`,
       `release.versionFiles = ${release.versionFiles ? release.versionFiles.join(', ') : 'not saved yet'}`,
       `release.githubRelease = ${release.githubRelease}`,
+      `release.postBump = ${release.postBump.length ? `${release.postBump.join(' ; ')} (${postBumpApproved(release) ? 'approved' : 'not approved: /gps release asks first'})` : 'none'}`,
       `scratch.cleanupOnFinish = ${scratch.cleanupOnFinish}`,
       `scratch.extraDirs = ${scratch.extraDirs.length ? scratch.extraDirs.join(', ') : 'none'}`,
       `ship.autoFinish = ${ship.autoFinish}`,

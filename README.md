@@ -143,6 +143,7 @@ Settings live in `.work/gps-config.json`; `/gps config` shows them, read-only:
 | `changelog.enabled` | `true` | `false` skips the changelog step of `/gps finish` |
 | `changelog.path` | `CHANGELOG.md` | where `/gps release` writes the release section (the sessions' fragments wait in `.work/changelog/` until then) |
 | `release.versionFiles` | detected at the first release, then saved | the files that hold the version (e.g. `package.json`) |
+| `release.postBump` | none | shell commands run in order from the project root after the version files are written (e.g. `cargo update --workspace`); the tracked files they change join the release commit, untracked ones only warn. They run only when the list equals `release.postBumpApproved`: an unapproved or changed list makes `/gps release` ask, then `release.js --version X --approve-post-bump` records it. A failing command undoes the cut. See [decision 0017](docs/decisions/0017-release-post-bump-commands.md) |
 | `release.githubRelease` | `minor+` | GitHub Release at the push: `none`, `minor+` (minor and major) or `all` |
 | `scratch.cleanupOnFinish` | `build-artifacts` | what `/gps finish` removes from `.scratch/tests/<session-id>/`: `none`, `build-artifacts` (build trees only, whole; evidence files stay) or `all` (the whole dir) |
 | `scratch.extraDirs` | `[]` | extra plain directory names to treat as build trees (e.g. `out`, `cache`); no `/`, `\`, `.` or `..` |

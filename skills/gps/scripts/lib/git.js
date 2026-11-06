@@ -466,6 +466,38 @@ function restoreFromHead(projectRoot, files) {
   }
 }
 
+// Tracked files that differ from HEAD (modified, staged, deleted or added),
+// relative to projectRoot. Never throws: { ok: true, files } or { ok: false, reason }.
+function changedTrackedFiles(projectRoot) {
+  try {
+    return { ok: true, files: nulList(git(projectRoot, ['diff', '--name-only', '--relative', '--no-renames', '-z', 'HEAD'])) };
+  } catch (err) {
+    return { ok: false, reason: failureReason(err) };
+  }
+}
+
+// Files git neither tracks nor ignores, relative to projectRoot. [] on any error.
+function untrackedFiles(projectRoot) {
+  return nulList(tryGit(projectRoot, ['ls-files', '--others', '--exclude-standard', '-z']));
+}
+
+// Puts every tracked file back as it is in HEAD, on disk and in the index; a
+// file added to the index since HEAD is removed again. Untracked files stay.
+// Never throws: { ok: true } or { ok: false, reason, commands }.
+function discardTrackedChanges(projectRoot) {
+  const commands = ['git checkout HEAD -- .'];
+  try {
+    const diff = (filter) => nulList(git(projectRoot, ['diff', '--name-only', '--relative', '--no-renames', `--diff-filter=${filter}`, '-z', 'HEAD']));
+    const added = diff('A');
+    const rest = diff('MDTUXB');
+    if (added.length) git(projectRoot, ['rm', '-q', '-f', '--', ...added.map((f) => `:(literal)${f}`)]);
+    if (rest.length) git(projectRoot, ['checkout', 'HEAD', '--', ...rest.map((f) => `:(literal)${f}`)]);
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, reason: failureReason(err), commands };
+  }
+}
+
 // What a commitWorkDir result means for the user: { line, warning }, either
 // null (nothing to say outside a git repository or with nothing to commit).
 function describeWorkCommit(record) {
@@ -611,6 +643,9 @@ module.exports = {
   describeWorkCommit,
   commitFiles,
   restoreFromHead,
+  changedTrackedFiles,
+  untrackedFiles,
+  discardTrackedChanges,
   pushBranch,
   commitMessages,
   defaultBranch,
