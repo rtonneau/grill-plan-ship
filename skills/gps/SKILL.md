@@ -49,7 +49,7 @@ Turn a request into verified, delivered code, with as much process as the work d
 | `/gps finish` | Close the session: check leftovers, INDEX.md, PR | `references/finish.md` |
 | `/gps auto [--delegate\|--inline] [plan\|ship\|finish]` | Run from the current phase to the target without stopping | `references/auto.md` |
 | `/gps handoff` | Save an in-flight checkpoint (HANDOFF.md) | `references/handoff.md` |
-| `/gps release` | Merge the changelog fragments (and Unreleased bullets) into a version: suggest, bump, tag, push | `references/release.md` |
+| `/gps release [--publish [--version X.Y.Z]]` | Merge the changelog fragments (and Unreleased bullets) into a version: suggest, bump, tag, push; `--publish` preapproves all of it | `references/release.md` |
 | `/gps help [command\|question]` | What to do next, what a command does, how the workflow fits together | `references/help.md` |
 
 ## How to run a command

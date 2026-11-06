@@ -7,6 +7,8 @@
 3. `release.js --version <version>`. It writes the release section into the CHANGELOG (Unreleased bullets, then the fragments), bumps the version files, deletes the fragments, commits it all and tags `vX.Y.Z`.
 4. Ask "Push and publish?" using the host question rule. On yes, `release.js --push`: it pushes the commit and tag, then creates the GitHub Release when the project's policy allows. On no, relay the by-hand push command from step 3's `Next:` line (`git push --atomic --follow-tags origin <branch>`).
 
+**Preapproved:** `/gps release --publish [--version X.Y.Z]` is the user's yes to the version and the push. Skip steps 2 and 4: run `release.js --publish` (passing the version through when given), which cuts the version, pushes and creates the GitHub Release by policy, asking nothing. After a failed push, run it again: it resumes at the push. Relay its output; on a refusal, relay the hint.
+
 Run it from the base branch, up to date with origin, with a clean tree; the script refuses otherwise. When it refuses, relay the hint; don't work around it.
 
 **Example:** `/gps release`

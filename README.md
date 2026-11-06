@@ -35,6 +35,7 @@ Restart Claude Code. Update later with `/plugin marketplace update rtonneau/gril
 /gps plan                  # saves the design, drafts reviewable tickets
 /gps ship                  # implements each ticket, one commit each, then finishes (push and PR on GitHub)
 /gps release               # when you choose: turns the changelog fragments into a version, a tag and a push
+/gps release --publish     # same, preapproved: cuts the suggested version and pushes, asking nothing
 ```
 
 The agent states the size it chose: say so if you disagree. `/gps init` is an optional first step, once per project, that commits gps's setup. Once the direction is clear, `/gps auto` runs from wherever the session is to the end without stopping.
@@ -54,7 +55,7 @@ The agent states the size it chose: say so if you disagree. `/gps init` is an op
 | `/gps ship [N] [--inline\|--delegate]` | Save the plan if pending, then implement every remaining ticket and chain `/gps finish` (or only ticket N) |
 | `/gps finish` | Close the session: changelog fragment, INDEX.md, PR; tracked leftovers require a scoped commit first |
 | `/gps auto [--delegate\|--inline] [plan\|ship\|finish]` | Run from the current phase to the target without stopping |
-| `/gps release` | Turn the changelog fragments into a version: suggest, bump, tag, push |
+| `/gps release [--publish [--version X.Y.Z]]` | Turn the changelog fragments into a version: suggest, bump, tag, push; `--publish` preapproves all of it |
 | `/gps handoff` | Save an in-flight checkpoint before you stop for the day |
 | `/gps help [command\|question]` | Where you are and what to run next, what a command does, or an answer to any question about the workflow |
 
@@ -75,6 +76,7 @@ The agent states the size it chose: say so if you disagree. `/gps init` is an op
 /gps finish                                # for an issue session it asks "Close issue #N as well?"
 /gps auto --delegate                       # one child per ticket on its hinted model and effort, reviewed and committed here
 /gps release                               # suggests 1.5.0 (minor); after your yes: version files bumped, tag v1.5.0, then "Push and publish?"
+/gps release --publish                     # preapproved: cuts the suggested 1.5.0, pushes and publishes, asking nothing
 /gps handoff                               # HANDOFF.md: where you stopped, next step, settled decisions
 /gps help what does auto skip?             # explains from the references, names the command to run
 ```
@@ -132,7 +134,7 @@ A ticket hint that can't be honored may be dropped with disclosure. An explicit 
 
 `/gps finish` first writes the session's changelog entry to its own file, `.work/changelog/<session-id>.md`: front matter (`bump`, `floor`, and a `reason` when the bump is above the floor) and bullets. Claude drafts user-facing bullets from the session's commits and picks the bump (`patch`, `minor` or `major`); `changelog-apply.js` writes the fragment. It never edits `CHANGELOG.md` and makes no commit of its own: the `chore(gps): finish …` record commit carries the fragment, so the pull request shows it. The bump can't go below the floor the commit types imply, and going higher needs a reason, which INDEX.md records. No version number is touched, and no two sessions write the same file, so parallel sessions never conflict. If `.work/` is git-ignored, the fragment stays on your machine and `changelog-prepare.js` warns.
 
-`/gps release` is the step you choose to run, from the base branch with a clean tree, and never under `/gps auto`. Before cutting, it fetches the base branch from `origin` and refuses when yours is behind (run `git pull`). It reads the fragments and any hand-written `## Unreleased` bullets, suggests the next version (the highest bump among them) and asks you to confirm or type another. With `--version`, it renders the hand-written bullets first, then the fragments by filename, into `## X.Y.Z (date)`, writes the version into the version files, and commits the CHANGELOG, the version files and the fragment deletions as one `chore(release): X.Y.Z` commit, then tags `vX.Y.Z`. The fragments are deleted only after that commit succeeds, and an invalid one (bad front matter, unknown level, unparsable body) is refused with its file name. A second question, "Push and publish?", pushes the commit and tag together and creates the GitHub Release; on no, the commands are printed. The reasoning is in [docs/decisions/0003-changelog-unreleased-then-release.md](docs/decisions/0003-changelog-unreleased-then-release.md).
+`/gps release` is the step you choose to run, from the base branch with a clean tree, and never under `/gps auto`. Before cutting, it fetches the base branch from `origin` and refuses when yours is behind (run `git pull`). It reads the fragments and any hand-written `## Unreleased` bullets, suggests the next version (the highest bump among them) and asks you to confirm or type another. With `--version`, it renders the hand-written bullets first, then the fragments by filename, into `## X.Y.Z (date)`, writes the version into the version files, and commits the CHANGELOG, the version files and the fragment deletions as one `chore(release): X.Y.Z` commit, then tags `vX.Y.Z`. The fragments are deleted only after that commit succeeds, and an invalid one (bad front matter, unknown level, unparsable body) is refused with its file name. With `--publish` (optionally with `--version X.Y.Z`), you preapprove the version and the push: one call cuts the suggested (or given) version, pushes and creates the GitHub Release by policy without asking, and running it again after a failed push resumes at the push. Otherwise a second question, "Push and publish?", pushes the commit and tag together and creates the GitHub Release; on no, the commands are printed. The reasoning is in [docs/decisions/0003-changelog-unreleased-then-release.md](docs/decisions/0003-changelog-unreleased-then-release.md).
 
 Settings live in `.work/gps-config.json`; `/gps config` shows them, read-only:
 
@@ -195,7 +197,7 @@ Every script in `skills/gps/scripts/` follows the same rules (see `scripts/lib/c
 | `changelog-prepare.js` | `/gps finish` step 1: the session's commits, bump floor and payload path for its CHANGELOG entry |
 | `changelog-apply.js` | write the session's fragment `.work/changelog/<session-id>.md` (bump, floor, bullets) |
 | `finish.js` | close the session |
-| `release.js` | `/gps release`: suggest a version, cut it (version files, commit, tag), or `--push` it |
+| `release.js` | `/gps release`: suggest a version, cut it (version files, commit, tag), `--push` it, or `--publish` (cut and push in one call) |
 | `auto-route.js` | the steps `/gps auto` will run |
 | `handoff.js` | write HANDOFF.md |
 | `help.js` | `/gps help`: where you are, the workflow, every command (or one command's details) |
@@ -241,7 +243,7 @@ gps has no server and no telemetry. Everything it does runs on your machine, thr
 - **Local recovery:** finish checkpoints and pending commit-scope checks live in the worktree's Git-private directory (non-Git finish uses `.scratch/`). These records are not published or copied by cloning.
 - **Files it reads:** the project it runs in (its files and git history), gps's own scripts and templates, and a file a command is explicitly given, such as the review for `/gps scout --from`. Other than the `idea` skill's `~/.gps/idea-config.json`, it does not read host transcripts or your home directory. Jev reads TYPESAFE_API_KEY from the environment to authenticate its optional request.
 - **Commits it makes:** one commit per ticket with only the files you name, the `chore(gps)` session-record commits described above, the `chore(release): X.Y.Z` commit (CHANGELOG, version files and fragment deletions) and its annotated tag `vX.Y.Z` at `/gps release`, and the `chore(gps): set up gps` commit of `/gps init --apply`. Partially staged ticket files require review first. The `idea` skill adds one `idea(<slug>): <action>` commit per saved Idea, in the project you ran it from or in your configured Global repo, and never pushes it.
-- **What leaves your machine** (with your own git and gh credentials): with any `origin`, at `/gps release` only, `git fetch` of the base branch before a cut, `git push` of the release commit and tag at `/gps release --push` (after your yes) and `git ls-remote`, which only reads. On GitHub projects only: `git push` of the session branch and `gh pr create` at `/gps finish`; `gh release create` at `/gps release --push` when `release.githubRelease` allows it; `gh issue create`, `gh issue comment` and `gh issue close` for `/gps start --issue` sessions; and `gh auth status`, `gh pr list`, `gh issue view` and `gh release view`, which only read.
+- **What leaves your machine** (with your own git and gh credentials): with any `origin`, at `/gps release` only, `git fetch` of the base branch before a cut, `git push` of the release commit and tag at `/gps release --push` (after your yes) or `--publish` (your preapproval) and `git ls-remote`, which only reads. On GitHub projects only: `git push` of the session branch and `gh pr create` at `/gps finish`; `gh release create` at `/gps release --push` or `--publish` when `release.githubRelease` allows it; `gh issue create`, `gh issue comment` and `gh issue close` for `/gps start --issue` sessions; and `gh auth status`, `gh pr list`, `gh issue view` and `gh release view`, which only read.
 
 Optional **Jev** sends drafted ticket names and complete bodies plus classification instructions to TypeSafe at `https://api.typesafe.ai/v1/systemone`, authenticated by `TYPESAFE_API_KEY`. It starts disabled. `/gps config --enable-jev` explicitly authorizes that transmission and records `jev.enabled: true` and `jev.consent: true`; older auto-enabled settings need this one-time consent. Key detection and rescans cannot grant consent. Set `jev.enabled` to `false` to stop requests, or `jev.consent` to `false` to revoke authorization. Ticket bodies may include project details or code. We make no TypeSafe retention or training guarantees. Conversation policies belong to the selected host (Anthropic for Claude Code, OpenAI for Codex). See [PRIVACY.md](PRIVACY.md).
 
