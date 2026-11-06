@@ -109,14 +109,50 @@
         "ticket": "02-redetect-saved-version-files",
         "commit": "f3953a3"
       }
+    },
+    {
+      "at": "2026-11-06T10:23:32.399Z",
+      "event": "ticket_started",
+      "phase": "ship",
+      "files": [
+        "02-plan/tickets/03-post-bump-commands.md",
+        "03-implement/03-post-bump-commands/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "03-post-bump-commands"
+      }
+    },
+    {
+      "at": "2026-11-06T10:45:57.354Z",
+      "event": "ticket_blocked",
+      "phase": "ship",
+      "files": [
+        "03-implement/03-post-bump-commands/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "03-post-bump-commands",
+        "reason": "Review found unresolved actionable issues (P2: post-bump output over 1 MB fails with ENOBUFS; three P3s); the one recovery pass was used by the host-restart recovery, so another pass needs the user's go-ahead."
+      }
+    },
+    {
+      "at": "2026-11-06T11:08:47.706Z",
+      "event": "ticket_done",
+      "phase": "finish-pending",
+      "files": [
+        "03-implement/03-post-bump-commands/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "03-post-bump-commands",
+        "commit": "09aa7d3"
+      }
     }
   ],
-  "current_phase": "ship",
+  "current_phase": "finish-pending",
   "git": {
     "branch": "feat/release-workspace-versions-post-bump",
     "base_branch": "main",
     "branch_created_at": "2026-11-06T09:53:19.455Z",
     "pr_url": null
   },
-  "ship_mode": "delegate"
+  "ship_mode": "inline"
 }
