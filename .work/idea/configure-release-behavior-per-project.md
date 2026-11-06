@@ -1,9 +1,9 @@
 ---
-status: planned
+status: promoted
 scope: project
 created: 2026-11-06
 reviews: 0
-promoted_to: null
+promoted_to: grill-plan-ship:2026-11-06__configure-release-behavior-per-project
 ---
 
 ## Problem
@@ -43,3 +43,4 @@ promoted_to: null
 - 2026-11-06 — capture — Configure release behavior per project (grill-plan-ship @ feat/release-publish-flag)
 - 2026-11-06 — grill
 - 2026-11-06 — plan
+- 2026-11-06 — promote
