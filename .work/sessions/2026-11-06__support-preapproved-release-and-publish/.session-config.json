@@ -59,13 +59,38 @@
       "detail": {
         "tickets": 1
       }
+    },
+    {
+      "at": "2026-11-06T09:01:21.207Z",
+      "event": "ticket_started",
+      "phase": "ship",
+      "files": [
+        "02-plan/tickets/01-release-publish-flag.md",
+        "03-implement/01-release-publish-flag/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "01-release-publish-flag"
+      }
+    },
+    {
+      "at": "2026-11-06T09:18:58.062Z",
+      "event": "ticket_done",
+      "phase": "finish-pending",
+      "files": [
+        "03-implement/01-release-publish-flag/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "01-release-publish-flag",
+        "commit": "42ee399"
+      }
     }
   ],
-  "current_phase": "ship",
+  "current_phase": "finish-pending",
   "git": {
     "branch": "feat/release-publish-flag",
     "base_branch": "main",
     "branch_created_at": "2026-11-06T09:01:19.787Z",
     "pr_url": null
-  }
+  },
+  "ship_mode": "delegate"
 }
