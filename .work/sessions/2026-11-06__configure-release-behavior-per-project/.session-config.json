@@ -85,6 +85,30 @@
         "ticket": "01-cargo-workspace-version-and-pins",
         "commit": "72b9e24"
       }
+    },
+    {
+      "at": "2026-11-06T10:06:28.267Z",
+      "event": "ticket_started",
+      "phase": "ship",
+      "files": [
+        "02-plan/tickets/02-redetect-saved-version-files.md",
+        "03-implement/02-redetect-saved-version-files/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "02-redetect-saved-version-files"
+      }
+    },
+    {
+      "at": "2026-11-06T10:23:31.461Z",
+      "event": "ticket_done",
+      "phase": "ship",
+      "files": [
+        "03-implement/02-redetect-saved-version-files/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "02-redetect-saved-version-files",
+        "commit": "f3953a3"
+      }
     }
   ],
   "current_phase": "ship",
