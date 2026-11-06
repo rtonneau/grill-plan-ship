@@ -1,0 +1,71 @@
+{
+  "session_id": "2026-11-06__support-preapproved-release-and-publish",
+  "feature_name": "Support preapproved release and publish",
+  "scratch_dir": ".scratch/tests/2026-11-06__support-preapproved-release-and-publish",
+  "created_at": "2026-11-06T08:55:35.559Z",
+  "template_version": 2,
+  "history": [
+    {
+      "at": "2026-11-06T08:55:35.559Z",
+      "event": "session_started",
+      "phase": "grill",
+      "files": [
+        "01-grill/resume.md"
+      ]
+    },
+    {
+      "at": "2026-11-06T09:00:39.917Z",
+      "event": "auto_started",
+      "phase": "grill",
+      "detail": {
+        "target": "finish",
+        "steps": "write:grill → plan → write:plan → ship → finish",
+        "shipMode": "delegate"
+      }
+    },
+    {
+      "at": "2026-11-06T09:00:57.216Z",
+      "event": "grill_written",
+      "phase": "plan-not-started",
+      "files": [
+        "01-grill/resume.md"
+      ]
+    },
+    {
+      "at": "2026-11-06T09:00:57.469Z",
+      "event": "plan_started",
+      "phase": "plan",
+      "files": [
+        "02-plan/plan.md"
+      ]
+    },
+    {
+      "at": "2026-11-06T09:01:19.787Z",
+      "event": "branch_created",
+      "phase": "plan",
+      "detail": {
+        "branch": "feat/release-publish-flag",
+        "base": "main"
+      }
+    },
+    {
+      "at": "2026-11-06T09:01:19.816Z",
+      "event": "plan_written",
+      "phase": "ship",
+      "files": [
+        "02-plan/plan.md",
+        "02-plan/tickets/01-release-publish-flag.md"
+      ],
+      "detail": {
+        "tickets": 1
+      }
+    }
+  ],
+  "current_phase": "ship",
+  "git": {
+    "branch": "feat/release-publish-flag",
+    "base_branch": "main",
+    "branch_created_at": "2026-11-06T09:01:19.787Z",
+    "pr_url": null
+  }
+}
