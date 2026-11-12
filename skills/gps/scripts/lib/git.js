@@ -262,6 +262,20 @@ function addWorktree(projectRoot, worktreePath, branch) {
   };
 }
 
+// Renames local branch `from` to `to` (checked out or not). Throws with git's reason.
+function renameBranch(projectRoot, from, to) {
+  try {
+    git(projectRoot, ['branch', '-m', from, to]);
+  } catch (err) {
+    throw new Error(`git branch -m ${from} ${to} failed: ${failureReason(err)}`);
+  }
+}
+
+// True when origin has (or had, as last fetched) branch `name`.
+function remoteBranchExists(projectRoot, name) {
+  return tryGit(projectRoot, ['rev-parse', '--verify', '--quiet', `refs/remotes/origin/${name}`]) !== null;
+}
+
 // The folder that holds the checkout's top level: default parent of new worktrees.
 function worktreeRoot(projectRoot) {
   const top = tryGit(projectRoot, ['rev-parse', '--show-toplevel']);
@@ -626,6 +640,8 @@ module.exports = {
   isCommitted,
   addWorktree,
   worktreeRoot,
+  renameBranch,
+  remoteBranchExists,
   isLinkedWorktree,
   listWorktrees,
   originUrl,
