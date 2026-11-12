@@ -43,7 +43,7 @@ const {
   renderPhaseFile,
   renderTicket,
 } = require('./lib/write-payload');
-const { validateBranchName, createSessionBranch, commitWorkDir, describeWorkCommit } = require('./lib/git');
+const { validateBranchName, createSessionBranch, currentBranch, commitWorkDir, describeWorkCommit } = require('./lib/git');
 const { createIssue, buildIssueBody } = require('./lib/github');
 const { githubEnabled } = require('./lib/project-config');
 const { computeSessionState } = require('./lib/phase');
@@ -92,6 +92,16 @@ function apply({ projectRoot, warn }) {
 
   const branch = target === 'plan' && !config.git && githubEnabled(projectRoot) ? payload.fields.Branch || '' : null;
   if (branch !== null) errors.push(...validateBranchName(projectRoot, branch));
+  // A worktree session already has its branch (made by start --worktree): the plan keeps it.
+  const ownBranch = target === 'plan' && config.git && config.git.worktree_path ? config.git.branch : null;
+  if (ownBranch) {
+    const onBranch = currentBranch(projectRoot);
+    if (onBranch !== ownBranch) {
+      errors.push(`This worktree session works on branch ${ownBranch}, but ${onBranch || 'a detached HEAD'} is checked out here. Run it from ${config.git.worktree_path}, or git switch ${ownBranch}.`);
+    }
+    const asked = payload.fields.Branch && payload.fields.Branch.trim();
+    if (asked && asked !== ownBranch) warn(`"**Branch:** ${asked}" is ignored: this worktree session keeps its branch ${ownBranch}.`);
+  }
   const issueWanted = target === 'grill' && config.kind === 'issue' && !config.issue && githubEnabled(projectRoot);
 
   const ticketsDir = path.join(sessionDir, '02-plan', 'tickets');
