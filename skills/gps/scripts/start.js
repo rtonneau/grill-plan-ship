@@ -32,7 +32,7 @@ const { sessionsDirOf, findUnfinishedBySlug, readCurrentPointer } = require('./l
 const { computeSessionState } = require('./lib/phase');
 const { computeIdleness } = require('./lib/staleness');
 const { getSeed, removeSeed } = require('./lib/seeds-store');
-const { isWorkTree, isIgnored, worktreeProblems, addWorktree, worktreeRoot } = require('./lib/git');
+const { isWorkTree, isIgnored, isCommitted, worktreeProblems, addWorktree, worktreeRoot } = require('./lib/git');
 const { needsSetup } = require('./lib/setup');
 const { recordEvent } = require('./lib/history');
 const { GpsError, UsageError, slugify, localDate, readJson } = require('./lib/guard');
@@ -46,6 +46,9 @@ function prepareWorktree(projectRoot, featureName, options) {
   const branch = options.branch || `${options.issue ? 'fix' : 'feat'}/${slug.replace(/_/g, '-')}`;
   const worktreePath = path.resolve(projectRoot, options.path || path.join(worktreeRoot(projectRoot), sessionId));
   const problems = worktreeProblems(projectRoot, worktreePath, branch);
+  if (isWorkTree(projectRoot) && !isCommitted(projectRoot, '.work/gps-config.json')) {
+    problems.push('.work/gps-config.json is not committed on this branch. Run /gps init here first, so every worktree session shares it.');
+  }
   if (problems.length > 0) {
     throw new GpsError(`Cannot create the session worktree; nothing was changed:\n- ${problems.join('\n- ')}`,
       'Fix the items above (--branch and --path choose other names), or start without --worktree.');
@@ -94,7 +97,8 @@ main({
     const found = findUnfinishedBySlug(sessionsDir, slugify(featureName));
     if (found) return resumeReport(sessionsDir, found, Boolean(options.issue), warn);
     // Detects GitHub once; a corrupt file aborts before anything is created.
-    ensureProjectConfig(projectRoot);
+    // A worktree session needs the project config committed: every
+    // worktree then shares it, and parallel branches cannot each add their own.
     let worktree = null;
     if (options.worktree) {
       worktree = prepareWorktree(projectRoot, featureName, options);

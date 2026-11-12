@@ -220,6 +220,7 @@ const daysAgo = (n) => new Date(Date.now() - n * 86400000);
 {
   // --worktree: a linked worktree on the session branch holds the session; the main checkout is untouched.
   const root = h.gitProject('gps-wt-');
+  h.ok(root, 'init.js', ['--apply']);
   const res = h.ok(root, 'start.js', ['para', '--worktree']);
   const id = res.out.match(/Session started: (\S+)/)[1];
   const wt = path.join(path.dirname(root), `${path.basename(root)}-worktrees`, id);
@@ -252,6 +253,11 @@ const daysAgo = (n) => new Date(Date.now() - n * 86400000);
 }
 
 {
+  // --worktree needs the project config committed (/gps init); nothing is created without it.
+  const bare = h.gitProject('gps-wt-noinit-');
+  h.assertFails(h.run(bare, 'start.js', ['x', '--worktree']), 1, /gps-config\.json is not committed.*\/gps init/);
+  assert.ok(!h.git(bare, 'branch', '--list', 'feat/x'));
+  assert.ok(!fs.existsSync(path.join(bare, '.work')));
   // --worktree outside git is refused; --path without --worktree is a usage error.
   h.assertFails(h.run(h.tempProject(), 'start.js', ['x', '--worktree']), 1, /Not inside a git work tree/);
   h.assertFails(h.run(h.tempProject(), 'start.js', ['x', '--path', 'p']), 2, /need --worktree/);

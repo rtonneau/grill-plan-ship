@@ -287,6 +287,11 @@ function switchBranch(projectRoot, name) {
   }
 }
 
+// True when `relPath` is in HEAD's tree (committed on the checked-out branch).
+function isCommitted(projectRoot, relPath) {
+  return tryGit(projectRoot, ['cat-file', '-e', `HEAD:${relPath}`]) !== null;
+}
+
 // True when `relPath` is in the index (committed or staged).
 function isTracked(projectRoot, relPath) {
   return tryGit(projectRoot, ['ls-files', '--error-unmatch', '--', relPath]) !== null;
@@ -606,6 +611,7 @@ module.exports = {
   isWorkTree,
   gitPrivatePath,
   worktreeProblems,
+  isCommitted,
   addWorktree,
   worktreeRoot,
   isLinkedWorktree,

@@ -209,6 +209,7 @@ for (const phase of ['grill', 'plan']) {
 {
   // A worktree session's plan keeps the branch start --worktree made; another checked-out branch is refused.
   const root = h.gitProject('gps-wt-plan-');
+  h.ok(root, 'init.js', ['--apply']);
   const wt = h.json(root, 'start.js', ['wtplan', '--worktree']).worktree.path;
   h.writeGrill(wt);
   h.ok(wt, 'plan.js');
