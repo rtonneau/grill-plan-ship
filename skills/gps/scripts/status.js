@@ -17,11 +17,23 @@ const { listWorktrees } = require('./lib/git');
 const { buildStatusReport, renderStatus } = require('./lib/status');
 const { GpsError } = require('./lib/guard');
 
+function sameDirectory(left, right) {
+  const leftStat = fs.statSync(left);
+  const rightStat = fs.statSync(right);
+  if (leftStat.ino !== 0 && rightStat.ino !== 0) {
+    return leftStat.dev === rightStat.dev && leftStat.ino === rightStat.ino;
+  }
+  const leftPath = fs.realpathSync(left);
+  const rightPath = fs.realpathSync(right);
+  return process.platform === 'win32'
+    ? leftPath.toLowerCase() === rightPath.toLowerCase()
+    : leftPath === rightPath;
+}
+
 // Unfinished gps sessions current in the repository's other worktrees.
 function otherWorktreeSessions(projectRoot) {
-  const here = fs.realpathSync(projectRoot);
   return listWorktrees(projectRoot)
-    .filter((wt) => fs.existsSync(wt.path) && fs.realpathSync(wt.path) !== here)
+    .filter((wt) => fs.existsSync(wt.path) && !sameDirectory(wt.path, projectRoot))
     .map((wt) => {
       const sessionsDir = sessionsDirOf(wt.path);
       const sessionId = readCurrentPointer(sessionsDir);

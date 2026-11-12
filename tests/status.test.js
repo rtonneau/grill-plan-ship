@@ -104,10 +104,12 @@ function hashWork(root) {
   h.ok(root, 'init.js', ['--apply']);
   h.ok(root, 'start.js', ['here']);
   const wt = h.json(root, 'start.js', ['there', '--worktree']).worktree;
+  const otherSessionId = wt.sessionId || h.currentSession(wt.path);
+  const report = h.json(root, 'status.js');
+  assert.deepStrictEqual(report.worktrees.map((worktree) => worktree.sessionId), [otherSessionId]);
   const res = h.ok(root, 'status.js');
   assert.match(res.out, /## Sessions in other worktrees\n\n- \S+__there \(grill\) on feat\/there: .+\n/);
   assert.match(res.out, /Run gps commands for those sessions from their worktree\.\n\nNext: /);
-  assert.strictEqual(h.json(root, 'status.js').worktrees[0].sessionId, wt.sessionId || h.currentSession(wt.path));
   assert.doesNotMatch(h.ok(wt.path, 'status.js').out, /__there \(grill\) on/);
   fs.rmSync(path.dirname(wt.path), { recursive: true, force: true });
 }
