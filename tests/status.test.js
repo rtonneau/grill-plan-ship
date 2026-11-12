@@ -98,4 +98,20 @@ function hashWork(root) {
   assert.ok(!fs.existsSync(path.join(h.sessionsDir(root), '.current-session')));
 }
 
+{
+  // Status lists the unfinished sessions current in other worktrees.
+  const root = h.gitProject('gps-st-wt-');
+  h.ok(root, 'init.js', ['--apply']);
+  h.ok(root, 'start.js', ['here']);
+  const wt = h.json(root, 'start.js', ['there', '--worktree']).worktree;
+  const otherSessionId = wt.sessionId || h.currentSession(wt.path);
+  const report = h.json(root, 'status.js');
+  assert.deepStrictEqual(report.worktrees.map((worktree) => worktree.sessionId), [otherSessionId]);
+  const res = h.ok(root, 'status.js');
+  assert.match(res.out, /## Sessions in other worktrees\n\n- \S+__there \(grill\) on feat\/there: .+\n/);
+  assert.match(res.out, /Run gps commands for those sessions from their worktree\.\n\nNext: /);
+  assert.doesNotMatch(h.ok(wt.path, 'status.js').out, /__there \(grill\) on/);
+  fs.rmSync(path.dirname(wt.path), { recursive: true, force: true });
+}
+
 h.done('status.test.js');

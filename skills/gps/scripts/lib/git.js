@@ -244,6 +244,72 @@ function createSessionBranch(projectRoot, name) {
   return { branch: name, base_branch: base, branch_created_at: new Date().toISOString(), pr_url: null };
 }
 
+// Problems that stop `git worktree add -b branch worktreePath` from the
+// project's HEAD, checked before anything is created: [] when it can run.
+function worktreeProblems(projectRoot, worktreePath, branch) {
+  if (!isWorkTree(projectRoot)) return ['Not inside a git work tree: --worktree needs a git repository.'];
+  const problems = validateBranchName(projectRoot, branch).filter((e) => !/^Missing field/.test(e));
+  if (fs.existsSync(worktreePath)) problems.push(`${worktreePath} already exists. Pick another location with --path.`);
+  return problems;
+}
+
+// Creates a linked worktree at `worktreePath` on a new branch `branch` from
+// HEAD. Returns the session's `git` record (the base is the branch checked
+// out here). Throws with git's reason.
+function addWorktree(projectRoot, worktreePath, branch) {
+  const base = sessionBaseBranch(projectRoot);
+  try {
+    git(projectRoot, ['worktree', 'add', '-q', '-b', branch, worktreePath]);
+  } catch (err) {
+    throw new Error(`git worktree add -b ${branch} ${worktreePath} failed: ${failureReason(err)}`);
+  }
+  return {
+    branch, base_branch: base, branch_created_at: new Date().toISOString(), pr_url: null,
+    worktree_path: path.resolve(worktreePath),
+  };
+}
+
+// Renames local branch `from` to `to` (checked out or not). Throws with git's reason.
+function renameBranch(projectRoot, from, to) {
+  try {
+    git(projectRoot, ['branch', '-m', from, to]);
+  } catch (err) {
+    throw new Error(`git branch -m ${from} ${to} failed: ${failureReason(err)}`);
+  }
+}
+
+// True when origin has (or had, as last fetched) branch `name`.
+function remoteBranchExists(projectRoot, name) {
+  return tryGit(projectRoot, ['rev-parse', '--verify', '--quiet', `refs/remotes/origin/${name}`]) !== null;
+}
+
+// The folder that holds the checkout's top level: default parent of new worktrees.
+function worktreeRoot(projectRoot) {
+  const top = tryGit(projectRoot, ['rev-parse', '--show-toplevel']);
+  const base = top ? path.resolve(top) : path.resolve(projectRoot);
+  return path.join(path.dirname(base), `${path.basename(base)}-worktrees`);
+}
+
+// The repository's worktrees ([{ path, branch }], branch null when
+// detached), the main checkout first; [] outside git.
+function listWorktrees(projectRoot) {
+  const out = tryGit(projectRoot, ['worktree', 'list', '--porcelain']);
+  if (!out) return [];
+  return out.split(/\r?\n\r?\n/).map((block) => {
+    const dir = /^worktree (.+)$/m.exec(block);
+    const ref = /^branch refs\/heads\/(.+)$/m.exec(block);
+    return dir ? { path: path.resolve(dir[1]), branch: ref ? ref[1] : null } : null;
+  }).filter(Boolean);
+}
+
+// True when `projectRoot` is in a linked worktree (not the main checkout).
+function isLinkedWorktree(projectRoot) {
+  const gitDir = tryGit(projectRoot, ['rev-parse', '--git-dir']);
+  const common = tryGit(projectRoot, ['rev-parse', '--git-common-dir']);
+  if (!gitDir || !common) return false;
+  return path.resolve(projectRoot, gitDir) !== path.resolve(projectRoot, common);
+}
+
 // Never throws: { ok: true } or { ok: false, reason, commands }.
 function switchBranch(projectRoot, name) {
   try {
@@ -252,6 +318,11 @@ function switchBranch(projectRoot, name) {
   } catch (err) {
     return { ok: false, reason: failureReason(err), commands: [`git switch ${name}`] };
   }
+}
+
+// True when `relPath` is in HEAD's tree (committed on the checked-out branch).
+function isCommitted(projectRoot, relPath) {
+  return tryGit(projectRoot, ['cat-file', '-e', `HEAD:${relPath}`]) !== null;
 }
 
 // True when `relPath` is in the index (committed or staged).
@@ -621,6 +692,14 @@ module.exports = {
   failureReason,
   isWorkTree,
   gitPrivatePath,
+  worktreeProblems,
+  isCommitted,
+  addWorktree,
+  worktreeRoot,
+  renameBranch,
+  remoteBranchExists,
+  isLinkedWorktree,
+  listWorktrees,
   originUrl,
   currentBranch,
   sessionBaseBranch,

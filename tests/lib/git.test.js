@@ -83,7 +83,8 @@ const readGitStatusSummary = (root, dir) => readGitStatus(root, dir).session;
 
 // Recovery journals belong to this worktree's private Git directory.
 {
-  const root = gitProject('gps-private-path-');
+  // The long path: git reports it even when the temp dir is an 8.3 short name (RUNNER~1 on CI).
+  const root = fs.realpathSync.native(gitProject('gps-private-path-'));
   assert.strictEqual(gitPrivatePath(root, 'gps-finish.json'), path.join(root, '.git', 'gps-finish.json'));
   const linked = path.join(root, 'linked');
   fixtureGit(root, 'worktree', 'add', '-q', '-b', 'fix/linked', linked);

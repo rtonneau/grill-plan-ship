@@ -70,11 +70,16 @@ const { PR_ATTRIBUTION, openPullRequest, describePullRequest, commentOnIssue, fi
 const { GpsError, UsageError, writeJsonAtomic, readJson, replaceFile } = require('./lib/guard');
 const { getHistory, hasEvent, renderTimeline, recordEvent } = require('./lib/history');
 const { FRAGMENTS_DIR } = require('./lib/changelog-fragments');
-const { scratchSettings } = require('./lib/project-config');
+const { scratchSettings, githubEnabled } = require('./lib/project-config');
 const { cleanScratch, formatBytes } = require('./lib/scratch-dir');
 
 // Where session directories live, relative to the project root, with '/' separators.
 const SESSIONS_REL = path.relative('.', sessionsDirOf('.')).split(path.sep).join('/');
+
+// Quotes a path for a copy-paste command when it holds a space.
+function quoteArg(value) {
+  return /\s/.test(value) ? `"${value}"` : value;
+}
 
 function buildIndex(config, finishedAt, tickets, bounded, pr, events, issueResult, leftover) {
   const lines = [
@@ -143,7 +148,10 @@ function branchSection(gitInfo, pr) {
     `- **Branch:** \`${gitInfo.branch}\``,
     `- **Base:** \`${gitInfo.base_branch}\``,
   ];
-  if (pr.ok) {
+  if (gitInfo.worktree_path) lines.push(`- **Worktree:** \`${gitInfo.worktree_path}\``);
+  if (!pr) {
+    lines.push('- **Pull request:** none (no GitHub): merge the branch into its base by hand', '');
+  } else if (pr.ok) {
     lines.push(`- **Pull request:** ${describePullRequest(pr)} — ${pr.url}`, '');
   } else {
     lines.push(
@@ -392,8 +400,13 @@ function finishSession({ options, projectRoot, warn }) {
     writeJsonAtomic(journalPath, journal);
   }
 
+  // A worktree session (start --worktree) has a branch on any project; only
+  // a GitHub one is pushed and gets a pull request, the others print merge
+  // steps. Its base branch is checked out elsewhere, so it never switches.
+  const worktreePath = config.git && config.git.worktree_path;
+  const deliver = Boolean(config.git) && (!worktreePath || githubEnabled(projectRoot));
   let pr = null;
-  if (config.git) {
+  if (deliver) {
     pr = openSessionPr(projectRoot, sessionDir, config, tickets, bounded, options.title && options.title.trim());
     if (!pr.ok) throw new GpsError(`Delivery ${pr.step} failed: ${pr.reason}. The session remains recoverable.`, 'Run /gps finish again after fixing the cause.');
     if (pr.ok) {
@@ -440,7 +453,7 @@ function finishSession({ options, projectRoot, warn }) {
   const record = commitWorkDir(projectRoot, `chore(gps): finish ${sessionId}`);
   if (!record.ok) throw new GpsError(`Session record commit failed: ${record.reason}.`, 'The finish journal is retained. Fix the cause, then run /gps finish again.');
   let repushed = null;
-  if (config.git) {
+  if (deliver) {
     repushed = pushBranch(projectRoot, config.git.branch);
     if (!repushed.ok) throw new GpsError(`Session record push failed: ${repushed.reason}.`, 'The finish journal is retained. Fix the cause, then run /gps finish again.');
   }
@@ -450,7 +463,7 @@ function finishSession({ options, projectRoot, warn }) {
   // Last, once every session file is committed. Not after a failed commit:
   // the changes it left would be carried over to (or block) the switch.
   let back = null;
-  if (config.git && leftover.ok && record.ok) {
+  if (config.git && !worktreePath && leftover.ok && record.ok) {
     const base = config.git.base_branch;
     back = base
       ? { base, ...switchBranch(projectRoot, base) }
@@ -495,6 +508,13 @@ function finishSession({ options, projectRoot, warn }) {
     lines.push(`↩️  Back on ${back.base}: ${pr.ok ? 'merge the pull request' : 'open the pull request with the commands above, merge it'}, then git pull`);
   } else if (back) {
     byHand(`Still on ${config.git.branch}: switching to the base branch failed (${back.reason}).`, back.commands);
+  } else if (worktreePath) {
+    const { branch, base_branch: base } = config.git;
+    if (!deliver) {
+      lines.push(`🔀 Merge ${branch} into ${base} from the checkout that has ${base}: git switch ${base} && git merge --no-ff ${branch}`);
+    }
+    lines.push(`🌳 Worktree ${worktreePath} is no longer needed${deliver ? ' once the pull request is merged' : ' after the merge'}: `
+      + `git worktree remove ${quoteArg(worktreePath)} (gps never removes it)`);
   } else if (config.git) {
     warn(`Still on ${config.git.branch}: commit the remaining changes, then git switch ${config.git.base_branch}.`);
   }

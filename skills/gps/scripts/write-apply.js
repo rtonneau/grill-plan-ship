@@ -43,7 +43,7 @@ const {
   renderPhaseFile,
   renderTicket,
 } = require('./lib/write-payload');
-const { validateBranchName, createSessionBranch, commitWorkDir, describeWorkCommit } = require('./lib/git');
+const { validateBranchName, createSessionBranch, renameBranch, remoteBranchExists, currentBranch, commitWorkDir, describeWorkCommit } = require('./lib/git');
 const { createIssue, buildIssueBody } = require('./lib/github');
 const { githubEnabled } = require('./lib/project-config');
 const { computeSessionState } = require('./lib/phase');
@@ -92,6 +92,24 @@ function apply({ projectRoot, warn }) {
 
   const branch = target === 'plan' && !config.git && githubEnabled(projectRoot) ? payload.fields.Branch || '' : null;
   if (branch !== null) errors.push(...validateBranchName(projectRoot, branch));
+  // A worktree session already has its branch (made by start --worktree): the plan keeps it.
+  let renameTo = null;
+  const ownBranch = target === 'plan' && config.git && config.git.worktree_path ? config.git.branch : null;
+  if (ownBranch) {
+    const onBranch = currentBranch(projectRoot);
+    if (onBranch !== ownBranch) {
+      errors.push(`This worktree session works on branch ${ownBranch}, but ${onBranch || 'a detached HEAD'} is checked out here. Run it from ${config.git.worktree_path}, or git switch ${ownBranch}.`);
+    }
+    const asked = payload.fields.Branch && payload.fields.Branch.trim();
+    if (asked && asked !== ownBranch) {
+      if (config.git.pr_url || remoteBranchExists(projectRoot, ownBranch)) {
+        warn(`"**Branch:** ${asked}" is ignored: ${ownBranch} is already pushed, so the worktree session keeps it.`);
+      } else {
+        errors.push(...validateBranchName(projectRoot, asked).filter((e) => !/^Missing field/.test(e)));
+        renameTo = asked;
+      }
+    }
+  }
   const issueWanted = target === 'grill' && config.kind === 'issue' && !config.issue && githubEnabled(projectRoot);
 
   const ticketsDir = path.join(sessionDir, '02-plan', 'tickets');
@@ -111,6 +129,22 @@ function apply({ projectRoot, warn }) {
       `The payload is not ready (nothing was written):\n   - ${errors.join('\n   - ')}`,
       `Fix the listed problem(s) and run write-apply.js again. The prepared payload remains at ${payloadPath}.`
     );
+  }
+
+  // A worktree session's provisional branch is renamed first: if git refuses, nothing is written.
+  let renamed = null;
+  if (renameTo) {
+    const from = config.git.branch;
+    try {
+      renameBranch(projectRoot, from, renameTo);
+    } catch (err) {
+      throw new GpsError(`${err.message} (nothing was written).`,
+        `Fix the problem (or change "**Branch:**" in ${payloadPath}) and run write-apply.js again.`);
+    }
+    config.git.branch = renameTo;
+    writeJsonAtomic(configPath, config);
+    recordEvent(configPath, config, sessionDir, { event: 'branch_renamed', detail: { from, to: renameTo } });
+    renamed = { from, to: renameTo };
   }
 
   // The branch is created first: if git refuses, nothing is written.
@@ -183,6 +217,7 @@ function apply({ projectRoot, warn }) {
   fs.unlinkSync(payloadPath);
   const record = commitWorkDir(projectRoot, `chore(gps): plan ${sessionId}`);
   const lines = [`✅ Plan written for ${sessionId}: ${tickets.length} ticket(s).`];
+  if (renamed) lines.push(`🌿 Branch renamed ${renamed.from} → ${renamed.to}; /gps finish delivers it.`);
   if (gitInfo) lines.push(`🌿 Working on branch ${gitInfo.branch} (from ${gitInfo.base_branch}); /gps finish opens the PR.`);
   const recorded = describeWorkCommit(record);
   if (recorded.line) lines.push(recorded.line);

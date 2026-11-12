@@ -52,6 +52,10 @@ main({
     if (result.target === 'plan' && !config.git && githubEnabled(projectRoot)) {
       fields.unshift('Branch');
       extraFields.push(`**Branch:** <!-- gps:fill ${BRANCH_PATTERN}: the type that fits (${BRANCH_TYPES.join(', ')}), then a short slug naming the change -->`);
+    } else if (result.target === 'plan' && config.git && config.git.worktree_path) {
+      // A worktree session got a provisional branch at start: the plan may rename it.
+      fields.unshift('Branch');
+      extraFields.push(`**Branch:** <!-- gps:fill ${config.git.branch} to keep it, or a better ${BRANCH_PATTERN} name now that the plan says what the change is; write-apply.js renames the branch -->`);
     }
     const skeleton = buildSkeleton(phaseFile, result.target, extraFields);
 

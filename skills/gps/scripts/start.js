@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 /**
- * start.js <feature-name...> [--issue] [--json]
+ * start.js <feature-name...> [--issue] [--worktree [--path <dir>] [--branch <name>]] [--json]
  *
  * /gps start: creates the session (directory, resume template, scratch dir,
  * .scratch/ in .gitignore, .current-session, which is committed with .work/) and records GitHub detection in
@@ -16,6 +16,10 @@
  *
  * A scouted seed whose slug matches the session's is consumed: printed as
  * the grill's starting context and removed from .pending-seeds.json.
+ * With --worktree the session gets its own linked git worktree on a new
+ * session branch (default <type>/<slug> at ../<repo>-worktrees/<session-id>),
+ * and is created there: one session per worktree runs in parallel with the
+ * others. Every problem is checked before git or the session writes anything.
  * Warns when .work/ is git-ignored (gps then commits none of its files),
  * and suggests /gps init while the project's gps setup is not committed.
  */
@@ -24,13 +28,39 @@ const path = require('path');
 const { main } = require('./lib/cli');
 const { ensureProjectConfig } = require('./lib/project-config');
 const { initSession } = require('./lib/session-init');
-const { sessionsDirOf, findUnfinishedBySlug, readCurrentPointer } = require('./lib/session-store');
+const { sessionsDirOf, findUnfinishedBySlug, readCurrentPointer, readConfigOrNull } = require('./lib/session-store');
 const { computeSessionState } = require('./lib/phase');
 const { computeIdleness } = require('./lib/staleness');
 const { getSeed, removeSeed } = require('./lib/seeds-store');
-const { isWorkTree, isIgnored } = require('./lib/git');
+const { isWorkTree, isIgnored, isCommitted, worktreeProblems, addWorktree, worktreeRoot } = require('./lib/git');
 const { needsSetup } = require('./lib/setup');
-const { UsageError, slugify } = require('./lib/guard');
+const { recordEvent } = require('./lib/history');
+const { GpsError, UsageError, slugify, localDate, readJson } = require('./lib/guard');
+
+// --worktree: validates, then creates the worktree and its branch. Returns
+// { root, gitInfo } (root: where the session is created).
+function prepareWorktree(projectRoot, featureName, options) {
+  const now = new Date();
+  const slug = slugify(featureName, now);
+  const sessionId = `${localDate(now)}__${slug}`;
+  const branch = options.branch || `${options.issue ? 'fix' : 'feat'}/${slug.replace(/_/g, '-')}`;
+  const worktreePath = path.resolve(projectRoot, options.path || path.join(worktreeRoot(projectRoot), sessionId));
+  const problems = worktreeProblems(projectRoot, worktreePath, branch);
+  if (isWorkTree(projectRoot) && !isCommitted(projectRoot, '.work/gps-config.json')) {
+    problems.push('.work/gps-config.json is not committed on this branch. Run /gps init here first, so every worktree session shares it.');
+  }
+  if (problems.length > 0) {
+    throw new GpsError(`Cannot create the session worktree; nothing was changed:\n- ${problems.join('\n- ')}`,
+      'Fix the items above (--branch and --path choose other names), or start without --worktree.');
+  }
+  let gitInfo;
+  try {
+    gitInfo = addWorktree(projectRoot, worktreePath, branch);
+  } catch (err) {
+    throw new GpsError(`${err.message}. Nothing was changed.`, 'Fix the cause git reports, then run /gps start --worktree again.');
+  }
+  return { root: gitInfo.worktree_path, gitInfo };
+}
 
 // The report for an unfinished session of the same name; reads only.
 function resumeReport(sessionsDir, found, wantIssue, warn) {
@@ -54,19 +84,45 @@ function resumeReport(sessionsDir, found, wantIssue, warn) {
 }
 
 main({
-  usage: 'start.js <feature-name...> [--issue] [--json]',
+  usage: 'start.js <feature-name...> [--issue] [--worktree [--path <dir>] [--branch <name>]] [--json]',
   positionals: { min: 1, max: Infinity },
-  options: { issue: 'boolean' },
-  run({ positionals, options, projectRoot, warn }) {
+  options: { issue: 'boolean', worktree: 'boolean', path: 'string', branch: 'string' },
+  run({ positionals, options, projectRoot: checkoutRoot, warn }) {
     const featureName = positionals.join(' ').trim();
     if (!featureName) throw new UsageError('Missing feature name.');
+    if (!options.worktree && (options.path || options.branch)) throw new UsageError('--path and --branch need --worktree.');
+    let projectRoot = checkoutRoot;
     // Before anything writes: an unfinished session of the same name is resumed, not duplicated.
     const sessionsDir = sessionsDirOf(projectRoot);
     const found = findUnfinishedBySlug(sessionsDir, slugify(featureName));
     if (found) return resumeReport(sessionsDir, found, Boolean(options.issue), warn);
     // Detects GitHub once; a corrupt file aborts before anything is created.
+    // A worktree session needs the project config committed: every
+    // worktree then shares it, and parallel branches cannot each add their own.
+    if (!options.worktree) {
+      const active = readCurrentPointer(sessionsDir);
+      const activeConfig = active && readConfigOrNull(sessionsDir, active);
+      if (activeConfig && !activeConfig.finished_at) {
+        warn(`Session ${active} is still unfinished in this checkout and is no longer current. `
+          + 'To run sessions in parallel, start each with --worktree (one git worktree per session).');
+      }
+    }
+    let worktree = null;
+    if (options.worktree) {
+      worktree = prepareWorktree(projectRoot, featureName, options);
+      projectRoot = worktree.root;
+    }
     const github = ensureProjectConfig(projectRoot).github.enabled;
-    const session = initSession(projectRoot, featureName, options.issue ? { kind: 'issue' } : {});
+    const extra = { ...(options.issue ? { kind: 'issue' } : {}), ...(worktree ? { git: worktree.gitInfo } : {}) };
+    const session = initSession(projectRoot, featureName, extra);
+    if (worktree) {
+      const configPath = path.join(session.workDir, '.session-config.json');
+      recordEvent(configPath, readJson(configPath), session.workDir, {
+        event: 'branch_created',
+        detail: { branch: worktree.gitInfo.branch, base: worktree.gitInfo.base_branch, worktree: worktree.root },
+        at: worktree.gitInfo.branch_created_at,
+      });
+    }
 
     const seed = getSeed(session.sessionsDir, session.slug);
     if (seed) removeSeed(session.sessionsDir, session.slug);
@@ -81,6 +137,9 @@ main({
 
     const resumePath = path.join(session.grillDir, 'resume.md');
     const lines = [`✅ Session started: ${session.sessionId}${options.issue ? ' (issue)' : ''}`];
+    if (worktree) {
+      lines.push(`🌳 Worktree: ${worktree.root} on branch ${worktree.gitInfo.branch} (from ${worktree.gitInfo.base_branch})`);
+    }
     if (session.cleaned) lines.push(`Feature name "${featureName}" cleaned to "${session.slug}".`);
     lines.push(`Path: ${session.workDir}`, `Scratch dir: ${session.scratchDir} (run/test artifacts go here)`);
     for (const entry of session.gitignoreAdded) lines.push(`Added "${entry}" to .gitignore`);
@@ -93,12 +152,16 @@ main({
         + 'so it stays out of this session\'s commits.');
     }
     const issueNote = options.issue && github ? ' and files the GitHub issue' : '';
+    if (worktree) lines.push('', `Work in ${worktree.root} from now on: run every command and edit every file there.`);
     lines.push('', `Next: run the grill${options.issue ? ', framed as a report (problem, reproduction, expected result)' : ''}. `
       + `Once the design is approved, /gps plan (or /gps write) saves it to ${resumePath}${issueNote}.`);
 
     return {
       text: lines.join('\n'),
-      data: { ...session, resumable: false, kind: options.issue ? 'issue' : 'feature', github, seed, resumePath },
+      data: {
+        ...session, resumable: false, kind: options.issue ? 'issue' : 'feature', github, seed, resumePath,
+        worktree: worktree ? { path: worktree.root, ...worktree.gitInfo } : null,
+      },
     };
   },
 });

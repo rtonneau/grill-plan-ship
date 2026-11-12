@@ -28,7 +28,7 @@ Write only inside `.work/<skill-name>/`, using a name that is not one of the pat
 - **Commit your own files.** gps doesn't commit them.
 - **Keep per-machine files out of git.** Add them to `.gitignore` yourself. gps's own per-machine path is `.scratch/` only; its session pointer, seeds and payloads are committed (decision 0012).
 - **Read session state from the files before acting on a session.** Don't infer it from folder names. The files to read:
-  - `.work/sessions/.current-session`: the current session's id. It is absent when there is none.
+  - `.work/sessions/.current-session`: the current session's id. It is absent when there is none. It is per branch: each git worktree running a session (`/gps start --worktree`) has its own, and `/gps finish` deletes it in its final commit so merged session branches don't conflict on it (decision 0017). The glossary, ADRs and `.work/gps-config.json` are shared by every worktree and merged by git.
   - `.work/sessions/<id>/.session-config.json`
   - `02-plan/plan.md` and `02-plan/tickets/` in that session.
 - **Rely only on the stable `.session-config.json` fields**, and know when each one can be missing:

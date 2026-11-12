@@ -49,7 +49,7 @@ const h = require('./helpers');
   fs.appendFileSync(path.join(root, 'app.js'), '// remaining\n');
   fs.writeFileSync(path.join(root, '.git', 'hooks', 'pre-commit'), '#!/bin/sh\nexit 1\n', { mode: 0o755 });
   h.assertFails(h.run(root, 'finish.js'), 1, /session remains open/);
-  assert.strictEqual(h.git(remote, 'for-each-ref', '--format=%(refname)', 'refs/heads'), '');
+  assert.strictEqual(h.git(root, '--git-dir', remote, 'for-each-ref', '--format=%(refname)', 'refs/heads'), '');
   assert.strictEqual(h.git(root, 'branch', '--show-current'), 'feat/no-push');
   assert.strictEqual(h.currentSession(root), id);
   assert.strictEqual(fs.readFileSync(h.configPath(root), 'utf-8'), before);
@@ -247,6 +247,37 @@ const h = require('./helpers');
   fs.writeFileSync(path.join(rBuild, 'obj.bin'), 'x');
   h.assertFails(h.run(refused, 'finish.js'), 1, /not Done/);
   assert.ok(fs.existsSync(path.join(rBuild, 'obj.bin')));
+}
+
+{
+  // Two worktree sessions run small work in parallel: each finish prints merge
+  // and worktree-removal steps, never switches branch, and both branches merge
+  // into main with no conflict (the pointer is cleared in each finish commit).
+  const root = h.gitProject('gps-fin-wt-');
+  h.ok(root, 'init.js', ['--apply']);
+  const trees = ['alpha', 'beta'].map((name) => {
+    const wt = h.json(root, 'start.js', [name, '--worktree']).worktree.path;
+    h.writeGrill(wt);
+    fs.writeFileSync(path.join(wt, `${name}.js`), `// ${name}\n`);
+    h.git(wt, 'add', `${name}.js`);
+    h.git(wt, 'commit', '-qm', `feat: ${name}`);
+    return { name, wt };
+  });
+  for (const { name, wt } of trees) {
+    const res = h.ok(wt, 'finish.js');
+    assert.match(res.out, new RegExp(`🔀 Merge feat/${name} into main from the checkout that has main`));
+    assert.match(res.out, /🌳 Worktree .+ is no longer needed after the merge: git worktree remove .+ \(gps never removes it\)/);
+    assert.doesNotMatch(res.out + res.err, /Pull request|Still on/);
+    assert.strictEqual(h.git(wt, 'branch', '--show-current'), `feat/${name}`);
+    assert.ok(fs.existsSync(wt), 'the worktree is left in place');
+    assert.ok(!fs.existsSync(path.join(wt, '.work', 'sessions', '.current-session')));
+  }
+  h.git(root, 'merge', '-q', '--no-ff', '-m', 'merge alpha', 'feat/alpha');
+  h.git(root, 'merge', '-q', '--no-ff', '-m', 'merge beta', 'feat/beta');
+  assert.ok(fs.existsSync(path.join(root, 'alpha.js')) && fs.existsSync(path.join(root, 'beta.js')));
+  assert.ok(!fs.existsSync(path.join(root, '.work', 'sessions', '.current-session')));
+  assert.strictEqual(fs.readdirSync(h.sessionsDir(root)).filter((d) => !d.startsWith('.')).length, 2);
+  for (const { wt } of trees) h.git(root, 'worktree', 'remove', '--force', wt);
 }
 
 h.done('finish.test.js');

@@ -206,4 +206,38 @@ for (const phase of ['grill', 'plan']) {
   }
 }
 
+{
+  // A worktree session's plan renames the provisional branch start --worktree made; another checked-out branch is refused.
+  const root = h.gitProject('gps-wt-plan-');
+  h.ok(root, 'init.js', ['--apply']);
+  const wt = h.json(root, 'start.js', ['wtplan', '--worktree']).worktree.path;
+  h.writeGrill(wt);
+  h.ok(wt, 'plan.js');
+  const prep = h.json(wt, 'write-prepare.js');
+  assert.ok(prep.fields.includes('Branch'), 'the plan payload asks for the branch name');
+  fs.writeFileSync(prep.payloadPath, h.planPayload(prep, [{ slug: 'one' }], { branch: 'feat/clever-name' }));
+  h.git(wt, 'switch', '-q', '-c', 'feat/elsewhere');
+  h.assertFails(h.run(wt, 'write-apply.js'), 1, /works on branch feat\/wtplan, but feat\/elsewhere is checked out/);
+  h.git(wt, 'switch', '-q', 'feat/wtplan');
+  h.git(wt, 'branch', '-q', '-D', 'feat/elsewhere');
+  const res = h.ok(wt, 'write-apply.js');
+  assert.match(res.out, /🌿 Branch renamed feat\/wtplan → feat\/clever-name/);
+  assert.strictEqual(h.git(wt, 'branch', '--show-current'), 'feat/clever-name');
+  assert.ok(!h.git(root, 'branch', '--list', 'feat/wtplan'));
+  assert.strictEqual(h.readConfig(wt).git.branch, 'feat/clever-name');
+  assert.ok(h.history(wt).some((e) => e.event === 'branch_renamed' && e.detail.to === 'feat/clever-name'));
+
+  // Keeping the name, or a pushed branch, leaves it alone.
+  const keep = h.json(root, 'start.js', ['keep', '--worktree']).worktree.path;
+  h.writeGrill(keep);
+  h.ok(keep, 'plan.js');
+  const keepPrep = h.json(keep, 'write-prepare.js');
+  h.git(keep, 'update-ref', 'refs/remotes/origin/feat/keep', 'HEAD');
+  fs.writeFileSync(keepPrep.payloadPath, h.planPayload(keepPrep, [{ slug: 'one' }], { branch: 'feat/other-name' }));
+  const kept = h.ok(keep, 'write-apply.js');
+  assert.match(kept.err, /feat\/keep is already pushed, so the worktree session keeps it/);
+  assert.strictEqual(h.git(keep, 'branch', '--show-current'), 'feat/keep');
+  fs.rmSync(path.dirname(wt), { recursive: true, force: true });
+}
+
 h.done('write-apply.test.js');
