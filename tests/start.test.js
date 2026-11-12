@@ -217,4 +217,44 @@ const daysAgo = (n) => new Date(Date.now() - n * 86400000);
   assert.doesNotMatch(h.ok(h.tempProject(), 'start.js', ['three']).out, /Tip: \/gps init/);
 }
 
+{
+  // --worktree: a linked worktree on the session branch holds the session; the main checkout is untouched.
+  const root = h.gitProject('gps-wt-');
+  const res = h.ok(root, 'start.js', ['para', '--worktree']);
+  const id = res.out.match(/Session started: (\S+)/)[1];
+  const wt = path.join(path.dirname(root), `${path.basename(root)}-worktrees`, id);
+  assert.match(res.out, /🌳 Worktree: .+ on branch feat\/para \(from main\)/);
+  assert.match(res.out, /Work in .+ from now on/);
+  assert.match(res.out, /\nNext: run the grill/);
+  assert.strictEqual(h.git(wt, 'branch', '--show-current'), 'feat/para');
+  assert.strictEqual(h.git(root, 'branch', '--show-current'), 'main');
+  assert.strictEqual(h.currentSession(wt), id);
+  assert.ok(!fs.existsSync(path.join(root, '.work', 'sessions', '.current-session')), 'main checkout has no pointer');
+  const config = h.readConfig(wt);
+  assert.strictEqual(config.git.branch, 'feat/para');
+  assert.strictEqual(config.git.base_branch, 'main');
+  assert.deepStrictEqual(h.history(wt).map((e) => e.event), ['session_started', 'branch_created']);
+
+  // A second session runs in parallel in its own worktree.
+  const two = h.json(root, 'start.js', ['other', '--worktree', '--issue']);
+  assert.strictEqual(two.worktree.branch, 'fix/other');
+  assert.strictEqual(h.currentSession(two.worktree.path), two.sessionId);
+  assert.strictEqual(h.currentSession(wt), id);
+
+  // An existing path or branch is refused before anything is written.
+  const taken = h.run(root, 'start.js', ['third', '--worktree', '--branch', 'feat/para']);
+  h.assertFails(taken, 1, /feat\/para" already exists/);
+  const busy = path.join(h.tempProject(), 'x');
+  fs.mkdirSync(busy);
+  h.assertFails(h.run(root, 'start.js', ['fourth', '--worktree', '--path', busy]), 1, /already exists\. Pick another location/);
+  assert.ok(!h.git(root, 'branch', '--list', 'feat/fourth'), 'no branch was created');
+  fs.rmSync(path.join(path.dirname(root), `${path.basename(root)}-worktrees`), { recursive: true, force: true });
+}
+
+{
+  // --worktree outside git is refused; --path without --worktree is a usage error.
+  h.assertFails(h.run(h.tempProject(), 'start.js', ['x', '--worktree']), 1, /Not inside a git work tree/);
+  h.assertFails(h.run(h.tempProject(), 'start.js', ['x', '--path', 'p']), 2, /need --worktree/);
+}
+
 h.done('start.test.js');

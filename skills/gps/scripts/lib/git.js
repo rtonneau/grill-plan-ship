@@ -237,6 +237,46 @@ function createSessionBranch(projectRoot, name) {
   return { branch: name, base_branch: base, branch_created_at: new Date().toISOString(), pr_url: null };
 }
 
+// Problems that stop `git worktree add -b branch worktreePath` from the
+// project's HEAD, checked before anything is created: [] when it can run.
+function worktreeProblems(projectRoot, worktreePath, branch) {
+  if (!isWorkTree(projectRoot)) return ['Not inside a git work tree: --worktree needs a git repository.'];
+  const problems = validateBranchName(projectRoot, branch).filter((e) => !/^Missing field/.test(e));
+  if (fs.existsSync(worktreePath)) problems.push(`${worktreePath} already exists. Pick another location with --path.`);
+  return problems;
+}
+
+// Creates a linked worktree at `worktreePath` on a new branch `branch` from
+// HEAD. Returns the session's `git` record (the base is the branch checked
+// out here). Throws with git's reason.
+function addWorktree(projectRoot, worktreePath, branch) {
+  const base = sessionBaseBranch(projectRoot);
+  try {
+    git(projectRoot, ['worktree', 'add', '-q', '-b', branch, worktreePath]);
+  } catch (err) {
+    throw new Error(`git worktree add -b ${branch} ${worktreePath} failed: ${failureReason(err)}`);
+  }
+  return {
+    branch, base_branch: base, branch_created_at: new Date().toISOString(), pr_url: null,
+    worktree_path: path.resolve(worktreePath),
+  };
+}
+
+// The folder that holds the checkout's top level: default parent of new worktrees.
+function worktreeRoot(projectRoot) {
+  const top = tryGit(projectRoot, ['rev-parse', '--show-toplevel']);
+  const base = top ? path.resolve(top) : path.resolve(projectRoot);
+  return path.join(path.dirname(base), `${path.basename(base)}-worktrees`);
+}
+
+// True when `projectRoot` is in a linked worktree (not the main checkout).
+function isLinkedWorktree(projectRoot) {
+  const gitDir = tryGit(projectRoot, ['rev-parse', '--git-dir']);
+  const common = tryGit(projectRoot, ['rev-parse', '--git-common-dir']);
+  if (!gitDir || !common) return false;
+  return path.resolve(projectRoot, gitDir) !== path.resolve(projectRoot, common);
+}
+
 // Never throws: { ok: true } or { ok: false, reason, commands }.
 function switchBranch(projectRoot, name) {
   try {
@@ -565,6 +605,10 @@ module.exports = {
   failureReason,
   isWorkTree,
   gitPrivatePath,
+  worktreeProblems,
+  addWorktree,
+  worktreeRoot,
+  isLinkedWorktree,
   originUrl,
   currentBranch,
   sessionBaseBranch,
