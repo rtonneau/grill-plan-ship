@@ -62,6 +62,30 @@
       "detail": {
         "tickets": 5
       }
+    },
+    {
+      "at": "2026-11-12T09:57:24.145Z",
+      "event": "ticket_started",
+      "phase": "ship",
+      "files": [
+        "02-plan/tickets/01-start-worktree.md",
+        "03-implement/01-start-worktree/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "01-start-worktree"
+      }
+    },
+    {
+      "at": "2026-11-12T09:59:30.829Z",
+      "event": "ticket_done",
+      "phase": "ship",
+      "files": [
+        "03-implement/01-start-worktree/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "01-start-worktree",
+        "commit": "85339ef"
+      }
     }
   ],
   "current_phase": "ship",
@@ -70,5 +94,6 @@
     "base_branch": "codex/reusable-roles",
     "branch_created_at": "2026-11-12T09:57:15.566Z",
     "pr_url": null
-  }
+  },
+  "ship_mode": "inline"
 }
