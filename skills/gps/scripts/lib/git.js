@@ -269,6 +269,18 @@ function worktreeRoot(projectRoot) {
   return path.join(path.dirname(base), `${path.basename(base)}-worktrees`);
 }
 
+// The repository's worktrees ([{ path, branch }], branch null when
+// detached), the main checkout first; [] outside git.
+function listWorktrees(projectRoot) {
+  const out = tryGit(projectRoot, ['worktree', 'list', '--porcelain']);
+  if (!out) return [];
+  return out.split(/\r?\n\r?\n/).map((block) => {
+    const dir = /^worktree (.+)$/m.exec(block);
+    const ref = /^branch refs\/heads\/(.+)$/m.exec(block);
+    return dir ? { path: path.resolve(dir[1]), branch: ref ? ref[1] : null } : null;
+  }).filter(Boolean);
+}
+
 // True when `projectRoot` is in a linked worktree (not the main checkout).
 function isLinkedWorktree(projectRoot) {
   const gitDir = tryGit(projectRoot, ['rev-parse', '--git-dir']);
@@ -615,6 +627,7 @@ module.exports = {
   addWorktree,
   worktreeRoot,
   isLinkedWorktree,
+  listWorktrees,
   originUrl,
   currentBranch,
   sessionBaseBranch,

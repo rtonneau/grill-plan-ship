@@ -28,7 +28,7 @@ const path = require('path');
 const { main } = require('./lib/cli');
 const { ensureProjectConfig } = require('./lib/project-config');
 const { initSession } = require('./lib/session-init');
-const { sessionsDirOf, findUnfinishedBySlug, readCurrentPointer } = require('./lib/session-store');
+const { sessionsDirOf, findUnfinishedBySlug, readCurrentPointer, readConfigOrNull } = require('./lib/session-store');
 const { computeSessionState } = require('./lib/phase');
 const { computeIdleness } = require('./lib/staleness');
 const { getSeed, removeSeed } = require('./lib/seeds-store');
@@ -99,6 +99,14 @@ main({
     // Detects GitHub once; a corrupt file aborts before anything is created.
     // A worktree session needs the project config committed: every
     // worktree then shares it, and parallel branches cannot each add their own.
+    if (!options.worktree) {
+      const active = readCurrentPointer(sessionsDir);
+      const activeConfig = active && readConfigOrNull(sessionsDir, active);
+      if (activeConfig && !activeConfig.finished_at) {
+        warn(`Session ${active} is still unfinished in this checkout and is no longer current. `
+          + 'To run sessions in parallel, start each with --worktree (one git worktree per session).');
+      }
+    }
     let worktree = null;
     if (options.worktree) {
       worktree = prepareWorktree(projectRoot, featureName, options);

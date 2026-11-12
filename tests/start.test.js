@@ -263,4 +263,12 @@ const daysAgo = (n) => new Date(Date.now() - n * 86400000);
   h.assertFails(h.run(h.tempProject(), 'start.js', ['x', '--path', 'p']), 2, /need --worktree/);
 }
 
+{
+  // Starting a second session in the same checkout warns that the first is still unfinished.
+  const root = h.tempProject();
+  assert.strictEqual(h.ok(root, 'start.js', ['first']).err, '');
+  const second = h.ok(root, 'start.js', ['second']);
+  assert.match(second.err, /__first is still unfinished in this checkout.*--worktree/);
+}
+
 h.done('start.test.js');
