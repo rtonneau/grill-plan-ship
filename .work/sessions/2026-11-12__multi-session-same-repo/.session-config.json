@@ -134,6 +134,30 @@
         "ticket": "03-finish-worktree",
         "commit": "684128f"
       }
+    },
+    {
+      "at": "2026-11-12T10:10:44.269Z",
+      "event": "ticket_started",
+      "phase": "ship",
+      "files": [
+        "02-plan/tickets/04-active-session-warning.md",
+        "03-implement/04-active-session-warning/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "04-active-session-warning"
+      }
+    },
+    {
+      "at": "2026-11-12T10:13:50.694Z",
+      "event": "ticket_done",
+      "phase": "ship",
+      "files": [
+        "03-implement/04-active-session-warning/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "04-active-session-warning",
+        "commit": "53745db"
+      }
     }
   ],
   "current_phase": "ship",
