@@ -110,6 +110,30 @@
         "ticket": "02-plan-reuse-branch",
         "commit": "9c1dfb8"
       }
+    },
+    {
+      "at": "2026-11-12T10:00:46.973Z",
+      "event": "ticket_started",
+      "phase": "ship",
+      "files": [
+        "02-plan/tickets/03-finish-worktree.md",
+        "03-implement/03-finish-worktree/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "03-finish-worktree"
+      }
+    },
+    {
+      "at": "2026-11-12T10:10:43.878Z",
+      "event": "ticket_done",
+      "phase": "ship",
+      "files": [
+        "03-implement/03-finish-worktree/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "03-finish-worktree",
+        "commit": "684128f"
+      }
     }
   ],
   "current_phase": "ship",
