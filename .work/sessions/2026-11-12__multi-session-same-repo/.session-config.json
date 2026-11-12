@@ -86,6 +86,30 @@
         "ticket": "01-start-worktree",
         "commit": "85339ef"
       }
+    },
+    {
+      "at": "2026-11-12T09:59:38.083Z",
+      "event": "ticket_started",
+      "phase": "ship",
+      "files": [
+        "02-plan/tickets/02-plan-reuse-branch.md",
+        "03-implement/02-plan-reuse-branch/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "02-plan-reuse-branch"
+      }
+    },
+    {
+      "at": "2026-11-12T10:00:45.837Z",
+      "event": "ticket_done",
+      "phase": "ship",
+      "files": [
+        "03-implement/02-plan-reuse-branch/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "02-plan-reuse-branch",
+        "commit": "9c1dfb8"
+      }
     }
   ],
   "current_phase": "ship",
