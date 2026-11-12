@@ -1,8 +1,9 @@
-# /gps start [--issue] <name>
+# /gps start [--issue] [--worktree] <name>
 
 **When:** beginning any change, or with `--issue` a bug or small request (on a GitHub project saving the grill files it as a GitHub issue).
 
 1. `start.js [--issue] "<name>"`. Relay it. A seed block means `/gps scout` proposed this work: start from it.
+   - **`--worktree`** (the user wants sessions in parallel, or `start.js` warned that another session is unfinished here): `start.js --worktree [--path <dir>] [--branch <name>] "<name>"` creates a git worktree on the session branch. From then on run every command and edit every file in the 🌳 path it prints. Refused until `/gps init` has committed the project config.
    - **`↩️ Session … already exists`** (nothing was written). `Current session: no`: ask "Continue session X?" (host question rule). Yes → `set-current.js <id> --confirmed`; no → stop and suggest another name. Then, or when already current: grill phase → continue from HANDOFF.md, the glossary and ADRs, saying the earlier conversation was not saved; saved resume without a plan → inspect the resume and git diff/log, then continue *Small work* if the scope is still small, keeping completed work; otherwise follow the printed `Next:`.
 2. **Size the work** from the request and a look at the code, and say the size in one line; the user can overrule it.
    - **Small:** one clear, low-risk change with nothing for the user to decide. Follow *Small work*.

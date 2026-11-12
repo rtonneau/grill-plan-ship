@@ -39,7 +39,7 @@ Turn a request into verified, delivered code, with as much process as the work d
 |---|---|---|
 | `/gps init` | Check the project and commit gps's setup once (optional) | `references/init.md` |
 | `/gps scout [--from <review-file>] [direction]` | Review the codebase's architecture (or read a review file with `--from`) and turn the findings into seeds for `/gps start` | `references/scout.md` |
-| `/gps start [--issue] <name>` | New session sized to the work: small changes go straight to implementation, others to the grill (`--issue`: a report, filed as a GitHub issue) | `references/start.md` |
+| `/gps start [--issue] [--worktree] <name>` | New session sized to the work: small changes go straight to implementation, others to the grill (`--issue`: a report, filed as a GitHub issue; `--worktree`: its own git worktree, to run sessions in parallel) | `references/start.md` |
 | `/gps status` | Sessions, seeds, current phase and handoff, next command | `references/status.md` |
 | `/gps clean [id...]` | Delete sessions or drop seeds, after confirmation | `references/clean.md` |
 | `/gps config [--rescan]` | Show or re-detect the project's GitHub flag | `references/config.md` |
