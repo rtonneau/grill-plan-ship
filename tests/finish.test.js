@@ -49,7 +49,7 @@ const h = require('./helpers');
   fs.appendFileSync(path.join(root, 'app.js'), '// remaining\n');
   fs.writeFileSync(path.join(root, '.git', 'hooks', 'pre-commit'), '#!/bin/sh\nexit 1\n', { mode: 0o755 });
   h.assertFails(h.run(root, 'finish.js'), 1, /session remains open/);
-  assert.strictEqual(h.git(remote, 'for-each-ref', '--format=%(refname)', 'refs/heads'), '');
+  assert.strictEqual(h.git(root, '--git-dir', remote, 'for-each-ref', '--format=%(refname)', 'refs/heads'), '');
   assert.strictEqual(h.git(root, 'branch', '--show-current'), 'feat/no-push');
   assert.strictEqual(h.currentSession(root), id);
   assert.strictEqual(fs.readFileSync(h.configPath(root), 'utf-8'), before);
