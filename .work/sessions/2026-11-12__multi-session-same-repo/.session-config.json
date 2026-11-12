@@ -158,9 +158,33 @@
         "ticket": "04-active-session-warning",
         "commit": "53745db"
       }
+    },
+    {
+      "at": "2026-11-12T10:13:51.488Z",
+      "event": "ticket_started",
+      "phase": "ship",
+      "files": [
+        "02-plan/tickets/05-docs-worktree-sessions.md",
+        "03-implement/05-docs-worktree-sessions/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "05-docs-worktree-sessions"
+      }
+    },
+    {
+      "at": "2026-11-12T10:23:14.122Z",
+      "event": "ticket_done",
+      "phase": "finish-pending",
+      "files": [
+        "03-implement/05-docs-worktree-sessions/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "05-docs-worktree-sessions",
+        "commit": "81ecd25"
+      }
     }
   ],
-  "current_phase": "ship",
+  "current_phase": "finish-pending",
   "git": {
     "branch": "feat/worktree-sessions",
     "base_branch": "codex/reusable-roles",
