@@ -5,8 +5,9 @@
  *
  * /gps ship: prepares one ticket for implementation (the next pending one
  * when no number is given): creates 03-implement/NN-<slug>/ and its
- * commit-log.md, records a `ticket_started` event (once), and prints the
- * spec, the log and the scratch dir. When every ticket is done it says so and points at
+ * commit-log.md, records a `ticket_started` event (once) and, when the ticket
+ * has an open block, a `ticket_resumed` event, and prints the spec, the log
+ * and the scratch dir. When every ticket is done it says so and points at
  * /gps finish. --mode records the ship mode as config.ship_mode (ticket-queue.js
  * prints it); the pre-3.0 names subagent and subagent+inline are stored as delegate.
  *
@@ -24,7 +25,8 @@ const { resolveSession } = require('./lib/session-store');
 const { allDoneNext } = require('./lib/project-config');
 const { SHIP_MODES, normalizeShipMode, isTicketDone } = require('./lib/ticket-queue');
 const { findTicketByNumber, readyTickets } = require('./lib/ticket-lookup');
-const { hasEvent, recordEvent, sessionPath } = require('./lib/history');
+const { getHistory, hasEvent, recordEvent, sessionPath } = require('./lib/history');
+const { openBlock } = require('./lib/ticket-state');
 const { ensureScratchDir } = require('./lib/scratch-dir');
 const { UsageError, writeJsonAtomic } = require('./lib/guard');
 
@@ -65,6 +67,7 @@ main({
 
     fs.mkdirSync(ticket.implDir, { recursive: true });
     const alreadyStarted = hasEvent(config, 'ticket_started', { ticket: key });
+    const blocked = openBlock(getHistory(config), key);
     if (!config.scratch_dir) warn(`${sessionId} predates scratch dirs; adding scratch_dir to its config.`);
     const scratchDir = ensureScratchDir(projectRoot, sessionId);
     config.scratch_dir = scratchDir;
@@ -79,6 +82,13 @@ main({
       recordEvent(configPath, config, sessionDir, {
         event: 'ticket_started',
         files: [sessionPath(sessionDir, ticket.ticketPath), sessionPath(sessionDir, ticket.commitLogPath)],
+        detail: { ticket: key },
+      });
+    }
+    if (blocked) {
+      recordEvent(configPath, config, sessionDir, {
+        event: 'ticket_resumed',
+        files: [sessionPath(sessionDir, ticket.commitLogPath)],
         detail: { ticket: key },
       });
     }
