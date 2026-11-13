@@ -85,6 +85,30 @@
         "ticket": "01-ticket-state",
         "commit": "e9e5a9b"
       }
+    },
+    {
+      "at": "2026-11-13T07:40:47.229Z",
+      "event": "ticket_started",
+      "phase": "ship",
+      "files": [
+        "02-plan/tickets/02-status-json-v2.md",
+        "03-implement/02-status-json-v2/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "02-status-json-v2"
+      }
+    },
+    {
+      "at": "2026-11-13T07:44:43.889Z",
+      "event": "ticket_done",
+      "phase": "ship",
+      "files": [
+        "03-implement/02-status-json-v2/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "02-status-json-v2",
+        "commit": "67960aa"
+      }
     }
   ],
   "current_phase": "ship",
