@@ -7,6 +7,11 @@
  * drift), every scouted seed not started yet, and for the current session
  * its phase, tickets, recent commits and saved handoff (with drift against
  * live state), ending with the next command to run. Read-only.
+ *
+ * --json prints the status schema (docs/STATUS-JSON.md), headed by
+ * schemaVersion and gpsVersion. A project with no session and no seed is
+ * an empty report there (currentProblem no-work-dir or no-sessions, exit 0);
+ * the text mode fails with "No sessions found." instead.
  */
 
 const fs = require('fs');
@@ -14,7 +19,8 @@ const path = require('path');
 const { main } = require('./lib/cli');
 const { sessionsDirOf, readCurrentPointer, readConfigOrNull } = require('./lib/session-store');
 const { listWorktrees } = require('./lib/git');
-const { buildStatusReport, renderStatus } = require('./lib/status');
+const { buildStatusReport, emptyStatusReport, renderStatus } = require('./lib/status');
+const { contractHeader } = require('./lib/plugin-version');
 const { GpsError } = require('./lib/guard');
 
 function sameDirectory(left, right) {
@@ -55,13 +61,16 @@ function withWorktrees(text, worktrees) {
 
 main({
   usage: 'status.js [--json]',
-  run({ projectRoot }) {
+  run({ projectRoot, options }) {
     const sessionsDir = sessionsDirOf(projectRoot);
-    const noSessions = new GpsError('No sessions found.', 'Run /gps start <feature-name> (or /gps scout for seeds) first.');
-    if (!fs.existsSync(sessionsDir)) throw noSessions;
-    const report = buildStatusReport(sessionsDir, projectRoot);
-    if (report.sessions.length === 0 && report.seeds.length === 0 && !report.seedsProblem) throw noSessions;
+    const hasWorkDir = fs.existsSync(sessionsDir);
+    const built = hasWorkDir ? buildStatusReport(sessionsDir, projectRoot) : null;
+    const empty = !built || (built.sessions.length === 0 && built.seeds.length === 0 && !built.seedsProblem);
+    if (empty && !options.json) {
+      throw new GpsError('No sessions found.', 'Run /gps start <feature-name> (or /gps scout for seeds) first.');
+    }
+    const report = { ...contractHeader(), ...(empty ? emptyStatusReport(hasWorkDir ? 'no-sessions' : 'no-work-dir') : built) };
     report.worktrees = otherWorktreeSessions(projectRoot);
-    return { text: withWorktrees(renderStatus(report), report.worktrees), data: report };
+    return { text: empty ? '' : withWorktrees(renderStatus(report), report.worktrees), data: report };
   },
 });
