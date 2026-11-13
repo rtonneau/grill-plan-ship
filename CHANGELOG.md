@@ -2,6 +2,16 @@
 
 All notable changes to grill-plan-ship. Versions follow [semantic versioning](https://semver.org/).
 
+## 3.2.0 (2026-11-13)
+
+- `/gps release` bumps a Cargo workspace: the `[workspace.package]` version and the path dependencies pinned to the old version move together. Workspace members outside the project are warned about and left alone.
+- A saved version list that came from detection is checked again on each release, so a version file added later is picked up; saved entries stay.
+- `release.postBump` runs shell commands (such as a lockfile refresh) after the version files are written. Changed tracked files join the release commit, and a failing command puts everything back. The commands run only once you approve the exact list, with `--approve-post-bump`.
+- `/gps release --publish [--version X.Y.Z]` preapproves a release: it cuts the suggested (or given) version, pushes the commit and tag and creates the GitHub Release in one call, asking nothing. After a failed push, running it again resumes at the push. `/gps auto` still never releases.
+- `/gps start --worktree` runs a session in its own git worktree and branch, so several sessions can run in parallel on one repository (requires `/gps init`); saving the plan renames the worktree's provisional branch to the plan's branch name.
+- `/gps status` lists the sessions active in other worktrees, and `/gps start` warns when another session is still unfinished in the checkout.
+- `/gps finish` in a worktree session keeps the branch checked out, opens the pull request on GitHub or prints merge steps otherwise, and prints the `git worktree remove` command.
+
 ## 3.1.1 (2026-11-05)
 
 - Grill and other questions now go through the host's question tool (with concrete options and a recommended answer) instead of plain chat text.
