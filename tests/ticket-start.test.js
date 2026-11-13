@@ -44,6 +44,18 @@ const h = require('./helpers');
   h.ok(root, 'ticket-start.js', ['1']);
   assert.match(fs.readFileSync(log, 'utf-8'), /WORK IN PROGRESS NOTES/);
 
+  // Starting a blocked ticket records ticket_resumed; an unblocked one records nothing more.
+  h.ok(root, 'ticket-block.js', ['1', '--reason', 'needs a key']);
+  h.ok(root, 'ticket-start.js', ['1']);
+  let resumed = h.history(root).filter((e) => e.event === 'ticket_resumed');
+  assert.strictEqual(resumed.length, 1);
+  assert.deepStrictEqual(resumed[0].detail, { ticket: '01-a' });
+  assert.deepStrictEqual(resumed[0].files, ['03-implement/01-a/commit-log.md']);
+  h.ok(root, 'ticket-start.js', ['1']);
+  resumed = h.history(root).filter((e) => e.event === 'ticket_resumed');
+  assert.strictEqual(resumed.length, 1, 'no second resume without a new block');
+  assert.strictEqual(h.history(root).filter((e) => e.event === 'ticket_started').length, 1);
+
   // A Done ticket is never reset; with no number the next one is picked.
   h.completeTicket(root, 1, 'a');
   const doneLog = fs.readFileSync(log, 'utf-8');

@@ -76,4 +76,37 @@ const h = require('./helpers');
   assert.match(res.out, /Next: \/gps status/);
 }
 
+{
+  // The command manifest: schema header, argument grammar and sendable, in step with SKILL.md.
+  const { COMMANDS } = require('../skills/gps/scripts/lib/commands');
+  const root = h.tempProject();
+  const data = h.json(root, 'help.js');
+  assert.strictEqual(data.schemaVersion, 2);
+  assert.strictEqual(data.gpsVersion, require('../package.json').version);
+  assert.deepStrictEqual(Object.keys(data).slice(0, 2), ['schemaVersion', 'gpsVersion']);
+
+  const skillNames = data.commands.map((c) => c.name).sort();
+  assert.deepStrictEqual(skillNames, Object.keys(COMMANDS).sort(), 'lib/commands.js and SKILL.md name the same commands');
+  assert.deepStrictEqual(data.commands.filter((c) => c.sendable).map((c) => c.name).sort(),
+    ['auto', 'finish', 'handoff', 'help', 'ship', 'status']);
+  for (const c of data.commands) {
+    assert.ok(Array.isArray(c.args), `${c.name} has args`);
+    for (const arg of c.args) {
+      assert.ok(['flag', 'enum', 'ticket', 'text', 'path'].includes(arg.kind), `${c.name}.${arg.name} kind`);
+      assert.strictEqual(typeof arg.optional, 'boolean');
+      // Every switch the manifest names appears in the command's usage.
+      for (const sw of [...(arg.kind === 'flag' ? arg.values : []), ...(arg.flag ? [arg.flag] : [])]) {
+        assert.ok(c.usage.includes(sw), `${c.usage} mentions ${sw}`);
+      }
+      if (arg.kind === 'enum') for (const v of arg.values) assert.ok(c.usage.includes(v), `${c.usage} mentions ${v}`);
+    }
+  }
+  const auto = data.commands.find((c) => c.name === 'auto');
+  assert.deepStrictEqual(auto.args.find((a) => a.name === 'target'),
+    { name: 'target', kind: 'enum', optional: true, values: ['plan', 'ship', 'finish'] });
+  assert.deepStrictEqual(data.commands.find((c) => c.name === 'ship').args[0], { name: 'ticket', kind: 'ticket', optional: true });
+  assert.strictEqual(h.json(root, 'help.js', ['status']).command.sendable, true);
+  assert.strictEqual(h.json(root, 'help.js', ['start']).command.sendable, false);
+}
+
 console.log('help.test.js: all assertions passed');

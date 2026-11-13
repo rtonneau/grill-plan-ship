@@ -20,10 +20,69 @@ function hashWork(root) {
 }
 
 {
-  // Nothing at all -> clear error.
+  // Nothing at all -> clear error in text; an empty report (exit 0) in JSON.
   const root = h.tempProject();
   h.assertFails(h.run(root, 'status.js'), 1, /No sessions found/);
   h.assertFails(h.run(root, 'status.js', ['--bogus']), 2, /Unknown option/);
+  const version = require('../package.json').version;
+  let report = h.json(root, 'status.js');
+  assert.deepStrictEqual(report, {
+    schemaVersion: 2, gpsVersion: version,
+    sessions: [], seeds: [], seedsProblem: null, finishRecovery: null, current: null,
+    currentProblem: { code: 'no-work-dir', message: 'No sessions found.', hint: 'Run /gps start <feature-name> (or /gps scout for seeds) first.' },
+    worktrees: [],
+  });
+  fs.mkdirSync(h.sessionsDir(root), { recursive: true });
+  h.assertFails(h.run(root, 'status.js'), 1, /No sessions found/);
+  report = h.json(root, 'status.js');
+  assert.strictEqual(report.currentProblem.code, 'no-sessions');
+  assert.strictEqual(report.schemaVersion, 2);
+}
+
+{
+  // Schema v2: ticket state and blocker replace done; recent events are listed.
+  const root = h.gitProject();
+  h.shipReady(root, 'v2', ['a', 'b']);
+  let current = h.json(root, 'status.js').current;
+  assert.deepStrictEqual(current.tickets.map((t) => [t.state, t.blocker]), [['pending', null], ['pending', null]]);
+  assert.ok(current.tickets.every((t) => !('done' in t)), 'done is gone from schema v2');
+  assert.strictEqual(current.nextPending.state, 'pending');
+  h.ok(root, 'ticket-start.js', ['1']);
+  h.ok(root, 'ticket-block.js', ['1', '--reason', 'needs a key']);
+  const report = h.json(root, 'status.js');
+  current = report.current;
+  assert.strictEqual(report.schemaVersion, 2);
+  assert.strictEqual(current.tickets[0].state, 'blocked');
+  assert.strictEqual(current.tickets[0].blocker.reason, 'needs a key');
+  assert.match(current.tickets[0].blocker.at, /^\d{4}-\d{2}-\d{2}T/);
+  assert.deepStrictEqual(current.nextPending.blocker, current.tickets[0].blocker);
+  const last = current.recentEvents[current.recentEvents.length - 1];
+  assert.deepStrictEqual(Object.keys(last), ['at', 'event', 'phase', 'detail']);
+  assert.strictEqual(last.event, 'ticket_blocked');
+  assert.deepStrictEqual(last.detail, { ticket: '01-a', reason: 'needs a key' });
+  assert.match(h.ok(root, 'status.js').out, /- ⛔ Blocked: 01 a — needs a key\n/);
+
+  // Resuming clears the block; done counts as before; only the last 10 events are kept.
+  h.ok(root, 'ticket-start.js', ['1']);
+  current = h.json(root, 'status.js').current;
+  assert.deepStrictEqual([current.tickets[0].state, current.tickets[0].blocker], ['started', null]);
+  assert.strictEqual(current.recentEvents[current.recentEvents.length - 1].event, 'ticket_resumed');
+  h.completeTicket(root, 1, 'a');
+  current = h.json(root, 'status.js').current;
+  assert.deepStrictEqual(current.tickets.map((t) => t.state), ['done', 'pending']);
+  for (let i = 0; i < 3; i += 1) {
+    h.ok(root, 'ticket-start.js', ['2']);
+    h.ok(root, 'ticket-block.js', ['2', '--reason', `try ${i}`]);
+  }
+  h.ok(root, 'ticket-start.js', ['2']);
+  current = h.json(root, 'status.js').current;
+  assert.deepStrictEqual(current.tickets.map((t) => t.state), ['done', 'started']);
+  assert.ok(h.history(root).length > 10);
+  assert.strictEqual(current.recentEvents.length, 10);
+  assert.deepStrictEqual(current.recentEvents.map((e) => e.event), h.history(root).slice(-10).map((e) => e.event));
+  const text = h.ok(root, 'status.js').out;
+  assert.match(text, /\*\*Tickets:\*\* 1\/2 done; next 02 b/);
+  assert.doesNotMatch(text, /Blocked/);
 }
 
 {

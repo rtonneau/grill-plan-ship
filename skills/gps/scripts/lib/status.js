@@ -15,6 +15,8 @@ const { readRecentCommits, gitPrivatePath } = require('./git');
 const { SEEDS_FILENAME, STRENGTHS, peekSeeds } = require('./seeds-store');
 const { computeIdleness, STALE_DAYS } = require('./staleness');
 const { readHandoff } = require('./handoff');
+const { getHistory } = require('./history');
+const { withTicketStates } = require('./ticket-state');
 const { mdCell, readJsonOrNull } = require('./guard');
 
 // Phase is computed from the session's files; status / phases_completed
@@ -67,6 +69,30 @@ function listPendingSeeds(sessionsDir) {
   return { seeds, seedsProblem };
 }
 
+const RECENT_EVENTS = 10;
+
+// A ticket as status reports it: `state` and `blocker` replace the internal
+// `done` flag (schema v2, docs/STATUS-JSON.md).
+function reportTicket({ done, ...ticket }) {
+  return ticket;
+}
+
+// The last recorded events, oldest first, in the shape outside tools read.
+function recentEvents(history) {
+  return history.slice(-RECENT_EVENTS).filter((e) => e && typeof e.event === 'string').map((e) => ({
+    at: e.at || null, event: e.event, phase: e.phase || null, detail: e.detail || null,
+  }));
+}
+
+// The report of a project with no session and no seed: `code` is
+// 'no-work-dir' (no .work/sessions) or 'no-sessions'.
+function emptyStatusReport(code) {
+  return {
+    sessions: [], seeds: [], seedsProblem: null, finishRecovery: null, current: null,
+    currentProblem: { code, message: 'No sessions found.', hint: 'Run /gps start <feature-name> (or /gps scout for seeds) first.' },
+  };
+}
+
 function buildStatusReport(sessionsDir, projectRoot) {
   const sessions = listSessionDirs(sessionsDir).map((sessionId) => summarizeSession(sessionsDir, sessionId));
   const { seeds, seedsProblem } = listPendingSeeds(sessionsDir);
@@ -92,7 +118,10 @@ function buildStatusReport(sessionsDir, projectRoot) {
   const sessionDir = path.join(sessionsDir, sessionId);
   const config = readConfigOrNull(sessionsDir, sessionId);
   const { writeTarget, ticketQueue, phase, suggestedNext } = computeSessionState(sessionDir, config);
-  const nextPending = ticketQueue.nextPending;
+  const history = config ? getHistory(config) : [];
+  const tickets = withTicketStates(ticketQueue.tickets, history);
+  const nextPending = ticketQueue.nextPending
+    ? tickets.find((t) => t.ticketPath === ticketQueue.nextPending.ticketPath) || null : null;
   const activeTicket = nextPending ? `${nextPending.num}-${nextPending.slug}` : null;
 
   return {
@@ -105,11 +134,12 @@ function buildStatusReport(sessionsDir, projectRoot) {
       phase,
       suggestedNext,
       writeTarget,
-      tickets: ticketQueue.tickets,
-      nextPending,
+      tickets: tickets.map(reportTicket),
+      nextPending: nextPending && reportTicket(nextPending),
       skippedTicketFiles: ticketQueue.skipped,
       gitLog: readRecentCommits(projectRoot, config ? config.created_at : null),
       handoff: readHandoff(sessionDir, { phase, activeTicket }),
+      recentEvents: recentEvents(history),
     },
     suggestedNext,
   };
@@ -140,11 +170,14 @@ function seedsTable(seeds) {
 
 function currentBlock(current, sessions) {
   const name = (sessions.find((s) => s.sessionId === current.sessionId) || {}).featureName || current.sessionId;
-  const done = current.tickets.filter((t) => t.done).length;
+  const done = current.tickets.filter((t) => t.state === 'done').length;
   const lines = [`## Current: ${name}`, '', `- **Session:** ${current.sessionId}`, `- **Phase:** ${current.phase}`];
   if (current.tickets.length > 0) {
     const next = current.nextPending ? `; next ${current.nextPending.num} ${current.nextPending.slug}` : '';
     lines.push(`- **Tickets:** ${done}/${current.tickets.length} done${next}`);
+  }
+  for (const t of current.tickets.filter((ticket) => ticket.state === 'blocked')) {
+    lines.push(`- ⛔ Blocked: ${t.num} ${t.slug}${t.blocker.reason ? ` — ${t.blocker.reason}` : ''}`);
   }
   for (const fileName of current.skippedTicketFiles) lines.push(`- ⚠️ Ignored ${fileName}: ticket files must be named NN-<slug>.md`);
   lines.push('', '**Commits since the session started:**', '');
@@ -186,4 +219,4 @@ function renderStatus(report) {
   return lines.join('\n').trimEnd();
 }
 
-module.exports = { buildStatusReport, renderStatus };
+module.exports = { RECENT_EVENTS, buildStatusReport, emptyStatusReport, renderStatus };

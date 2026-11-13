@@ -8,6 +8,10 @@
  * command name: its usage, purpose, when to use it and examples. Commands
  * come from SKILL.md's table and references/<command>.md, so this never
  * drifts from the router. Read-only; works with no session at all.
+ *
+ * --json is part of the status schema (docs/STATUS-JSON.md): headed by
+ * schemaVersion and gpsVersion, each command adds its argument grammar
+ * and whether it is sendable (lib/commands.js).
  */
 
 const fs = require('fs');
@@ -17,6 +21,8 @@ const { sessionsDirOf, resolveCurrentPointer, pointerError, readConfigOrNull } =
 const { computeSessionState } = require('./lib/phase');
 const { needsSetup } = require('./lib/setup');
 const { UsageError, mdCell } = require('./lib/guard');
+const { commandSpec } = require('./lib/commands');
+const { contractHeader } = require('./lib/plugin-version');
 
 const SKILL_DIR = path.join(__dirname, '..');
 const capitalize = (text) => text.charAt(0).toUpperCase() + text.slice(1);
@@ -113,9 +119,12 @@ main({
   usage: 'help.js [command] [--json]',
   positionals: { min: 0, max: 1 },
   run({ positionals, projectRoot }) {
-    const commands = readCommands().map((c) => ({ ...c, ...readReference(c.name) }));
+    const commands = readCommands().map((c) => {
+      const spec = commandSpec(c.name);
+      return { ...c, ...readReference(c.name), args: spec ? spec.args : null, sendable: spec ? spec.sendable : false };
+    });
     const where = whereYouAre(projectRoot);
-    const data = { sessionId: where.sessionId, phase: where.phase, suggestedNext: where.next, commands };
+    const data = { ...contractHeader(), sessionId: where.sessionId, phase: where.phase, suggestedNext: where.next, commands };
     if (positionals.length === 0) return { text: overview(commands, where), data };
 
     const wanted = positionals[0].replace(/^\/?(gps\s+)?/, '').toLowerCase();
