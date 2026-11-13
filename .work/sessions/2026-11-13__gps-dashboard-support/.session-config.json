@@ -133,9 +133,33 @@
         "ticket": "03-command-manifest",
         "commit": "5b01e7d"
       }
+    },
+    {
+      "at": "2026-11-13T07:50:43.600Z",
+      "event": "ticket_started",
+      "phase": "ship",
+      "files": [
+        "02-plan/tickets/04-status-json-contract.md",
+        "03-implement/04-status-json-contract/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "04-status-json-contract"
+      }
+    },
+    {
+      "at": "2026-11-13T07:55:30.496Z",
+      "event": "ticket_done",
+      "phase": "finish-pending",
+      "files": [
+        "03-implement/04-status-json-contract/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "04-status-json-contract",
+        "commit": "d56c8f4"
+      }
     }
   ],
-  "current_phase": "ship",
+  "current_phase": "finish-pending",
   "git": {
     "branch": "feat/status-json-v2",
     "base_branch": "main",
