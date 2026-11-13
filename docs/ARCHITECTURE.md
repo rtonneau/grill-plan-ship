@@ -42,6 +42,7 @@ Each row answers: what problem it solved, whether that problem remains, and the 
 | Ticket granularity guidance | Oversized changes | Yes | SIMPLIFY: one reviewable change, one-ticket plans are fine |
 | Grill and plan as mandatory phases | Under-specified work | Only for non-trivial work | SIMPLIFY: three sizes |
 | Router and references | Progressive disclosure | Yes | SIMPLIFY: 21–34% fewer bytes per flow |
+| `status.js --json`, `help.js --json` | Outside tools (gps-dashboard) reading state and queueing commands | Yes | KEEP as a versioned contract: [STATUS-JSON.md](STATUS-JSON.md), decision 0018 |
 | `/gps auto` | Unattended runs | Yes, smaller | SIMPLIFY: no questions in the route |
 | `idea` skill | Backlog separate from sessions | Yes | KEEP independent; SIMPLIFY its grill and question rule |
 | Jev hints | Optional outside model judgment | Optional | KEEP (opt-in, decision 0005) |

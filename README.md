@@ -167,6 +167,7 @@ docs/ARCHITECTURE.md       the design and its component audit
 docs/COMPATIBILITY.md      host capabilities and test evidence
 docs/decisions/            why gps works the way it does (e.g. effort hints stop at xhigh)
 docs/WORK-DIR.md           what other skills may do in .work/ (gps owns its sessions and config)
+docs/STATUS-JSON.md        the versioned JSON outside tools read (status.js --json, help.js --json)
 tests/                     one test per script (tests/lib/: one per lib), e2e and GitHub-flow tests
 ```
 
