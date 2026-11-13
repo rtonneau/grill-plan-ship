@@ -109,6 +109,30 @@
         "ticket": "02-status-json-v2",
         "commit": "67960aa"
       }
+    },
+    {
+      "at": "2026-11-13T07:44:49.936Z",
+      "event": "ticket_started",
+      "phase": "ship",
+      "files": [
+        "02-plan/tickets/03-command-manifest.md",
+        "03-implement/03-command-manifest/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "03-command-manifest"
+      }
+    },
+    {
+      "at": "2026-11-13T07:50:36.298Z",
+      "event": "ticket_done",
+      "phase": "ship",
+      "files": [
+        "03-implement/03-command-manifest/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "03-command-manifest",
+        "commit": "5b01e7d"
+      }
     }
   ],
   "current_phase": "ship",
