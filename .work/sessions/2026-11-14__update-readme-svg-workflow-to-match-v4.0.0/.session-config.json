@@ -1,0 +1,51 @@
+{
+  "session_id": "2026-11-14__update-readme-svg-workflow-to-match-v4.0.0",
+  "feature_name": "update readme svg workflow to match v4.0.0",
+  "scratch_dir": ".scratch/tests/2026-11-14__update-readme-svg-workflow-to-match-v4.0.0",
+  "created_at": "2026-11-14T22:02:36.265Z",
+  "template_version": 2,
+  "history": [
+    {
+      "at": "2026-11-14T22:02:36.265Z",
+      "event": "session_started",
+      "phase": "grill",
+      "files": [
+        "01-grill/resume.md"
+      ]
+    },
+    {
+      "at": "2026-11-14T22:04:42.995Z",
+      "event": "grill_written",
+      "phase": "plan-not-started",
+      "files": [
+        "01-grill/resume.md"
+      ]
+    },
+    {
+      "at": "2026-11-14T22:04:50.241Z",
+      "event": "changelog_written",
+      "phase": "plan-not-started",
+      "detail": {
+        "bump": "patch"
+      }
+    },
+    {
+      "at": "2026-11-14T22:04:50.508Z",
+      "event": "session_finished",
+      "phase": "finished",
+      "files": [
+        "INDEX.md"
+      ]
+    }
+  ],
+  "current_phase": "finished",
+  "changelog": {
+    "bump": "patch",
+    "floor": "patch",
+    "reason": null,
+    "bullets": 1,
+    "path": ".work/changelog/2026-11-14__update-readme-svg-workflow-to-match-v4.0.0.md",
+    "written_at": "2026-11-14T22:04:50.237Z"
+  },
+  "finished_at": "2026-11-14T22:04:50.508Z"
+}
