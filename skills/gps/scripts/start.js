@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 /**
- * start.js <feature-name...> [--issue] [--worktree [--path <dir>] [--branch <name>]] [--json]
+ * start.js <feature-name...> [--issue] [--worktree [--path <dir>] [--branch <name>] [--base <branch>]] [--json]
  *
  * /gps start: creates the session (directory, resume template, scratch dir,
  * .scratch/ in .gitignore, .current-session, which is committed with .work/) and records GitHub detection in
@@ -20,7 +20,8 @@
  * session branch (default <type>/<slug> at ../<repo>-worktrees/<session-id>),
  * and is created there: one session per worktree runs in parallel with the
  * others. The branch starts at the checked-out branch, or, when an
- * unfinished session here runs on it, at that session's base branch.
+ * unfinished session here runs on it, at that session's base branch;
+ * --base <branch> names it instead.
  * Every problem is checked before git or the session writes anything.
  * Warns when .work/ is git-ignored (gps then commits none of its files),
  * and suggests /gps init while the project's gps setup is not committed.
@@ -44,13 +45,14 @@ const { needsSetup } = require('./lib/setup');
 const { recordEvent } = require('./lib/history');
 const { GpsError, UsageError, slugify, localDate, readJson } = require('./lib/guard');
 
-// The worktree base: the checked-out branch, unless it is busy (an
+// The worktree base: --base if given, else the checked-out branch, unless it is busy (an
 // unfinished session here records it as git.branch); then that session's
 // base_branch, else the default branch, else the checked-out branch, with a
 // warning. { branch, note } (note: why it is not the checked-out branch);
 // branch null when git cannot name the checked-out branch (worktreeProblems
 // reports that).
-function worktreeBase(projectRoot, warn) {
+function worktreeBase(projectRoot, warn, explicit) {
+  if (explicit) return { branch: explicit, note: null };
   let current;
   try {
     current = sessionBaseBranch(projectRoot);
@@ -81,13 +83,15 @@ function prepareWorktree(projectRoot, featureName, options, warn) {
   const branch = options.branch || `${options.issue ? 'fix' : 'feat'}/${slug.replace(/_/g, '-')}`;
   const worktreePath = path.resolve(projectRoot, options.path || path.join(worktreeRoot(projectRoot), sessionId));
   const problems = worktreeProblems(projectRoot, worktreePath, branch);
-  const base = isWorkTree(projectRoot) ? worktreeBase(projectRoot, warn) : { branch: null, note: null };
-  if (base.branch && !isCommitted(projectRoot, '.work/gps-config.json', base.branch)) {
+  const base = isWorkTree(projectRoot) ? worktreeBase(projectRoot, warn, options.base) : { branch: null, note: null };
+  if (options.base && isWorkTree(projectRoot) && !localBranchExists(projectRoot, options.base)) {
+    problems.push(`--base ${options.base} is not a local branch. Name an existing branch (git branch --list).`);
+  } else if (base.branch && !isCommitted(projectRoot, '.work/gps-config.json', base.branch)) {
     problems.push(`.work/gps-config.json is not committed on ${base.branch}. Run /gps init there first, so every worktree session shares it.`);
   }
   if (problems.length > 0) {
     throw new GpsError(`Cannot create the session worktree; nothing was changed:\n- ${problems.join('\n- ')}`,
-      'Fix the items above (--branch and --path choose other names), or start without --worktree.');
+      'Fix the items above (--branch, --path and --base choose other names), or start without --worktree.');
   }
   let gitInfo;
   try {
@@ -120,13 +124,13 @@ function resumeReport(sessionsDir, found, wantIssue, warn) {
 }
 
 main({
-  usage: 'start.js <feature-name...> [--issue] [--worktree [--path <dir>] [--branch <name>]] [--json]',
+  usage: 'start.js <feature-name...> [--issue] [--worktree [--path <dir>] [--branch <name>] [--base <branch>]] [--json]',
   positionals: { min: 1, max: Infinity },
-  options: { issue: 'boolean', worktree: 'boolean', path: 'string', branch: 'string' },
+  options: { issue: 'boolean', worktree: 'boolean', path: 'string', branch: 'string', base: 'string' },
   run({ positionals, options, projectRoot: checkoutRoot, warn }) {
     const featureName = positionals.join(' ').trim();
     if (!featureName) throw new UsageError('Missing feature name.');
-    if (!options.worktree && (options.path || options.branch)) throw new UsageError('--path and --branch need --worktree.');
+    if (!options.worktree && (options.path || options.branch || options.base)) throw new UsageError('--path, --branch and --base need --worktree.');
     let projectRoot = checkoutRoot;
     // Before anything writes: an unfinished session of the same name is resumed, not duplicated.
     const sessionsDir = sessionsDirOf(projectRoot);

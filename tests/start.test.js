@@ -296,6 +296,14 @@ const daysAgo = (n) => new Date(Date.now() - n * 86400000);
   cfg.git.base_branch = 'gone';
   fs.writeFileSync(cfgPath, JSON.stringify(cfg, null, 2));
   assert.match(h.ok(wt, 'start.js', ['gone-base', '--worktree']).err, /gone no longer exists locally: the worktree branches from main/);
+
+  // --base stacks on purpose, even from a busy branch; an unknown branch is refused with nothing created.
+  const stacked = h.json(wt, 'start.js', ['stacked', '--worktree', '--base', 'feat/first-wt']);
+  assert.strictEqual(stacked.worktree.base_branch, 'feat/first-wt');
+  assert.strictEqual(h.git(stacked.worktree.path, 'rev-parse', 'HEAD'), h.git(wt, 'rev-parse', 'HEAD'));
+  h.assertFails(h.run(wt, 'start.js', ['nobase', '--worktree', '--base', 'nope']), 1, /--base nope is not a local branch/);
+  assert.ok(!h.git(root, 'branch', '--list', 'feat/nobase'), 'no branch was created');
+  h.assertFails(h.run(root, 'start.js', ['x', '--base', 'main']), 2, /need --worktree/);
   fs.rmSync(path.join(path.dirname(root), `${path.basename(root)}-worktrees`), { recursive: true, force: true });
 }
 
