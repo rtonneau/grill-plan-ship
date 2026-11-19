@@ -98,10 +98,34 @@
         "ticket": "01-busy-branch-base",
         "commit": "9695135"
       }
+    },
+    {
+      "at": "2026-11-19T13:44:12.951Z",
+      "event": "ticket_started",
+      "phase": "ship",
+      "files": [
+        "02-plan/tickets/02-base-flag.md",
+        "03-implement/02-base-flag/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "02-base-flag"
+      }
+    },
+    {
+      "at": "2026-11-19T13:47:54.110Z",
+      "event": "ticket_done",
+      "phase": "finish-pending",
+      "files": [
+        "03-implement/02-base-flag/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "02-base-flag",
+        "commit": "d309ebc"
+      }
     }
   ],
   "kind": "issue",
-  "current_phase": "ship",
+  "current_phase": "finish-pending",
   "issue": {
     "number": 60,
     "url": "https://github.com/rtonneau/grill-plan-ship/issues/60",
