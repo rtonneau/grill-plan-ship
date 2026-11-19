@@ -74,6 +74,30 @@
       "detail": {
         "tickets": 2
       }
+    },
+    {
+      "at": "2026-11-19T13:38:13.692Z",
+      "event": "ticket_started",
+      "phase": "ship",
+      "files": [
+        "02-plan/tickets/01-busy-branch-base.md",
+        "03-implement/01-busy-branch-base/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "01-busy-branch-base"
+      }
+    },
+    {
+      "at": "2026-11-19T13:44:05.924Z",
+      "event": "ticket_done",
+      "phase": "ship",
+      "files": [
+        "03-implement/01-busy-branch-base/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "01-busy-branch-base",
+        "commit": "9695135"
+      }
     }
   ],
   "kind": "issue",
@@ -88,5 +112,6 @@
     "base_branch": "main",
     "branch_created_at": "2026-11-19T13:38:02.223Z",
     "pr_url": null
-  }
+  },
+  "ship_mode": "inline"
 }
