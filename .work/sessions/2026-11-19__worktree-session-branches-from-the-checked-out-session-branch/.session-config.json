@@ -1,0 +1,92 @@
+{
+  "session_id": "2026-11-19__worktree-session-branches-from-the-checked-out-session-branch",
+  "feature_name": "worktree session branches from the checked-out session branch instead of the default branch",
+  "scratch_dir": ".scratch/tests/2026-11-19__worktree-session-branches-from-the-checked-out-session-branch",
+  "created_at": "2026-11-19T13:23:44.617Z",
+  "template_version": 2,
+  "history": [
+    {
+      "at": "2026-11-19T13:23:44.617Z",
+      "event": "session_started",
+      "phase": "grill",
+      "files": [
+        "01-grill/resume.md"
+      ],
+      "detail": {
+        "kind": "issue"
+      }
+    },
+    {
+      "at": "2026-11-19T13:37:07.153Z",
+      "event": "auto_started",
+      "phase": "grill",
+      "detail": {
+        "target": "finish",
+        "steps": "write:grill → plan → write:plan → ship → finish"
+      }
+    },
+    {
+      "at": "2026-11-19T13:37:25.502Z",
+      "event": "issue_created",
+      "phase": "grill",
+      "files": [
+        "01-grill/resume.md"
+      ],
+      "detail": {
+        "number": 60,
+        "url": "https://github.com/rtonneau/grill-plan-ship/issues/60"
+      }
+    },
+    {
+      "at": "2026-11-19T13:37:25.523Z",
+      "event": "grill_written",
+      "phase": "plan-not-started",
+      "files": [
+        "01-grill/resume.md"
+      ]
+    },
+    {
+      "at": "2026-11-19T13:37:34.358Z",
+      "event": "plan_started",
+      "phase": "plan",
+      "files": [
+        "02-plan/plan.md"
+      ]
+    },
+    {
+      "at": "2026-11-19T13:38:02.223Z",
+      "event": "branch_created",
+      "phase": "plan",
+      "detail": {
+        "branch": "fix/worktree-session-base",
+        "base": "main"
+      }
+    },
+    {
+      "at": "2026-11-19T13:38:02.244Z",
+      "event": "plan_written",
+      "phase": "ship",
+      "files": [
+        "02-plan/plan.md",
+        "02-plan/tickets/01-busy-branch-base.md",
+        "02-plan/tickets/02-base-flag.md"
+      ],
+      "detail": {
+        "tickets": 2
+      }
+    }
+  ],
+  "kind": "issue",
+  "current_phase": "ship",
+  "issue": {
+    "number": 60,
+    "url": "https://github.com/rtonneau/grill-plan-ship/issues/60",
+    "created_at": "2026-11-19T13:37:25.502Z"
+  },
+  "git": {
+    "branch": "fix/worktree-session-base",
+    "base_branch": "main",
+    "branch_created_at": "2026-11-19T13:38:02.223Z",
+    "pr_url": null
+  }
+}

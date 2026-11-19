@@ -38,3 +38,11 @@ _Avoid_: safe command, remote command
 **Status schema**:
 The versioned shape of `status.js --json` and `help.js --json` that outside tools read, numbered by `schemaVersion` and documented in `docs/STATUS-JSON.md`.
 _Avoid_: status API
+
+**Busy branch**:
+A branch that an unfinished session in the checkout records as its `git.branch`. A session still in the grill has no branch yet, so it makes no branch busy.
+_Avoid_: active branch, running branch
+
+**Worktree base**:
+The branch a `--worktree` session branch is cut from and records as `base_branch`: `--base` if given; otherwise the checked-out branch, or the base of the session that makes it busy.
+_Avoid_: parent branch, start point
