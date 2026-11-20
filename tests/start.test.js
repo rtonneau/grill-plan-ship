@@ -264,6 +264,60 @@ const daysAgo = (n) => new Date(Date.now() - n * 86400000);
 }
 
 {
+  // Worktree base: an idle branch is the base; a busy one (an unfinished session runs on it) gives way to that session's base.
+  const root = h.gitProject('gps-wt-base-');
+  h.ok(root, 'init.js', ['--apply']);
+  h.git(root, 'switch', '-q', '-c', 'topic');
+  const idle = h.json(root, 'start.js', ['on-topic', '--worktree']);
+  assert.strictEqual(idle.worktree.base_branch, 'topic');
+  assert.strictEqual(idle.worktree.base_note, null);
+  assert.strictEqual(h.git(idle.worktree.path, 'rev-parse', 'HEAD'), h.git(root, 'rev-parse', 'topic'));
+  h.git(root, 'switch', '-q', 'main');
+
+  const first = h.json(root, 'start.js', ['first-wt', '--worktree']);
+  const wt = first.worktree.path;
+  fs.writeFileSync(path.join(wt, 'app.js'), 'console.log(2);\n');
+  h.git(wt, 'commit', '-q', '-am', 'work on first');
+  const nested = h.ok(wt, 'start.js', ['nested', '--worktree']);
+  assert.match(nested.out, /on branch feat\/nested \(from main: feat\/first-wt is the branch of unfinished session \S+__first-wt, so its base main\)/);
+  assert.strictEqual(nested.err, '');
+  const nestedWt = nested.out.match(/🌳 Worktree: (.+) on branch/)[1];
+  assert.strictEqual(h.git(nestedWt, 'rev-parse', 'HEAD'), h.git(root, 'rev-parse', 'main'), 'branched from main, not feat/first-wt');
+  assert.strictEqual(h.readConfig(nestedWt).git.base_branch, 'main');
+
+  // A busy session whose base is missing (older config) or gone falls back to the default branch, with a warning.
+  const cfgPath = h.configPath(wt);
+  const cfg = h.readConfig(wt);
+  delete cfg.git.base_branch;
+  fs.writeFileSync(cfgPath, JSON.stringify(cfg, null, 2));
+  const old = h.ok(wt, 'start.js', ['old-base', '--worktree']);
+  assert.match(old.err, /whose base branch is not recorded: the worktree branches from main \(the default branch\)/);
+  assert.match(old.out, /\(from main: .+; fallback main\)/);
+  cfg.git.base_branch = 'gone';
+  fs.writeFileSync(cfgPath, JSON.stringify(cfg, null, 2));
+  assert.match(h.ok(wt, 'start.js', ['gone-base', '--worktree']).err, /gone no longer exists locally: the worktree branches from main/);
+
+  // --base stacks on purpose, even from a busy branch; an unknown branch is refused with nothing created.
+  const stacked = h.json(wt, 'start.js', ['stacked', '--worktree', '--base', 'feat/first-wt']);
+  assert.strictEqual(stacked.worktree.base_branch, 'feat/first-wt');
+  assert.strictEqual(h.git(stacked.worktree.path, 'rev-parse', 'HEAD'), h.git(wt, 'rev-parse', 'HEAD'));
+  h.assertFails(h.run(wt, 'start.js', ['nobase', '--worktree', '--base', 'nope']), 1, /--base nope is not a local branch/);
+  assert.ok(!h.git(root, 'branch', '--list', 'feat/nobase'), 'no branch was created');
+  h.assertFails(h.run(root, 'start.js', ['x', '--base', 'main']), 2, /need --worktree/);
+  fs.rmSync(path.join(path.dirname(root), `${path.basename(root)}-worktrees`), { recursive: true, force: true });
+}
+
+{
+  // The config check reads the worktree base: committed on main does not cover an idle branch made before /gps init.
+  const root = h.gitProject('gps-wt-cfg-');
+  h.git(root, 'branch', 'early');
+  h.ok(root, 'init.js', ['--apply']);
+  h.git(root, 'switch', '-q', 'early');
+  h.assertFails(h.run(root, 'start.js', ['x', '--worktree']), 1, /gps-config\.json is not committed on early\. Run \/gps init there first/);
+  assert.ok(!h.git(root, 'branch', '--list', 'feat/x'));
+}
+
+{
   // Starting a second session in the same checkout warns that the first is still unfinished.
   const root = h.tempProject();
   assert.strictEqual(h.ok(root, 'start.js', ['first']).err, '');

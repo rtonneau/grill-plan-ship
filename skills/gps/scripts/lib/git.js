@@ -244,7 +244,7 @@ function createSessionBranch(projectRoot, name) {
   return { branch: name, base_branch: base, branch_created_at: new Date().toISOString(), pr_url: null };
 }
 
-// Problems that stop `git worktree add -b branch worktreePath` from the
+// Problems that stop `git worktree add -b branch worktreePath [start]` from the
 // project's HEAD, checked before anything is created: [] when it can run.
 function worktreeProblems(projectRoot, worktreePath, branch) {
   if (!isWorkTree(projectRoot)) return ['Not inside a git work tree: --worktree needs a git repository.'];
@@ -256,12 +256,13 @@ function worktreeProblems(projectRoot, worktreePath, branch) {
 // Creates a linked worktree at `worktreePath` on a new branch `branch` from
 // HEAD. Returns the session's `git` record (the base is the branch checked
 // out here). Throws with git's reason.
-function addWorktree(projectRoot, worktreePath, branch) {
-  const base = sessionBaseBranch(projectRoot);
+function addWorktree(projectRoot, worktreePath, branch, startBranch) {
+  const base = startBranch || sessionBaseBranch(projectRoot);
+  const args = ['worktree', 'add', '-q', '-b', branch, worktreePath, ...(startBranch ? [startBranch] : [])];
   try {
-    git(projectRoot, ['worktree', 'add', '-q', '-b', branch, worktreePath]);
+    git(projectRoot, args);
   } catch (err) {
-    throw new Error(`git worktree add -b ${branch} ${worktreePath} failed: ${failureReason(err)}`);
+    throw new Error(`git ${args.slice(0, 2).join(' ')} -b ${branch} ${worktreePath}${startBranch ? ` ${startBranch}` : ''} failed: ${failureReason(err)}`);
   }
   return {
     branch, base_branch: base, branch_created_at: new Date().toISOString(), pr_url: null,
@@ -320,9 +321,14 @@ function switchBranch(projectRoot, name) {
   }
 }
 
-// True when `relPath` is in HEAD's tree (committed on the checked-out branch).
-function isCommitted(projectRoot, relPath) {
-  return tryGit(projectRoot, ['cat-file', '-e', `HEAD:${relPath}`]) !== null;
+// True when `relPath` is in `ref`'s tree (default HEAD: committed on the checked-out branch).
+function isCommitted(projectRoot, relPath, ref = 'HEAD') {
+  return tryGit(projectRoot, ['cat-file', '-e', `${ref}:${relPath}`]) !== null;
+}
+
+// True when `name` is a local branch.
+function localBranchExists(projectRoot, name) {
+  return Boolean(name) && tryGit(projectRoot, ['rev-parse', '--verify', '--quiet', `refs/heads/${name}`]) !== null;
 }
 
 // True when `relPath` is in the index (committed or staged).
@@ -694,6 +700,7 @@ module.exports = {
   gitPrivatePath,
   worktreeProblems,
   isCommitted,
+  localBranchExists,
   addWorktree,
   worktreeRoot,
   renameBranch,

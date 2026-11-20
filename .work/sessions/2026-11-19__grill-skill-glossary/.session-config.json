@@ -1,0 +1,18 @@
+{
+  "session_id": "2026-11-19__grill-skill-glossary",
+  "feature_name": "grill-skill-glossary",
+  "scratch_dir": ".scratch/tests/2026-11-19__grill-skill-glossary",
+  "created_at": "2026-11-19T13:12:14.311Z",
+  "template_version": 2,
+  "history": [
+    {
+      "at": "2026-11-19T13:12:14.311Z",
+      "event": "session_started",
+      "phase": "grill",
+      "files": [
+        "01-grill/resume.md"
+      ]
+    }
+  ],
+  "current_phase": "grill"
+}
