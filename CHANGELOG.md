@@ -2,6 +2,13 @@
 
 All notable changes to grill-plan-ship. Versions follow [semantic versioning](https://semver.org/).
 
+## 4.1.0 (2026-11-20)
+
+- The README workflow diagram now shows v4.0.0: work sizing, `--worktree`, delegated review, the changelog step in finish, and `/gps release`.
+- `/gps start --worktree` no longer stacks a new session on another session's branch: when the checked-out branch belongs to an unfinished session, the worktree branches from that session's base instead (the default branch, with a warning, if that base is unknown). The `.work/gps-config.json` check now reads that base.
+- `/gps start --worktree --base <branch>` stacks a session on a chosen branch on purpose.
+- When merging a stacked session's branch into its open base session deletes `.current-session`, the next gps command in that checkout restores the pointer to the one unfinished session on the checked-out branch, with a warning, instead of failing with "No current session is selected" (#62).
+
 ## 4.0.0 (2026-11-14)
 
 - **Breaking:** `status.js --json` is now schema 2, documented in `docs/STATUS-JSON.md`. Both `status.js --json` and `help.js --json` start with `schemaVersion` and `gpsVersion`, and each ticket reports `state` (`pending`, `started`, `blocked` or `done`) and `blocker` instead of `done`. Tools reading the old shape should check `schemaVersion`.
