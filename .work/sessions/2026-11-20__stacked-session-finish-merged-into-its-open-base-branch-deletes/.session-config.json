@@ -74,10 +74,34 @@
       "detail": {
         "tickets": 1
       }
+    },
+    {
+      "at": "2026-11-20T07:53:24.945Z",
+      "event": "ticket_started",
+      "phase": "ship",
+      "files": [
+        "02-plan/tickets/01-restore-pointer-from-busy-branch.md",
+        "03-implement/01-restore-pointer-from-busy-branch/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "01-restore-pointer-from-busy-branch"
+      }
+    },
+    {
+      "at": "2026-11-20T07:57:46.359Z",
+      "event": "ticket_done",
+      "phase": "finish-pending",
+      "files": [
+        "03-implement/01-restore-pointer-from-busy-branch/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "01-restore-pointer-from-busy-branch",
+        "commit": "09a40d0"
+      }
     }
   ],
   "kind": "issue",
-  "current_phase": "ship",
+  "current_phase": "finish-pending",
   "issue": {
     "number": 62,
     "url": "https://github.com/rtonneau/grill-plan-ship/issues/62",
@@ -88,5 +112,6 @@
     "base_branch": "main",
     "branch_created_at": "2026-11-20T07:53:24.316Z",
     "pr_url": null
-  }
+  },
+  "ship_mode": "inline"
 }
