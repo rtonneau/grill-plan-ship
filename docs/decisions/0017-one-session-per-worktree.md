@@ -18,3 +18,7 @@ Every gps command acts on the session named by the committed `.work/sessions/.cu
 - Several sessions in one checkout, picked per command: every command would need a session argument, and the plan-time branch switch cannot be shared safely.
 - A per-worktree, uncommitted pointer: contradicts 0012 (any host resumes from the committed record).
 - Glossary/ADR fragments merged later: extra machinery for conflicts that are rare and ordinary to resolve.
+
+## Consequences
+
+- A session stacked with `--base` on an open session's branch deletes the pointer at finish, so merging it into that branch deletes the open session's pointer too. With no pointer file, the single unfinished session whose `git.branch` is the checked-out branch becomes current again, with a warning (ADR 0002 in `.work/adr/`); no match or several matches still ask the user.
