@@ -8,7 +8,8 @@ const fs = require('fs');
 const path = require('path');
 const { GpsError, readJson, readJsonOrNull } = require('./guard');
 const { isFinished } = require('./phase');
-const { branchesHolding } = require('./git');
+const { branchesHolding, currentBranch } = require('./git');
+const { warn } = require('./cli');
 
 const CURRENT_SESSION_FILENAME = '.current-session';
 const CONFIG_FILENAME = '.session-config.json';
@@ -82,8 +83,22 @@ function isSafeSessionName(sessionId) {
     && path.basename(sessionId) === sessionId;
 }
 
+// The one unfinished session that makes the checked-out branch busy, or
+// null (no git, detached HEAD, no match or several matches).
+function busyBranchOwner(sessionsDir) {
+  const branch = currentBranch(path.resolve(sessionsDir, '..', '..'));
+  if (!branch) return null;
+  const owners = listSessionDirs(sessionsDir).filter((sessionId) => {
+    const config = readConfigOrNull(sessionsDir, sessionId);
+    return config && !isFinished(config) && config.git && config.git.branch === branch;
+  });
+  return owners.length === 1 ? { sessionId: owners[0], branch } : null;
+}
+
 // Reads .current-session and checks it. Never falls back to another
-// session. Returns { sessionId, problem } where problem is one of
+// session, except one case (ADR 0002): with no pointer file, the single
+// unfinished session that owns the checked-out branch becomes current, as
+// when a stacked session's finish, merged into this branch, deleted it. Returns { sessionId, problem } where problem is one of
 // null | 'no-sessions' | 'no-pointer' | 'invalid-pointer' |
 // 'missing-session' | 'finished-session'.
 function resolveCurrentPointer(sessionsDir) {
@@ -91,6 +106,12 @@ function resolveCurrentPointer(sessionsDir) {
   // A pointer with no session directory may name a session committed on
   // another branch, so it is checked before "no sessions".
   if (sessionId === null) {
+    const owner = busyBranchOwner(sessionsDir);
+    if (owner) {
+      setCurrentSession(sessionsDir, owner.sessionId);
+      warn(`No current session was selected: restored ${owner.sessionId}, the unfinished session on the checked-out branch ${owner.branch}.`);
+      return { sessionId: owner.sessionId, problem: null };
+    }
     return { sessionId: null, problem: listSessionDirs(sessionsDir).length === 0 ? 'no-sessions' : 'no-pointer' };
   }
   if (!isSafeSessionName(sessionId)) return { sessionId: null, problem: 'invalid-pointer', pointer: sessionId };

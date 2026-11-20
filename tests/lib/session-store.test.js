@@ -107,4 +107,40 @@ assert.strictEqual(findUnfinishedBySlug(projectSessions, 'missing'), null);
 assert.strictEqual(findUnfinishedBySlug(path.join(project, 'nowhere'), 'feat'), null);
 fs.rmSync(project, { recursive: true, force: true });
 
+// ADR 0002: with no pointer file, the single unfinished session that owns
+// the checked-out branch is restored; anything else is left as it was.
+{
+  const h = require('../helpers');
+  const root = h.gitProject('gps-store-busy-');
+  const dir = path.join(root, '.work', 'sessions');
+  const make = (id, config) => {
+    fs.mkdirSync(path.join(dir, id), { recursive: true });
+    fs.writeFileSync(path.join(dir, id, '.session-config.json'), JSON.stringify(config));
+  };
+  const pointerFile = path.join(dir, '.current-session');
+  make('2026-11-20__done', { finished_at: '2026-11-20T00:00:00Z', git: { branch: 'main' } });
+  make('2026-11-20__other', { git: { branch: 'feat/other' } });
+  // No match on main (only a finished session records it).
+  assert.strictEqual(resolveCurrentPointer(dir).problem, 'no-pointer');
+  assert.ok(!fs.existsSync(pointerFile));
+  // One match: restored and written.
+  make('2026-11-20__owner', { git: { branch: 'main' } });
+  assert.deepStrictEqual(resolveCurrentPointer(dir), { sessionId: '2026-11-20__owner', problem: null });
+  assert.strictEqual(fs.readFileSync(pointerFile, 'utf-8'), '2026-11-20__owner');
+  // A finished pointer is never replaced.
+  setCurrentSession(dir, '2026-11-20__done');
+  assert.strictEqual(resolveCurrentPointer(dir).problem, 'finished-session');
+  assert.strictEqual(fs.readFileSync(pointerFile, 'utf-8'), '2026-11-20__done');
+  // Several matches: nothing restored.
+  fs.rmSync(pointerFile);
+  make('2026-11-20__twin', { git: { branch: 'main' } });
+  assert.strictEqual(resolveCurrentPointer(dir).problem, 'no-pointer');
+  assert.ok(!fs.existsSync(pointerFile));
+  // Detached HEAD: nothing restored.
+  fs.rmSync(path.join(dir, '2026-11-20__twin'), { recursive: true });
+  h.git(root, 'checkout', '-q', '--detach');
+  assert.strictEqual(resolveCurrentPointer(dir).problem, 'no-pointer');
+  fs.rmSync(root, { recursive: true, force: true });
+}
+
 console.log('session-store.test.js: all assertions passed');

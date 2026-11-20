@@ -280,4 +280,31 @@ const h = require('./helpers');
   for (const { wt } of trees) h.git(root, 'worktree', 'remove', '--force', wt);
 }
 
+{
+  // A session stacked on an open session's branch: its finish deletes the
+  // pointer, and merging it into that branch deletes the open session's
+  // pointer too. The next command restores it from the busy branch (ADR 0002).
+  const root = h.gitProject('gps-fin-stack-');
+  h.ok(root, 'init.js', ['--apply']);
+  const started = h.json(root, 'start.js', ['first', '--worktree']);
+  const a = started.worktree.path;
+  h.writeGrill(a);
+  h.writePlan(a, ['one']);
+  const aBranch = h.git(a, 'branch', '--show-current');
+  const b = h.json(a, 'start.js', ['second', '--worktree', '--base', aBranch]).worktree.path;
+  h.writeGrill(b);
+  fs.writeFileSync(path.join(b, 'second.js'), '// second\n');
+  h.git(b, 'add', 'second.js');
+  h.git(b, 'commit', '-qm', 'feat: second');
+  h.ok(b, 'finish.js');
+  h.git(a, 'merge', '-q', '--no-ff', '-m', 'merge second', h.git(b, 'branch', '--show-current'));
+  const pointer = path.join(a, '.work', 'sessions', '.current-session');
+  assert.ok(!fs.existsSync(pointer), 'the merge deleted the pointer');
+  const res = h.ok(a, 'status.js', ['--json']);
+  assert.match(res.err, new RegExp(`restored ${started.sessionId}, the unfinished session on the checked-out branch ${aBranch}`));
+  assert.strictEqual(JSON.parse(res.out).current.sessionId, started.sessionId);
+  assert.strictEqual(fs.readFileSync(pointer, 'utf-8'), started.sessionId);
+  for (const wt of [b, a]) h.git(root, 'worktree', 'remove', '--force', wt);
+}
+
 h.done('finish.test.js');
