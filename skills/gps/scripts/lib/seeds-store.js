@@ -21,7 +21,9 @@ function seedsPath(sessionsDir) {
 // empty, so the next write can't silently destroy it.
 function quarantine(filePath, reason) {
   const stamp = new Date().toISOString().replace(/[:.]/g, '-');
-  const corruptPath = `${filePath}.corrupt-${stamp}`;
+  let corruptPath = `${filePath}.corrupt-${stamp}`;
+  // Two quarantines in the same millisecond must not overwrite each other.
+  for (let n = 2; fs.existsSync(corruptPath); n += 1) corruptPath = `${filePath}.corrupt-${stamp}-${n}`;
   fs.renameSync(filePath, corruptPath);
   console.error(`⚠️  ${SEEDS_FILENAME} was unreadable (${reason}); moved to ${path.basename(corruptPath)} and starting fresh.`);
 }
