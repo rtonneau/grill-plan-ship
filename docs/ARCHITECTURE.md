@@ -15,13 +15,16 @@ GPS turns a request into verified, delivered code and keeps enough state on disk
 |---|---|---|
 | Host agent | Investigation, design questions, tickets, implementation, review, recovery | `skills/*/SKILL.md`, `references/<command>.md` |
 | Scripts | Session state, write transactions, git and gh calls, changelog, release | `skills/*/scripts/` (Node built-ins only) |
-| Shared roles | Implementer and independent reviewer responsibilities and reports | `assets/role-*.md`, `dispatch-prompt.js` |
-| Host adapter | Mapping a shared role brief to a spawn call and result lifecycle | `lib/host-dispatch.js` |
+| Shared roles | Implementer, ticket reviewer, branch reviewer, plan checker and scout explorer responsibilities and reports | `assets/role-*.md`, `dispatch-prompt.js` |
+| Host adapter | Mapping a shared role brief to a spawn call and result lifecycle; the role table | `lib/host-dispatch.js` (`ROLES`) |
+| Agent definitions | Enforced tool limits per role on Claude | `agents/gps-<role>.md` |
 | Session files | Resume on any host or machine | `.work/sessions/<id>/` |
 
 **The user decides** product questions, ambiguous scope, and irreversible or outward actions not already requested. A typed command is the go-ahead for what its reference describes. **The agent decides** everything else, including how to recover from a failure.
 
-**Delegation.** A ticket runs inline or through the shared implementer brief. Both hosts consume identical role Markdown; adapters only translate invocation and result handling. The implementer edits ticket files, verifies and fills the existing log's narrative. A fresh reviewer independently reads a stable actual diff, including untracked files, against acceptance criteria and project conventions. It reports severity, file/line, concrete findings and verification gaps without editing anything. These are behavioral restrictions, not a new sandbox. See [decision 0016](decisions/0016-shared-behavioral-roles.md), extending [0014](decisions/0014-one-brief-parent-commits.md).
+**Delegation.** A ticket runs inline or through the shared implementer brief. Both hosts consume identical role Markdown; adapters only translate invocation and result handling. The implementer edits ticket files, verifies and fills the existing log's narrative. A fresh reviewer independently reads a stable actual diff, including untracked files, against acceptance criteria and project conventions. It reports severity, file/line, concrete findings and verification gaps without editing anything. See [decision 0016](decisions/0016-shared-behavioral-roles.md), extending [0014](decisions/0014-one-brief-parent-commits.md).
+
+**Roles and agent definitions.** `ROLES` lists five roles: implementer and reviewer per ticket (`/gps ship`), branch reviewer for the whole session (`/gps finish --review`, opt-in), plan checker for a drafted plan (`/gps plan`, High-risk or 4+ tickets) and scout explorer for one area (`/gps scout`, no session). On Claude each is a plugin agent, `grill-plan-ship:gps-<role>`. Its frontmatter only removes tools: Agent for every role, Edit, Write and NotebookEdit for the read-only ones. The role text stays in the brief, so both hosts read the same words. Bash stays for git, so a shell write is still forbidden only by the brief; Codex has no agent definitions and keeps behavioral limits. When the agent type is not found (plugin not loaded), the parent spawns `general-purpose` with the same prompt and says so. See [decision 0019](decisions/0019-role-agent-definitions.md).
 
 **Review selection.** Independent review is required for delegated security, persisted-state, migration, public-API or delivery changes, and interacting changes across components. The parent can assess localized low-risk changes directly. Explicit inline execution stays inline; if spawning is unavailable, parent review records that limitation unless independent review was explicitly required. Model/effort preferences and project pins use the existing live host resolution for either role.
 
@@ -48,7 +51,7 @@ Each row answers: what problem it solved, whether that problem remains, and the 
 | Jev hints | Optional outside model judgment | Optional | KEEP (opt-in, decision 0005) |
 | "Never retry" stop rules | Runaway retries | Bounded recovery covers it | REPLACE: bounded recovery |
 | Hardcoded Codex model and effort table | Mapping tiers to IDs | The spawn tool lists them live | REPLACE: parent resolves; optional project pin |
-| `gps-ticket-<effort>` agents | Agent calls could not set effort | No: `effort` is a call parameter | DELETE; behavioral roles now live in shared templates, not agent definitions |
+| `gps-ticket-<effort>` agents | Agent calls could not set effort | No: `effort` is a call parameter | DELETE; role agents returned for tool limits only (decision 0019), effort stays a call parameter |
 | `subagent` / `subagent+inline` modes | Trading context for review | Merged | DELETE: one `delegate` mode |
 | Child commits, `ticket-check.js` | Verifying a child's commit claim | No: children no longer commit | DELETE |
 | `dispatch-preflight.js`, `--parent-effort` | Static validation of the table above | No | DELETE |

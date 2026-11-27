@@ -1,5 +1,19 @@
 # Compatibility and validation
 
+## Role agent definitions — 2026-11-27
+
+Windows 11, Claude Code 2.1.332, Node 25.6.1. Disposable git repository under the session's scratch dir; `claude -p --model haiku --permission-mode bypassPermissions`, chosen so host permissions could not explain a refused tool, only the agent's own limits.
+
+| Check | Evidence and result |
+|---|---|
+| Plugin agent by scoped type | **PASS (Live):** with `--plugin-dir <this repo>`, an `Agent` call with `subagent_type: grill-plan-ship:gps-reviewer` started the plugin agent. The docs show the scoped form only for `@`-mentions and `--agent`; this confirms it for the Agent tool. |
+| Read-only tool limits | **PASS, limited (Live):** the reviewer child had no Write, Edit or Agent. Asked to create a file, it wrote it through Bash. `disallowedTools` removes tools; it does not stop shell writes, which the brief alone forbids. PowerShell was also available on Windows. |
+| Fallback when the plugin is not loaded | **PASS (Live):** without `--plugin-dir` (installed 4.1.0, no agents), the call failed with `Agent type 'grill-plan-ship:gps-reviewer' not found. Available agents: …`. The host substitutes nothing on its own; the lifecycle tells the parent to spawn `general-purpose` with the same prompt and say so. |
+| Brief construction for five roles | **PASS (Fixture):** identical role text on both hosts; ticket, session (branch reviewer, plan checker) and session-less (scout) roles; argument refusals; read-only dispatch. `tests/skill.test.js` keeps `agents/` and `ROLES` in step. |
+| Codex | **NOT TESTED** live: Codex calls are unchanged apart from the new briefs; plugins still cannot bundle agents (**Docs**). |
+
+**Not tested:** the plan checker, branch reviewer and scout explorer as part of a real `/gps plan`, `/gps finish --review` or `/gps scout` run on either host; the implementer agent live; `disallowedTools` under other permission modes.
+
 ## Shared behavioral roles — 2026-11-05
 
 Windows, Node 22.14.0, Claude Code 2.1.318 and the current Codex Desktop native collaboration tools. **Live** means an actual host/child in a disposable repository; **Schema** means an exposed tool contract; **Docs** means official documentation; **Fixture** means deterministic automated coverage. None implies a permission/security guarantee.
@@ -68,7 +82,7 @@ Evidence labels: **Live** = run on real hosts in a disposable repo. **Schema** =
 |---|---|---|---|
 | Skills with progressive disclosure | Yes | Yes | Docs, Live |
 | Plugin bundles skills | Yes, `.claude-plugin/plugin.json` | Yes, root `plugin.json` | Docs; `claude plugin validate` passes |
-| Plugin bundles agents | Yes | Not documented | Docs |
+| Plugin bundles agents | Yes, `agents/` auto-discovered; called as `<plugin>:<agent>` | Not documented | Docs; Live (Claude, 2026-11-27) |
 | Per-call model | `haiku`, `sonnet`, `opus`, `fable` aliases | `model` from the tool's list | Live |
 | Per-call effort | `effort` (v2.1.292+) | `reasoning_effort` | Live |
 | Unsupported effort | Falls back to the highest level at or below it | Varies by model; `gpt-6-luna` lists no `xhigh` | Docs (Claude), Schema (Codex) |

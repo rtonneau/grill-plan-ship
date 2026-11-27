@@ -16,6 +16,7 @@ skills/gps/
 ├── references/<cmd>.md   one short file per command: judgment steps + one-line script calls (≤ 40 lines)
 ├── scripts/<name>.js     one script per deterministic step; lib/ holds shared helpers, lib/cli.js the contract
 └── assets/               markdown templates only
+agents/gps-<role>.md      Claude plugin agent per role in ROLES (lib/host-dispatch.js): tool limits only, body points at the brief (decision 0019)
 skills/idea/              Idea backlog skill, same shape, independent (decision 0009)
 docs/decisions/NNNN-*.md  design decisions with their reasons
 docs/WORK-DIR.md          contract for other skills sharing .work/ (names every GPS_WORK_PATHS entry)
@@ -25,7 +26,7 @@ tests/                    <script>.test.js per script, lib/<lib>.test.js per lib
 
 The icon and diagram in `docs/` are PNGs rendered from SVG sources on the `design-sources` branch; no SVG on main.
 
-Decisions worth knowing before changing behavior: 0001 effort hints stop at xhigh; 0002 gps commits only its own `.work/` paths; 0003 changelog fragments, version set only by `/gps release`; 0004 Claude hints stay family-level; 0011 a full ship chains a finish that asks nothing; 0012 session state files are committed, only `.scratch/` is ignored; 0013 the size of the work sets the process; 0014 the parent commits and the host resolves models; 0016 shared implementer/reviewer briefs, the parent accepts; 0017 parallel sessions run one per git worktree; 0018 status.js and help.js --json are a versioned contract (docs/STATUS-JSON.md).
+Decisions worth knowing before changing behavior: 0001 effort hints stop at xhigh; 0002 gps commits only its own `.work/` paths; 0003 changelog fragments, version set only by `/gps release`; 0004 Claude hints stay family-level; 0011 a full ship chains a finish that asks nothing; 0012 session state files are committed, only `.scratch/` is ignored; 0013 the size of the work sets the process; 0014 the parent commits and the host resolves models; 0016 shared implementer/reviewer briefs, the parent accepts; 0017 parallel sessions run one per git worktree; 0018 status.js and help.js --json are a versioned contract (docs/STATUS-JSON.md); 0019 role agent definitions add only tool limits, a new role needs its ROLES entry, assets/role-<role>.md and agents/gps-<role>.md.
 
 ## Rules for scripts
 
