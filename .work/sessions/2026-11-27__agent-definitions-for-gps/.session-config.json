@@ -110,6 +110,30 @@
         "ticket": "02-branch-reviewer-role",
         "commit": "d754bfa"
       }
+    },
+    {
+      "at": "2026-11-27T12:32:49.576Z",
+      "event": "ticket_started",
+      "phase": "ship",
+      "files": [
+        "02-plan/tickets/03-plan-checker-role.md",
+        "03-implement/03-plan-checker-role/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "03-plan-checker-role"
+      }
+    },
+    {
+      "at": "2026-11-27T12:37:21.283Z",
+      "event": "ticket_done",
+      "phase": "ship",
+      "files": [
+        "03-implement/03-plan-checker-role/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "03-plan-checker-role",
+        "commit": "1582611"
+      }
     }
   ],
   "current_phase": "ship",
