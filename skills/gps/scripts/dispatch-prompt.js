@@ -19,7 +19,7 @@ const { TICKET_MODELS, TICKET_EFFORTS } = require('./lib/ticket-queue');
 const { MAX_EFFORT_REASON } = require('./lib/ticket-model');
 const { GpsError, UsageError } = require('./lib/guard');
 const { readConfig } = require('./lib/project-config');
-const { buildDispatch } = require('./lib/host-dispatch');
+const { ROLES, buildDispatch } = require('./lib/host-dispatch');
 const { loadTemplate, renderTemplate } = require('./lib/templates');
 const { commitExists } = require('./lib/git');
 
@@ -40,7 +40,7 @@ main({
     const host = options.host || 'claude';
     const role = options.role || 'implementer';
     const base = options.base;
-    if (!['implementer', 'reviewer'].includes(role)) throw new UsageError('--role must be one of: implementer, reviewer.');
+    if (!ROLES[role]) throw new UsageError(`--role must be one of: ${Object.keys(ROLES).join(', ')}.`);
     if (role === 'reviewer' && !/^(?:[a-f0-9]{40}|[a-f0-9]{64})$/i.test(base || '')) {
       throw new UsageError('--base must be a full commit SHA for reviewer dispatch.');
     }
@@ -68,7 +68,7 @@ main({
     const effort = options.effort || ticket.effort;
     const prompt = buildPrompt(ticket, { role, base, projectRoot, scratchDir: config.scratch_dir || `.scratch/tests/${sessionId}` });
     const { call, notes, lifecycle } = buildDispatch(host, {
-      model, effort,
+      role, model, effort,
       requiredModel: options.model !== null && model !== 'inherit',
       requiredEffort: options.effort !== null && effort !== 'inherit',
       description: `gps ${role === 'reviewer' ? 'review' : 'ticket'} ${ticket.num} ${ticket.slug}`.slice(0, 60),

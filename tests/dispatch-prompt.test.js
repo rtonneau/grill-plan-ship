@@ -30,6 +30,8 @@ const reviewArgs = ['1', '--role', 'reviewer', '--base', base];
 const reviewer = h.json(root, 'dispatch-prompt.js', reviewArgs);
 const codexReviewer = h.json(root, 'dispatch-prompt.js', [...reviewArgs, '--host', 'codex']);
 assert.strictEqual(reviewer.role, 'reviewer');
+assert.strictEqual(reviewer.call.subagent_type, 'grill-plan-ship:gps-reviewer', 'Claude reviewers run as the read-only agent');
+assert.match(reviewer.lifecycle, /general-purpose with the same prompt/, 'the parent falls back when the plugin agent is unavailable');
 assert.strictEqual(reviewer.base, base);
 assert.strictEqual(reviewer.call.prompt, codexReviewer.call.message, 'both hosts consume the same reviewer brief');
 assert.strictEqual(codexReviewer.call.task_name, 'gps_review_01');
@@ -50,7 +52,7 @@ assert.strictEqual(h.git(root, 'rev-parse', 'HEAD'), base);
 // The brief: every path filled in, the parent owns git, one final line.
 let data = h.json(root, 'dispatch-prompt.js', ['1']);
 assert.strictEqual(data.model, 'fast');
-assert.strictEqual(data.call.subagent_type, 'general-purpose');
+assert.strictEqual(data.call.subagent_type, 'grill-plan-ship:gps-implementer');
 assert.strictEqual(data.call.model, 'haiku');
 assert.strictEqual(data.call.description, 'gps ticket 01 toggle');
 const prompt = data.call.prompt;
