@@ -65,7 +65,7 @@ const h = require('./helpers');
   assert.strictEqual(queue.shipMode, 'delegate');
   assert.strictEqual(queue.nextPending.slug, 'b');
   h.ok(root, 'ticket-start.js', ['2']);
-  assert.strictEqual(h.json(root, 'dispatch-prompt.js', ['2']).call.subagent_type, 'general-purpose');
+  assert.strictEqual(h.json(root, 'dispatch-prompt.js', ['2']).call.subagent_type, 'grill-plan-ship:gps-implementer');
   h.completeTicket(root, 2, 'b');
   assert.match(h.ok(root, 'ticket-start.js').out, /All tickets are done/);
   assert.match(h.ok(root, 'finish.js', ['--title', 'Legacy']).out, /Session complete/);

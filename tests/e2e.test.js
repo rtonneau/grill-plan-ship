@@ -59,7 +59,7 @@ for (const [num, slug, mode] of [[1, 'toggle', 'delegate'], [2, 'persist', 'inli
   if (mode === 'delegate') {
     const call = h.json(root, 'dispatch-prompt.js', [String(num)]).call;
     assert.strictEqual(call.model, 'haiku');
-    assert.strictEqual(call.subagent_type, 'general-purpose');
+    assert.strictEqual(call.subagent_type, 'grill-plan-ship:gps-implementer');
     assert.strictEqual(call.effort, 'high');
     assert.ok(call.prompt.includes(started.ticket.commitLogPath));
   }

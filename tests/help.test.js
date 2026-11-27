@@ -15,7 +15,7 @@ const h = require('./helpers');
     assert.match(res.out, new RegExp(`^\\| \`/gps ${name}\\b`, 'm'), `help lists /gps ${name}`);
   }
   // The table cell of /gps auto keeps its pipes escaped.
-  assert.match(res.out, /\| `\/gps auto \[--delegate\\\|--inline\] \[plan\\\|ship\\\|finish\]` \| You trust the direction/);
+  assert.match(res.out, /\| `\/gps auto \[--delegate\\\|--inline\] \[--review\] \[plan\\\|ship\\\|finish\]` \| You trust the direction/);
   assert.match(res.out, /Next: \/gps start <feature-name>/);
   assert.ok(!fs.existsSync(path.join(root, '.work')), 'help.js creates nothing');
 
@@ -34,7 +34,7 @@ const h = require('./helpers');
     assert.match(one, /\*\*When:\*\* the tickets are drafted/);
     assert.match(one, /\*\*Examples:\*\* `\/gps ship`/);
   }
-  assert.strictEqual(h.json(root, 'help.js', ['auto']).command.usage, '/gps auto [--delegate|--inline] [plan|ship|finish]');
+  assert.strictEqual(h.json(root, 'help.js', ['auto']).command.usage, '/gps auto [--delegate|--inline] [--review] [plan|ship|finish]');
 
   h.assertFails(h.run(root, 'help.js', ['bogus']), 2, /Unknown command "bogus"[\s\S]*Commands: init, scout, start/);
   h.assertFails(h.run(root, 'help.js', ['a', 'b']), 2, /Unexpected argument/);

@@ -3,9 +3,9 @@ const { buildDispatch, pinnedCodexModel } = require('../../skills/gps/scripts/li
 
 const brief = { model: 'medium', effort: 'high', description: 'ticket', prompt: 'complete brief', taskName: 'gps_ticket_01' };
 
-// Claude: family alias and effort on the call, one subagent type for every level.
+// Claude: family alias and effort on the call; the role picks the plugin agent, never the effort.
 assert.deepStrictEqual(buildDispatch('claude', brief).call, {
-  subagent_type: 'general-purpose', model: 'sonnet', effort: 'high', description: 'ticket', prompt: 'complete brief',
+  subagent_type: 'grill-plan-ship:gps-implementer', model: 'sonnet', effort: 'high', description: 'ticket', prompt: 'complete brief',
 });
 assert.strictEqual(buildDispatch('claude', { ...brief, model: 'fast' }).call.model, 'haiku');
 assert.strictEqual(buildDispatch('claude', { ...brief, model: 'heavy' }).call.model, 'opus');
@@ -27,7 +27,12 @@ assert.deepStrictEqual(buildDispatch('codex', { ...brief, model: 'inherit', effo
 // Host-specific lifecycle guidance must not invent per-call permission fields.
 const claudeLifecycle = buildDispatch('claude', brief).lifecycle;
 const codexLifecycle = buildDispatch('codex', brief).lifecycle;
-assert.match(claudeLifecycle, /Agent.*general-purpose/);
+assert.match(claudeLifecycle, /Agent with grill-plan-ship:gps-implementer/);
+assert.match(claudeLifecycle, /not available.*general-purpose with the same prompt/, 'fallback when the plugin is not loaded');
+assert.strictEqual(buildDispatch('claude', { ...brief, role: 'reviewer' }).call.subagent_type, 'grill-plan-ship:gps-reviewer');
+assert.throws(() => buildDispatch('claude', { ...brief, role: 'researcher' }), /--role must be one of/);
+// Codex has no agent types: the role changes only the brief.
+assert.deepStrictEqual(buildDispatch('codex', { ...brief, role: 'reviewer' }).call, buildDispatch('codex', brief).call);
 assert.match(claudeLifecycle, /notification/);
 assert.match(codexLifecycle, /spawn_agent.*wait_agent/);
 assert.match(codexLifecycle, /final/);

@@ -53,8 +53,8 @@ The agent states the size it chose: say so if you disagree. `/gps init` is an op
 | `/gps write` | Save the agreed grill or plan to disk (`plan`, `ship` and `auto` do it for you) |
 | `/gps plan` | Save the grill if pending, then draft tickets with model and effort hints |
 | `/gps ship [N] [--inline\|--delegate]` | Save the plan if pending, then implement every remaining ticket and chain `/gps finish` (or only ticket N) |
-| `/gps finish` | Close the session: changelog fragment, INDEX.md, PR; tracked leftovers require a scoped commit first |
-| `/gps auto [--delegate\|--inline] [plan\|ship\|finish]` | Run from the current phase to the target without stopping |
+| `/gps finish [--review]` | Close the session: changelog fragment, INDEX.md, PR; tracked leftovers require a scoped commit first (`--review`: a read-only review of the whole branch before the PR) |
+| `/gps auto [--delegate\|--inline] [--review] [plan\|ship\|finish]` | Run from the current phase to the target without stopping |
 | `/gps release [--publish [--version X.Y.Z]]` | Turn the changelog fragments into a version: suggest, bump, tag, push; `--publish` preapproves all of it |
 | `/gps handoff` | Save an in-flight checkpoint before you stop for the day |
 | `/gps help [command\|question]` | Where you are and what to run next, what a command does, or an answer to any question about the workflow |
@@ -113,6 +113,10 @@ The `idea` skill keeps a backlog of future work apart from gps sessions. An Idea
 
 **Shared roles.** Both hosts receive the same implementer and reviewer instructions from Markdown templates. Independent review runs for delegated security, persisted-state, migration, public-API or delivery changes, and interacting changes across components. Localized low-risk work can use parent review. A fresh reviewer inspects the actual stable diff and reports findings with severity, file/line and verification gaps; it never edits or completes the ticket. Only the parent accepts, commits and changes session state. With unavailable spawning, the parent reviews inline and records the limitation, unless delegation or independent review was explicitly required. See [decision 0016](docs/decisions/0016-shared-behavioral-roles.md).
 
+**Other roles.** Three more read-only children use the same mechanism. The plan checker critiques drafted tickets against the grill for High-risk work or plans of 4+ tickets. The branch reviewer runs only with `/gps finish --review` and reviews the whole branch before the PR. Scout explorers each take one area when `/gps scout` faces a codebase too large for one context.
+
+**Agent definitions.** On Claude Code every role runs as a plugin agent (`agents/gps-<role>.md`, invoked as `grill-plan-ship:gps-<role>`). The agent file adds only tool limits: no Agent tool for any role, and no Edit, Write or NotebookEdit for the read-only roles. Bash stays available for git, so a write through the shell is forbidden only by the brief. Codex runs the same briefs without definitions. If the plugin isn't loaded, gps falls back to `general-purpose` with the same brief and tells you so. See [decision 0019](docs/decisions/0019-role-agent-definitions.md).
+
 **Hints.** A ticket may carry a portable `**Model:**` tier (`fast`, `medium`, `heavy`, `inherit`) and an `**Effort:**` level (`low`, `medium`, `high`, `xhigh`, `inherit`); no line means the session's own. Inline work ignores them, since a running session can't change its own model or effort. Hints stop at `xhigh` on purpose ([decision 0001](docs/decisions/0001-effort-hints-stop-at-xhigh.md)).
 
 - **Claude Code:** tiers map to `haiku`, `sonnet` and `opus`; model and effort go on the Agent call.
@@ -157,6 +161,7 @@ Run artifacts go to `.scratch/tests/<session-id>/`. The built-in build-tree name
 ```
 plugin.json               portable plugin manifest (Codex)
 .claude-plugin/            plugin.json, marketplace.json
+agents/                    one Claude plugin agent per gps role (tool limits only)
 skills/gps/
 ├── SKILL.md               router: command table, script contract, shared rules
 ├── references/<cmd>.md    one short file per command (what Claude does, which script to run)
@@ -193,7 +198,7 @@ Every script in `skills/gps/scripts/` follows the same rules (see `scripts/lib/c
 | `plan.js` | start the plan phase |
 | `ticket-queue.js` | the tickets, their state, and model and effort hints |
 | `ticket-start.js` | prepare a ticket's workspace (next pending one by default); `--mode` records the ship mode |
-| `dispatch-prompt.js` | shared implementer/reviewer brief, fixed review base, and host spawn/result guidance |
+| `dispatch-prompt.js` | shared role brief (implementer, reviewer, branch reviewer, plan checker, scout), fixed review base, and host spawn/result guidance |
 | `ticket-complete.js` | commit the given files, mark the ticket Done, fill its log |
 | `ticket-block.js` | record why a ticket can't be finished |
 | `changelog-prepare.js` | `/gps finish` step 1: the session's commits, bump floor and payload path for its CHANGELOG entry |

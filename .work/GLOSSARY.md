@@ -46,3 +46,11 @@ _Avoid_: active branch, running branch
 **Worktree base**:
 The branch a `--worktree` session branch is cut from and records as `base_branch`: `--base` if given; otherwise the checked-out branch, or the base of the session that makes it busy.
 _Avoid_: parent branch, start point
+
+**Role**:
+A behavioral responsibility a gps child takes for one task (implementer, ticket reviewer, branch reviewer, scout explorer, plan checker), defined by its shared brief in `assets/role-*.md` and given identically to both hosts.
+_Avoid_: agent type, persona
+
+**Agent definition**:
+A Claude plugin file under `agents/` that binds a role to enforced tool limits; its body only points at the brief in the prompt. Codex has none and receives the brief alone.
+_Avoid_: agent (alone), subagent file

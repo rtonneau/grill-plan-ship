@@ -3,7 +3,7 @@
 **When:** you want the codebase, or an existing review, to suggest what to build next.
 
 **Without `--from`:**
-1. Review the architecture toward `[direction]` and write the findings to a temp report file, one candidate per finding. When `improve-codebase-architecture` or `codebase-design` is available, follow its explore and report steps only.
+1. Review the architecture toward `[direction]` and write the findings to a temp report file, one candidate per finding. When `improve-codebase-architecture` or `codebase-design` is available, follow its explore and report steps only. When the codebase is too large to review well in one context, split it into a few areas and, for each, `dispatch-prompt.js --role scout --area "<area>" [--direction "<direction>"] --host <claude|codex> --json`; spawn the calls following `notes` and `lifecycle`, wait for every final result, then merge and dedupe their candidates into the report yourself.
 2. Turn every candidate card into an entry, write `{ "sourceDirection": <direction or null>, "candidates": [...] }` to a temp JSON file, then `scout-merge.js <report.html> <entries.json>`.
 
 **With `--from <review-file>`** (no architecture skill, no HTML report):

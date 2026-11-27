@@ -1,5 +1,7 @@
 # 0016: Shared behavioral roles; the parent accepts and delivers
 
+_Superseded in part by decision 0019: Claude role agent definitions now add enforced tool limits; the shared briefs and everything else here stand._
+
 ## Context
 
 Decision 0014 removed host-specific agents that existed only to set effort. Its one implementer brief left independent review and finding recovery implicit. Reusable responsibilities are useful without reintroducing model tables or separate host prompts.

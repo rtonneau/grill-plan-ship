@@ -116,10 +116,13 @@ for (const name of libs) {
 // Assets are templates only, and every one is used by a script.
 const scriptSources = [...scripts.map((f) => path.join(SCRIPTS, f)), ...libs.map((f) => path.join(SCRIPTS, 'lib', f))]
   .map((f) => fs.readFileSync(f, 'utf-8')).join('\n');
+// dispatch-prompt.js loads role-<role>.md for every role in ROLES.
+const roleBriefs = Object.keys(require('../skills/gps/scripts/lib/host-dispatch').ROLES).map((r) => `role-${r}.md`);
 for (const asset of fs.readdirSync(path.join(SKILL_DIR, 'assets'))) {
   assert.ok(asset.endsWith('.md'), `assets/${asset} is not a template`);
-  assert.ok(scriptSources.includes(`'${asset}'`), `assets/${asset} is never loaded`);
+  assert.ok(scriptSources.includes(`'${asset}'`) || roleBriefs.includes(asset), `assets/${asset} is never loaded`);
 }
+for (const brief of roleBriefs) assert.ok(fs.existsSync(path.join(SKILL_DIR, 'assets', brief)), `assets/${brief} exists for its role`);
 
 // The plugin manifests and package.json carry the same version.
 const repo = path.join(__dirname, '..');
@@ -157,8 +160,23 @@ const readmeWords = fs.readFileSync(path.join(repo, 'README.md'), 'utf-8').repla
 // No SVG in the plugin: the directory holds every SVG for review (an SVG can carry
 // script); the sources live on the design-sources branch.
 assert.deepStrictEqual(spawnSync('git', ['ls-files', '*.svg'], { cwd: repo, encoding: 'utf-8' }).stdout.trim(), '', 'no SVG files in the plugin');
-// One shared brief, spawned with per-call model and effort (decision 0014): the plugin ships no agents.
-assert.ok(!fs.existsSync(path.join(repo, 'agents')), 'no plugin agent definitions');
+// One Claude agent definition per role, adding only tool limits (decision 0019):
+// model and effort stay per call (0014), the role text stays in the brief.
+const { ROLES } = require('../skills/gps/scripts/lib/host-dispatch');
+const agentFiles = fs.readdirSync(path.join(repo, 'agents')).sort();
+assert.deepStrictEqual(agentFiles, Object.values(ROLES).map((r) => `${r.agent}.md`).sort(), 'agents/ holds one file per role in ROLES');
+for (const [role, { agent, readOnly }] of Object.entries(ROLES)) {
+  const text = fs.readFileSync(path.join(repo, 'agents', `${agent}.md`), 'utf-8');
+  const front = (text.match(/^---\r?\n([\s\S]*?)\r?\n---/) || [])[1];
+  assert.ok(front, `agents/${agent}.md has frontmatter`);
+  assert.match(front, new RegExp(`^name: ${agent}$`, 'm'), `agents/${agent}.md is named ${agent}`);
+  assert.match(front, /^description: .*Only for .*dispatch-prompt\.js/m, `agents/${agent}.md is limited to gps briefs`);
+  assert.doesNotMatch(front, /^(model|effort):/m, `agents/${agent}.md leaves model and effort to the call`);
+  const disallowed = ((front.match(/^disallowedTools: (.*)$/m) || [])[1] || '').split(/,\s*/);
+  assert.ok(disallowed.includes('Agent'), `${role} cannot delegate further`);
+  for (const tool of ['Edit', 'Write', 'NotebookEdit']) assert.strictEqual(disallowed.includes(tool), readOnly, `${role} ${readOnly ? 'cannot' : 'can'} use ${tool}`);
+  assert.match(text.slice(text.indexOf('---', 3) + 3), /brief in your prompt/, `agents/${agent}.md points at the brief`);
+}
 // The shared .work/ contract names every path gps owns (docs/WORK-DIR.md).
 const { GPS_WORK_PATHS } = require('../skills/gps/scripts/lib/git');
 const workDirDoc = fs.readFileSync(path.join(repo, 'docs', 'WORK-DIR.md'), 'utf-8');

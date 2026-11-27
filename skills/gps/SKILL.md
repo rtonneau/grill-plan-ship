@@ -46,8 +46,8 @@ Turn a request into verified, delivered code, with as much process as the work d
 | `/gps write` | Save the approved grill or plan to disk | `references/write.md` |
 | `/gps plan` | Save the grill if pending, start the plan, draft tickets | `references/plan.md` |
 | `/gps ship [N] [--inline\|--delegate]` | Save the plan if pending, implement every remaining ticket (or only ticket N), inline or delegated | `references/ship.md` |
-| `/gps finish` | Close the session: check leftovers, INDEX.md, PR | `references/finish.md` |
-| `/gps auto [--delegate\|--inline] [plan\|ship\|finish]` | Run from the current phase to the target without stopping | `references/auto.md` |
+| `/gps finish [--review]` | Close the session: check leftovers, INDEX.md, PR (`--review`: a read-only review of the whole branch first) | `references/finish.md` |
+| `/gps auto [--delegate\|--inline] [--review] [plan\|ship\|finish]` | Run from the current phase to the target without stopping | `references/auto.md` |
 | `/gps handoff` | Save an in-flight checkpoint (HANDOFF.md) | `references/handoff.md` |
 | `/gps release [--publish [--version X.Y.Z]]` | Merge the changelog fragments (and Unreleased bullets) into a version: suggest, bump, tag, push; `--publish` preapproves all of it | `references/release.md` |
 | `/gps help [command\|question]` | What to do next, what a command does, how the workflow fits together | `references/help.md` |
