@@ -149,4 +149,30 @@ h.assertFails(h.run(root, 'dispatch-prompt.js', ['1']), 1, /already Done/);
   assert.strictEqual(fs.readFileSync(h.configPath(root), 'utf-8'), state, 'read-only');
 }
 
+// Plan checker (/gps plan): reads the drafted payload before write-apply.js saves it.
+{
+  const r = h.gitProject();
+  h.ok(r, 'start.js', ['checked']);
+  h.writeGrill(r);
+  h.ok(r, 'plan.js');
+  h.assertFails(h.run(r, 'dispatch-prompt.js', ['--role', 'plan-checker']), 1, /No drafted plan to check[\s\S]*write-prepare\.js/);
+  h.assertFails(h.run(r, 'dispatch-prompt.js', ['1', '--role', 'plan-checker']), 2, /takes no ticket number/);
+  h.assertFails(h.run(r, 'dispatch-prompt.js', ['--role', 'plan-checker', '--base', h.git(r, 'rev-parse', 'HEAD')]), 2, /--base is only used/);
+  const prep = h.json(r, 'write-prepare.js');
+  fs.writeFileSync(prep.payloadPath, h.planPayload(prep, [{ slug: 'one' }, { slug: 'two' }]));
+  const before = fs.readFileSync(prep.payloadPath, 'utf-8');
+  const check = h.json(r, 'dispatch-prompt.js', ['--role', 'plan-checker']);
+  const codexCheck = h.json(r, 'dispatch-prompt.js', ['--role', 'plan-checker', '--host', 'codex']);
+  assert.strictEqual(check.call.subagent_type, 'grill-plan-ship:gps-plan-checker');
+  assert.strictEqual(check.call.prompt, codexCheck.call.message, 'both hosts read the same plan-check brief');
+  assert.strictEqual(codexCheck.call.task_name, 'gps_plan_check');
+  assert.ok(check.call.prompt.includes(`- Plan draft: ${prep.payloadPath}`), 'points at the payload');
+  assert.ok(check.call.prompt.includes(path.join(h.sessionDir(r), '01-grill', 'resume.md')), 'points at the resume');
+  assert.match(check.call.prompt, /Verification Steps/);
+  assert.match(check.call.prompt, /CHECKED — no findings/);
+  assert.doesNotMatch(check.call.prompt, /\{\{/, 'every slot filled');
+  assert.strictEqual(fs.readFileSync(prep.payloadPath, 'utf-8'), before, 'the draft is left as written');
+  assert.strictEqual(h.json(r, 'write-prepare.js').target, 'plan', 'the plan is still pending');
+}
+
 h.done('dispatch-prompt.test.js');

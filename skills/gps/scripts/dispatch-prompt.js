@@ -7,7 +7,8 @@
  * call: on Claude the role's plugin agent, on Codex a fresh child (decision 0019).
  * Ticket roles (implementer, reviewer) take a ticket number; run
  * ticket-start.js <number> first, the prompt points at its log. The
- * branch-reviewer (/gps finish --review) reviews the session from --base.
+ * branch-reviewer (/gps finish --review) reviews the session from --base;
+ * the plan-checker (/gps plan) checks the drafted plan payload before it is saved.
  * The parent owns acceptance, Git writes and session state (decision 0016).
  * --model overrides the portable tier (fast, medium, heavy, inherit).
  * --effort overrides low, medium, high, xhigh or inherit (no max). Read-only.
@@ -25,6 +26,7 @@ const { readConfig } = require('./lib/project-config');
 const { ROLES, buildDispatch } = require('./lib/host-dispatch');
 const { loadTemplate, renderTemplate } = require('./lib/templates');
 const { commitExists } = require('./lib/git');
+const { PAYLOAD_FILENAME } = require('./lib/write-payload');
 
 const SHA = /^(?:[a-f0-9]{40}|[a-f0-9]{64})$/i;
 
@@ -57,17 +59,26 @@ function checkArgs([arg], options) {
   return { role, spec, arg, host, base: options.base };
 }
 
+// The session files a non-ticket role reads, as the brief's bullet lines. The plan
+// checker reads the drafted plan payload, before write-apply.js saves it.
+function sessionFiles(role, sessionDir) {
+  const resume = `- Grill resume: ${path.join(sessionDir, '01-grill', 'resume.md')}`;
+  if (role === 'plan-checker') {
+    const draft = path.join(sessionDir, PAYLOAD_FILENAME);
+    if (!fs.existsSync(draft) || !/^--- ticket: /m.test(fs.readFileSync(draft, 'utf-8'))) {
+      throw new GpsError('No drafted plan to check.', `Write the drafted plan and tickets to ${draft} first (write-prepare.js prints the skeleton), then dispatch the plan checker.`);
+    }
+    return [resume, `- Plan draft: ${draft}`].join('\n');
+  }
+  return [resume, `- Plan: ${path.join(sessionDir, '02-plan', 'plan.md')}`, `- Tickets: ${path.join(sessionDir, '02-plan', 'tickets')}`].join('\n');
+}
+
 // What the brief is about, one ticket or the whole session: label, id, hints and template slots.
-function subject(spec, arg, sessionId, sessionDir) {
+function subject(role, spec, arg, sessionId, sessionDir) {
   if (!spec.ticket) {
     return {
       label: `session ${sessionId}`, id: sessionId, name: sessionId, task: `gps_${spec.task}`, model: 'inherit', effort: 'inherit',
-      vars: {
-        sessionId,
-        resumePath: path.join(sessionDir, '01-grill', 'resume.md'),
-        planPath: path.join(sessionDir, '02-plan', 'plan.md'),
-        ticketsDir: path.join(sessionDir, '02-plan', 'tickets'),
-      },
+      vars: { sessionId, sessionFiles: sessionFiles(role, sessionDir) },
     };
   }
   const ticket = findTicketByNumber(sessionDir, Number(arg));
@@ -89,7 +100,7 @@ main({
   run({ positionals, options, projectRoot }) {
     const { role, spec, arg, host, base } = checkArgs(positionals, options);
     const { sessionId, sessionDir, config } = resolveSession(projectRoot);
-    const about = subject(spec, arg, sessionId, sessionDir);
+    const about = subject(role, spec, arg, sessionId, sessionDir);
     if (spec.base && !commitExists(projectRoot, base)) {
       throw new GpsError(`Review base ${base} is not an available commit.`, 'Use the base recorded before implementation; do not substitute a moving ref.');
     }

@@ -15,6 +15,7 @@ const ROLES = Object.freeze({
   implementer: Object.freeze({ agent: 'gps-implementer', readOnly: false, ticket: true, task: 'ticket' }),
   reviewer: Object.freeze({ agent: 'gps-reviewer', readOnly: true, ticket: true, base: true, task: 'review' }),
   'branch-reviewer': Object.freeze({ agent: 'gps-branch-reviewer', readOnly: true, base: true, task: 'branch_review' }),
+  'plan-checker': Object.freeze({ agent: 'gps-plan-checker', readOnly: true, task: 'plan_check' }),
 });
 
 function claudeAgentType(role) {
