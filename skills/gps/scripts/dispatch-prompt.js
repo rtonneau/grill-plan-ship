@@ -8,7 +8,8 @@
  * Ticket roles (implementer, reviewer) take a ticket number; run
  * ticket-start.js <number> first, the prompt points at its log. The
  * branch-reviewer (/gps finish --review) reviews the session from --base;
- * the plan-checker (/gps plan) checks the drafted plan payload before it is saved.
+ * the plan-checker (/gps plan) checks the drafted plan payload before it is saved;
+ * the scout (/gps scout) explores one --area, toward an optional --direction, with no session.
  * The parent owns acceptance, Git writes and session state (decision 0016).
  * --model overrides the portable tier (fast, medium, heavy, inherit).
  * --effort overrides low, medium, high, xhigh or inherit (no max). Read-only.
@@ -30,10 +31,11 @@ const { PAYLOAD_FILENAME } = require('./lib/write-payload');
 
 const SHA = /^(?:[a-f0-9]{40}|[a-f0-9]{64})$/i;
 
-// Ticket roles open with the ticket header, others with the session header; the
-// rules every role shares follow, then the role's own brief.
+// Ticket roles open with the ticket header, the scout with its area, others with the
+// session header; the rules every role shares follow, then the role's own brief.
 function buildPrompt(role, vars) {
-  const context = loadTemplate(ROLES[role].ticket ? 'role-context.md' : 'role-session-context.md');
+  const spec = ROLES[role];
+  const context = loadTemplate((spec.ticket && 'role-context.md') || (spec.noSession && 'role-scout-context.md') || 'role-session-context.md');
   const text = `${context}${loadTemplate('role-rules.md')}\n${loadTemplate(`role-${role}.md`)}`;
   return renderTemplate(text, { role, ...vars }).trimEnd();
 }
@@ -47,6 +49,8 @@ function checkArgs([arg], options) {
   if (arg !== undefined && !/^\d+$/.test(arg)) throw new UsageError(`Invalid ticket number: ${arg}`);
   if (spec.base && !SHA.test(options.base || '')) throw new UsageError(`--base must be a full commit SHA for ${role} dispatch.`);
   if (!spec.base && options.base !== null) throw new UsageError('--base is only used by the reviewer roles.');
+  if (spec.noSession && !(options.area || '').trim()) throw new UsageError(`The ${role} role needs --area "<architecture area>".`);
+  if (!spec.noSession && (options.area !== null || options.direction !== null)) throw new UsageError('--area and --direction are only used by the scout role.');
   const host = options.host || 'claude';
   if (!['claude', 'codex'].includes(host)) throw new UsageError('--host must be one of: claude, codex.');
   if (options.model !== null && !TICKET_MODELS.includes(options.model)) {
@@ -93,21 +97,38 @@ function subject(role, spec, arg, sessionId, sessionDir) {
   };
 }
 
+// The scout explores one architecture area, with no session: its task name carries
+// the area so several explorers can run side by side.
+function scoutSubject(spec, area, direction) {
+  const slug = area.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '').slice(0, 40) || 'area';
+  return {
+    label: `area "${area}"`, id: area, name: area, task: `gps_${spec.task}_${slug}`, model: 'inherit', effort: 'inherit',
+    vars: { area, direction: direction || 'none given: report the strongest improvements you find' },
+  };
+}
+
 main({
-  usage: `dispatch-prompt.js [<number>] [--role <${Object.keys(ROLES).join('|')}>] [--base <sha>] [--host <claude|codex>] [--model <fast|medium|heavy|inherit>] [--effort <low|medium|high|xhigh|inherit>] [--json]`,
+  usage: `dispatch-prompt.js [<number>] [--role <${Object.keys(ROLES).join('|')}>] [--base <sha>] [--area <a> [--direction <d>]] [--host <claude|codex>] [--model <fast|medium|heavy|inherit>] [--effort <low|medium|high|xhigh|inherit>] [--json]`,
   positionals: { min: 0, max: 1 },
-  options: { host: 'string', model: 'string', effort: 'string', role: 'string', base: 'string' },
+  options: { host: 'string', model: 'string', effort: 'string', role: 'string', base: 'string', area: 'string', direction: 'string' },
   run({ positionals, options, projectRoot }) {
     const { role, spec, arg, host, base } = checkArgs(positionals, options);
-    const { sessionId, sessionDir, config } = resolveSession(projectRoot);
-    const about = subject(role, spec, arg, sessionId, sessionDir);
+    let about;
+    let scratchDir = '';
+    if (spec.noSession) {
+      about = scoutSubject(spec, options.area.trim(), (options.direction || '').trim());
+    } else {
+      const { sessionId, sessionDir, config } = resolveSession(projectRoot);
+      about = subject(role, spec, arg, sessionId, sessionDir);
+      scratchDir = config.scratch_dir || `.scratch/tests/${sessionId}`;
+    }
     if (spec.base && !commitExists(projectRoot, base)) {
       throw new GpsError(`Review base ${base} is not an available commit.`, 'Use the base recorded before implementation; do not substitute a moving ref.');
     }
 
     const model = options.model || about.model;
     const effort = options.effort || about.effort;
-    const prompt = buildPrompt(role, { ...about.vars, base, projectRoot, scratchDir: config.scratch_dir || `.scratch/tests/${sessionId}` });
+    const prompt = buildPrompt(role, { ...about.vars, base, projectRoot, scratchDir });
     const { call, notes, lifecycle } = buildDispatch(host, {
       role, model, effort,
       requiredModel: options.model !== null && model !== 'inherit',
@@ -127,6 +148,6 @@ main({
       prompt,
       '````',
     ].join('\n');
-    return { text, data: { [spec.ticket ? 'ticket' : 'session']: about.id, role, base, host, model, effort, call, notes, lifecycle } };
+    return { text, data: { [(spec.ticket && 'ticket') || (spec.noSession && 'area') || 'session']: about.id, role, base, host, model, effort, call, notes, lifecycle } };
   },
 });

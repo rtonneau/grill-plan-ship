@@ -175,4 +175,27 @@ h.assertFails(h.run(root, 'dispatch-prompt.js', ['1']), 1, /already Done/);
   assert.strictEqual(h.json(r, 'write-prepare.js').target, 'plan', 'the plan is still pending');
 }
 
+// Scout explorer (/gps scout): one area, no session needed.
+{
+  const r = h.tempProject();
+  assert.ok(!fs.existsSync(path.join(r, '.work', 'sessions')), 'no session exists');
+  h.assertFails(h.run(r, 'dispatch-prompt.js', ['--role', 'scout']), 2, /needs --area/);
+  h.assertFails(h.run(r, 'dispatch-prompt.js', ['1', '--role', 'scout', '--area', 'x']), 2, /takes no ticket number/);
+  h.assertFails(h.run(root, 'dispatch-prompt.js', ['1', '--area', 'x']), 2, /only used by the scout role/);
+  h.assertFails(h.run(root, 'dispatch-prompt.js', ['1', '--direction', 'x']), 2, /only used by the scout role/);
+  const scout = h.json(r, 'dispatch-prompt.js', ['--role', 'scout', '--area', 'Session store', '--direction', 'fewer files']);
+  const codexScout = h.json(r, 'dispatch-prompt.js', ['--role', 'scout', '--area', 'Session store', '--direction', 'fewer files', '--host', 'codex']);
+  assert.strictEqual(scout.area, 'Session store');
+  assert.strictEqual(scout.call.subagent_type, 'grill-plan-ship:gps-scout');
+  assert.strictEqual(scout.call.prompt, codexScout.call.message, 'both hosts read the same scout brief');
+  assert.strictEqual(codexScout.call.task_name, 'gps_scout_session_store', 'one task name per area');
+  assert.match(scout.call.prompt, /^# GPS scout: area Session store/);
+  assert.match(scout.call.prompt, /Direction: fewer files/);
+  assert.match(scout.call.prompt, /you write none/);
+  assert.match(scout.call.prompt, /SCOUTED — no candidates/);
+  assert.doesNotMatch(scout.call.prompt, /\{\{/, 'every slot filled');
+  assert.match(h.json(r, 'dispatch-prompt.js', ['--role', 'scout', '--area', 'cli']).call.prompt, /Direction: none given/);
+  assert.ok(!fs.existsSync(path.join(r, '.work', 'sessions')), 'read-only: still no session');
+}
+
 h.done('dispatch-prompt.test.js');

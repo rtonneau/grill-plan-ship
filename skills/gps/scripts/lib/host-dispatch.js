@@ -9,13 +9,15 @@ const CLAUDE_MODELS = Object.freeze({ fast: 'haiku', medium: 'sonnet', heavy: 'o
 // One entry per behavioral role; its brief is assets/role-<role>.md. On Claude each
 // has a plugin agent definition (agents/<agent>.md) that adds only enforced tool
 // limits; the brief stays in the prompt so both hosts read the same role text
-// (decision 0019). ticket: the role works on one ticket; base: it reviews from a SHA.
+// (decision 0019). ticket: the role works on one ticket; base: it reviews from a SHA;
+// noSession: it runs before any session exists (scout).
 const PLUGIN_NAME = 'grill-plan-ship';
 const ROLES = Object.freeze({
   implementer: Object.freeze({ agent: 'gps-implementer', readOnly: false, ticket: true, task: 'ticket' }),
   reviewer: Object.freeze({ agent: 'gps-reviewer', readOnly: true, ticket: true, base: true, task: 'review' }),
   'branch-reviewer': Object.freeze({ agent: 'gps-branch-reviewer', readOnly: true, base: true, task: 'branch_review' }),
   'plan-checker': Object.freeze({ agent: 'gps-plan-checker', readOnly: true, task: 'plan_check' }),
+  scout: Object.freeze({ agent: 'gps-scout', readOnly: true, noSession: true, task: 'scout' }),
 });
 
 function claudeAgentType(role) {
