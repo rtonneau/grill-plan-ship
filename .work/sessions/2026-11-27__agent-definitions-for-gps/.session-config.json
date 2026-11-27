@@ -134,6 +134,30 @@
         "ticket": "03-plan-checker-role",
         "commit": "1582611"
       }
+    },
+    {
+      "at": "2026-11-27T12:37:29.012Z",
+      "event": "ticket_started",
+      "phase": "ship",
+      "files": [
+        "02-plan/tickets/04-scout-explorer-role.md",
+        "03-implement/04-scout-explorer-role/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "04-scout-explorer-role"
+      }
+    },
+    {
+      "at": "2026-11-27T12:41:54.411Z",
+      "event": "ticket_done",
+      "phase": "ship",
+      "files": [
+        "03-implement/04-scout-explorer-role/commit-log.md"
+      ],
+      "detail": {
+        "ticket": "04-scout-explorer-role",
+        "commit": "9088ee3"
+      }
     }
   ],
   "current_phase": "ship",
