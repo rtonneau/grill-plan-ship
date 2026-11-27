@@ -58,6 +58,17 @@ res = h.ok(root, 'auto-route.js', ['--delegate', 'plan']);
 assert.match(res.err, /⚠️ {2}--delegate ignored/);
 assert.strictEqual(h.json(root, 'auto-route.js', ['--delegate', 'plan']).shipMode, undefined);
 
+// --review reaches the finish step only; a route without finish warns and drops it.
+route = h.json(root, 'auto-route.js', ['--review']);
+assert.strictEqual(route.review, true);
+assert.strictEqual(autoEvents().pop().detail.review, true);
+assert.match(h.ok(root, 'auto-route.js', ['finish', '--review']).out, /Branch review: requested/);
+assert.strictEqual(h.json(root, 'auto-route.js').review, undefined, 'a plain auto never reviews the branch');
+res = h.ok(root, 'auto-route.js', ['plan', '--review']);
+assert.match(res.err, /⚠️ {2}--review ignored/);
+assert.doesNotMatch(res.out, /Branch review/);
+assert.strictEqual(autoEvents().pop().detail.review, undefined);
+
 // Later phases start later; a finished session is refused.
 h.writeGrill(root);
 assert.deepStrictEqual(h.json(root, 'auto-route.js').steps, ['plan', 'write:plan', 'ship', 'finish']);

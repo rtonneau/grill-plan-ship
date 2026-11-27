@@ -6,13 +6,15 @@ const { GpsError, UsageError } = require('./guard');
 
 const CLAUDE_MODELS = Object.freeze({ fast: 'haiku', medium: 'sonnet', heavy: 'opus' });
 
-// One entry per behavioral role. On Claude each has a plugin agent definition
-// (agents/<agent>.md) that adds only enforced tool limits; the brief stays in the
-// prompt so both hosts read the same role text (decision 0019).
+// One entry per behavioral role; its brief is assets/role-<role>.md. On Claude each
+// has a plugin agent definition (agents/<agent>.md) that adds only enforced tool
+// limits; the brief stays in the prompt so both hosts read the same role text
+// (decision 0019). ticket: the role works on one ticket; base: it reviews from a SHA.
 const PLUGIN_NAME = 'grill-plan-ship';
 const ROLES = Object.freeze({
-  implementer: Object.freeze({ agent: 'gps-implementer', readOnly: false }),
-  reviewer: Object.freeze({ agent: 'gps-reviewer', readOnly: true }),
+  implementer: Object.freeze({ agent: 'gps-implementer', readOnly: false, ticket: true, task: 'ticket' }),
+  reviewer: Object.freeze({ agent: 'gps-reviewer', readOnly: true, ticket: true, base: true, task: 'review' }),
+  'branch-reviewer': Object.freeze({ agent: 'gps-branch-reviewer', readOnly: true, base: true, task: 'branch_review' }),
 });
 
 function claudeAgentType(role) {

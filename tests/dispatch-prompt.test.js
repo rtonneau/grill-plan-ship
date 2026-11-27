@@ -123,4 +123,30 @@ h.assertFails(h.run(root, 'dispatch-prompt.js', ['1']), 1, /already Done/);
   h.assertFails(h.run(r, 'dispatch-prompt.js', ['1', '--effort', 'max']), 2, /--effort must be one of: .* \(gps effort hints stop at xhigh/);
 }
 
+// Branch reviewer (/gps finish --review): the whole session from a full base, no ticket.
+{
+  const sessionBase = h.git(root, 'rev-parse', 'HEAD');
+  h.assertFails(h.run(root, 'dispatch-prompt.js', ['--role', 'branch-reviewer']), 2, /--base must be a full commit SHA for branch-reviewer/);
+  h.assertFails(h.run(root, 'dispatch-prompt.js', ['1', '--role', 'branch-reviewer', '--base', sessionBase]), 2, /takes no ticket number/);
+  h.assertFails(h.run(root, 'dispatch-prompt.js', ['--role', 'reviewer', '--base', sessionBase]), 2, /needs a ticket number/);
+  h.assertFails(h.run(root, 'dispatch-prompt.js', []), 2, /needs a ticket number/);
+  const state = fs.readFileSync(h.configPath(root), 'utf-8');
+  const branch = h.json(root, 'dispatch-prompt.js', ['--role', 'branch-reviewer', '--base', sessionBase]);
+  const codexBranch = h.json(root, 'dispatch-prompt.js', ['--role', 'branch-reviewer', '--base', sessionBase, '--host', 'codex']);
+  assert.strictEqual(branch.call.subagent_type, 'grill-plan-ship:gps-branch-reviewer');
+  assert.strictEqual(branch.call.prompt, codexBranch.call.message, 'both hosts read the same branch brief');
+  assert.strictEqual(codexBranch.call.task_name, 'gps_branch_review');
+  assert.ok(branch.session && !('ticket' in branch));
+  const brief = branch.call.prompt;
+  assert.match(brief, /^# GPS branch-reviewer: session /);
+  assert.ok(brief.includes(path.join(h.sessionDir(root), '01-grill', 'resume.md')), 'resume path');
+  assert.ok(brief.includes(path.join(h.sessionDir(root), '02-plan', 'plan.md')), 'plan path');
+  assert.match(brief, new RegExp(`git diff ${sessionBase} --`));
+  assert.match(brief, /Do not commit, stage, change session state/);
+  assert.match(brief, /Do not edit any files/);
+  assert.match(brief, /REVIEWED — no findings/);
+  assert.doesNotMatch(brief, /\{\{/, 'every slot filled');
+  assert.strictEqual(fs.readFileSync(h.configPath(root), 'utf-8'), state, 'read-only');
+}
+
 h.done('dispatch-prompt.test.js');

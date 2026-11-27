@@ -116,10 +116,13 @@ for (const name of libs) {
 // Assets are templates only, and every one is used by a script.
 const scriptSources = [...scripts.map((f) => path.join(SCRIPTS, f)), ...libs.map((f) => path.join(SCRIPTS, 'lib', f))]
   .map((f) => fs.readFileSync(f, 'utf-8')).join('\n');
+// dispatch-prompt.js loads role-<role>.md for every role in ROLES.
+const roleBriefs = Object.keys(require('../skills/gps/scripts/lib/host-dispatch').ROLES).map((r) => `role-${r}.md`);
 for (const asset of fs.readdirSync(path.join(SKILL_DIR, 'assets'))) {
   assert.ok(asset.endsWith('.md'), `assets/${asset} is not a template`);
-  assert.ok(scriptSources.includes(`'${asset}'`), `assets/${asset} is never loaded`);
+  assert.ok(scriptSources.includes(`'${asset}'`) || roleBriefs.includes(asset), `assets/${asset} is never loaded`);
 }
+for (const brief of roleBriefs) assert.ok(fs.existsSync(path.join(SKILL_DIR, 'assets', brief)), `assets/${brief} exists for its role`);
 
 // The plugin manifests and package.json carry the same version.
 const repo = path.join(__dirname, '..');

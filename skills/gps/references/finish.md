@@ -1,6 +1,8 @@
-# /gps finish
+# /gps finish [--review]
 
 **When:** every ticket is Done (small work: the resume is saved and the change committed).
+
+**Branch review** (only with `--review`, typed or passed by `/gps auto`; a plain or chained finish never runs it): before step 1, with every writer stopped, `dispatch-prompt.js --role branch-reviewer --base <full SHA of git merge-base HEAD with the session's base branch> --host <claude|codex> --json`, then spawn its `call` following `notes` and `lifecycle` as in `ship.md`. Assess the findings yourself; reject one only with evidence. Fix actionable ones in one follow-up commit, re-verify, and run a fresh branch review. Findings still unresolved, or a failed review twice, stop before `finish.js`: report them.
 
 1. `changelog-prepare.js`. If enabled: draft user-facing bullets (what a user notices; not refactors or gps bookkeeping) in the file's format and pick the bump (≥ its floor; `--reason` when higher), write them to its `payloadPath`, then `changelog-apply.js --bump <level> [--reason "…"]`. Ask nothing. A `❌` stops the finish.
 2. Write the PR title's descriptive part: a short, clean one-line summary of what the session ended up doing (its resume's Problem Statement and finished tickets, not the raw text typed into `/gps start`, which may have drifted). Ask nothing.

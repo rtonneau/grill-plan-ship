@@ -1,11 +1,12 @@
 #!/usr/bin/env node
 
 /**
- * auto-route.js [plan|ship|finish] [--delegate|--inline] [--json]
+ * auto-route.js [plan|ship|finish] [--delegate|--inline] [--review] [--json]
  *
  * /gps auto: prints the steps that take the current session from its phase
  * to the target (default finish). --delegate or --inline presets the ship mode;
- * otherwise the agent chooses per ticket.
+ * otherwise the agent chooses per ticket. --review asks the finish step for a
+ * branch review (references/finish.md); a route without finish ignores it.
  * Records an auto_started event once the route is valid. Runs no step
  * itself: references/auto.md drives them.
  */
@@ -18,9 +19,9 @@ const { shipSettings } = require('./lib/project-config');
 const { UsageError } = require('./lib/guard');
 
 main({
-  usage: 'auto-route.js [plan|ship|finish] [--delegate|--inline] [--json]',
+  usage: 'auto-route.js [plan|ship|finish] [--delegate|--inline] [--review] [--json]',
   positionals: { min: 0, max: 1 },
-  options: { delegate: 'boolean', inline: 'boolean' },
+  options: { delegate: 'boolean', inline: 'boolean', review: 'boolean' },
   run({ positionals, options, projectRoot, warn }) {
     if (options.delegate && options.inline) throw new UsageError('Give --delegate or --inline, not both.');
     const preset = (options.delegate && 'delegate') || (options.inline && 'inline') || undefined;
@@ -28,15 +29,18 @@ main({
     const { target, steps, shipMode, chainedFinish } = computeRoute(sessionDir, config, positionals[0] || 'finish',
       { shipMode: preset, autoFinish: shipSettings(projectRoot).autoFinish });
     if (preset && !shipMode) warn(`--${preset} ignored: this route has no ship step.`);
+    const review = Boolean(options.review) && steps.includes('finish');
+    if (options.review && !review) warn('--review ignored: this route has no finish step.');
 
     recordEvent(configPath, config, sessionDir, {
       event: 'auto_started',
-      detail: { target, steps: steps.join(' → '), ...(shipMode && { shipMode }) },
+      detail: { target, steps: steps.join(' → '), ...(shipMode && { shipMode }), ...(review && { review }) },
     });
 
     const lines = [`Route for ${sessionId} (target ${target}): ${steps.join(' → ')}`];
     if (chainedFinish) lines.push('finish follows ship because ship.autoFinish is on.');
     if (shipMode) lines.push(`Ship mode: ${shipMode} (preset).`);
-    return { text: lines.join('\n'), data: { sessionId, target, steps, ...(chainedFinish && { chainedFinish }), ...(shipMode && { shipMode }) } };
+    if (review) lines.push('Branch review: requested; finish runs it before finish.js.');
+    return { text: lines.join('\n'), data: { sessionId, target, steps, ...(chainedFinish && { chainedFinish }), ...(shipMode && { shipMode }), ...(review && { review }) } };
   },
 });

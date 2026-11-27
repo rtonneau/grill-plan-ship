@@ -1,17 +1,20 @@
 #!/usr/bin/env node
 
 /**
- * dispatch-prompt.js <number> [--role <implementer|reviewer>] [--base <sha>] [--host <claude|codex>] [--model <m>] [--effort <e>] [--json]
+ * dispatch-prompt.js [<number>] [--role <role>] [--base <sha>] [--host <claude|codex>] [--model <m>] [--effort <e>] [--json]
  *
- * /gps ship, delegate mode: builds the shared ticket brief and the host's
- * spawn call. Behavioral roles share context, permissions and host adapters.
+ * Builds a role's shared brief (assets/role-<role>.md) and the host's spawn
+ * call: on Claude the role's plugin agent, on Codex a fresh child (decision 0019).
+ * Ticket roles (implementer, reviewer) take a ticket number; run
+ * ticket-start.js <number> first, the prompt points at its log. The
+ * branch-reviewer (/gps finish --review) reviews the session from --base.
  * The parent owns acceptance, Git writes and session state (decision 0016).
- * --model overrides the portable ticket tier (fast, medium, heavy, inherit).
- * --effort overrides low, medium, high, xhigh or inherit (no max).
- * Run ticket-start.js <number> first: the prompt points at its log. Read-only.
+ * --model overrides the portable tier (fast, medium, heavy, inherit).
+ * --effort overrides low, medium, high, xhigh or inherit (no max). Read-only.
  */
 
 const fs = require('fs');
+const path = require('path');
 const { main } = require('./lib/cli');
 const { resolveSession } = require('./lib/session-store');
 const { findTicketByNumber } = require('./lib/ticket-lookup');
@@ -23,60 +26,87 @@ const { ROLES, buildDispatch } = require('./lib/host-dispatch');
 const { loadTemplate, renderTemplate } = require('./lib/templates');
 const { commitExists } = require('./lib/git');
 
-function buildPrompt(ticket, { role, base, projectRoot, scratchDir }) {
-  const roleTemplate = role === 'reviewer' ? 'role-reviewer.md' : 'role-implementer.md';
-  return renderTemplate(`${loadTemplate('role-context.md')}\n${loadTemplate(roleTemplate)}`, {
-    role, base, projectRoot, scratchDir, number: ticket.num, slug: ticket.slug,
-    ticketPath: ticket.ticketPath, commitLogPath: ticket.commitLogPath,
-  }).trimEnd();
+const SHA = /^(?:[a-f0-9]{40}|[a-f0-9]{64})$/i;
+
+// Ticket roles open with the ticket header, others with the session header; the
+// rules every role shares follow, then the role's own brief.
+function buildPrompt(role, vars) {
+  const context = loadTemplate(ROLES[role].ticket ? 'role-context.md' : 'role-session-context.md');
+  const text = `${context}${loadTemplate('role-rules.md')}\n${loadTemplate(`role-${role}.md`)}`;
+  return renderTemplate(text, { role, ...vars }).trimEnd();
+}
+
+function checkArgs([arg], options) {
+  const role = options.role || 'implementer';
+  const spec = ROLES[role];
+  if (!spec) throw new UsageError(`--role must be one of: ${Object.keys(ROLES).join(', ')}.`);
+  if (spec.ticket && arg === undefined) throw new UsageError(`The ${role} role needs a ticket number.`);
+  if (!spec.ticket && arg !== undefined) throw new UsageError(`The ${role} role takes no ticket number.`);
+  if (arg !== undefined && !/^\d+$/.test(arg)) throw new UsageError(`Invalid ticket number: ${arg}`);
+  if (spec.base && !SHA.test(options.base || '')) throw new UsageError(`--base must be a full commit SHA for ${role} dispatch.`);
+  if (!spec.base && options.base !== null) throw new UsageError('--base is only used by the reviewer roles.');
+  const host = options.host || 'claude';
+  if (!['claude', 'codex'].includes(host)) throw new UsageError('--host must be one of: claude, codex.');
+  if (options.model !== null && !TICKET_MODELS.includes(options.model)) {
+    throw new UsageError(`--model must be one of: ${TICKET_MODELS.join(', ')}.`);
+  }
+  if (options.effort !== null && !TICKET_EFFORTS.includes(options.effort)) {
+    const why = options.effort === 'max' ? ` (${MAX_EFFORT_REASON})` : '';
+    throw new UsageError(`--effort must be one of: ${TICKET_EFFORTS.join(', ')}${why}.`);
+  }
+  return { role, spec, arg, host, base: options.base };
+}
+
+// What the brief is about, one ticket or the whole session: label, id, hints and template slots.
+function subject(spec, arg, sessionId, sessionDir) {
+  if (!spec.ticket) {
+    return {
+      label: `session ${sessionId}`, id: sessionId, name: sessionId, task: `gps_${spec.task}`, model: 'inherit', effort: 'inherit',
+      vars: {
+        sessionId,
+        resumePath: path.join(sessionDir, '01-grill', 'resume.md'),
+        planPath: path.join(sessionDir, '02-plan', 'plan.md'),
+        ticketsDir: path.join(sessionDir, '02-plan', 'tickets'),
+      },
+    };
+  }
+  const ticket = findTicketByNumber(sessionDir, Number(arg));
+  if (ticket.done) throw new GpsError(`Ticket ${ticket.num} (${ticket.slug}) is already Done.`, 'Run ticket-start.js for the next ticket.');
+  if (!fs.existsSync(ticket.commitLogPath)) {
+    throw new GpsError(`Ticket ${ticket.num} (${ticket.slug}) has no workspace yet.`, `Run ticket-start.js ${Number(ticket.num)} first.`);
+  }
+  return {
+    label: `ticket ${ticket.num} (${ticket.slug})`, id: `${ticket.num}-${ticket.slug}`, name: `${ticket.num} ${ticket.slug}`,
+    task: `gps_${spec.task}_${ticket.num}`, model: ticket.model, effort: ticket.effort,
+    vars: { number: ticket.num, slug: ticket.slug, ticketPath: ticket.ticketPath, commitLogPath: ticket.commitLogPath },
+  };
 }
 
 main({
-  usage: 'dispatch-prompt.js <number> [--role <implementer|reviewer>] [--base <sha>] [--host <claude|codex>] [--model <fast|medium|heavy|inherit>] [--effort <low|medium|high|xhigh|inherit>] [--json]',
-  positionals: { min: 1, max: 1 },
+  usage: `dispatch-prompt.js [<number>] [--role <${Object.keys(ROLES).join('|')}>] [--base <sha>] [--host <claude|codex>] [--model <fast|medium|heavy|inherit>] [--effort <low|medium|high|xhigh|inherit>] [--json]`,
+  positionals: { min: 0, max: 1 },
   options: { host: 'string', model: 'string', effort: 'string', role: 'string', base: 'string' },
-  run({ positionals: [arg], options, projectRoot }) {
-    if (!/^\d+$/.test(arg)) throw new UsageError(`Invalid ticket number: ${arg}`);
-    const host = options.host || 'claude';
-    const role = options.role || 'implementer';
-    const base = options.base;
-    if (!ROLES[role]) throw new UsageError(`--role must be one of: ${Object.keys(ROLES).join(', ')}.`);
-    if (role === 'reviewer' && !/^(?:[a-f0-9]{40}|[a-f0-9]{64})$/i.test(base || '')) {
-      throw new UsageError('--base must be a full commit SHA for reviewer dispatch.');
-    }
-    if (role !== 'reviewer' && base !== null) throw new UsageError('--base is only used by the reviewer role.');
-    if (!['claude', 'codex'].includes(host)) throw new UsageError('--host must be one of: claude, codex.');
-    if (options.model !== null && !TICKET_MODELS.includes(options.model)) {
-      throw new UsageError(`--model must be one of: ${TICKET_MODELS.join(', ')}.`);
-    }
-    if (options.effort !== null && !TICKET_EFFORTS.includes(options.effort)) {
-      const why = options.effort === 'max' ? ` (${MAX_EFFORT_REASON})` : '';
-      throw new UsageError(`--effort must be one of: ${TICKET_EFFORTS.join(', ')}${why}.`);
-    }
-
+  run({ positionals, options, projectRoot }) {
+    const { role, spec, arg, host, base } = checkArgs(positionals, options);
     const { sessionId, sessionDir, config } = resolveSession(projectRoot);
-    const ticket = findTicketByNumber(sessionDir, Number(arg));
-    if (ticket.done) throw new GpsError(`Ticket ${ticket.num} (${ticket.slug}) is already Done.`, 'Run ticket-start.js for the next ticket.');
-    if (!fs.existsSync(ticket.commitLogPath)) {
-      throw new GpsError(`Ticket ${ticket.num} (${ticket.slug}) has no workspace yet.`, `Run ticket-start.js ${Number(ticket.num)} first.`);
-    }
-    if (role === 'reviewer' && !commitExists(projectRoot, base)) {
+    const about = subject(spec, arg, sessionId, sessionDir);
+    if (spec.base && !commitExists(projectRoot, base)) {
       throw new GpsError(`Review base ${base} is not an available commit.`, 'Use the base recorded before implementation; do not substitute a moving ref.');
     }
 
-    const model = options.model || ticket.model;
-    const effort = options.effort || ticket.effort;
-    const prompt = buildPrompt(ticket, { role, base, projectRoot, scratchDir: config.scratch_dir || `.scratch/tests/${sessionId}` });
+    const model = options.model || about.model;
+    const effort = options.effort || about.effort;
+    const prompt = buildPrompt(role, { ...about.vars, base, projectRoot, scratchDir: config.scratch_dir || `.scratch/tests/${sessionId}` });
     const { call, notes, lifecycle } = buildDispatch(host, {
       role, model, effort,
       requiredModel: options.model !== null && model !== 'inherit',
       requiredEffort: options.effort !== null && effort !== 'inherit',
-      description: `gps ${role === 'reviewer' ? 'review' : 'ticket'} ${ticket.num} ${ticket.slug}`.slice(0, 60),
-      taskName: `gps_${role === 'reviewer' ? 'review' : 'ticket'}_${ticket.num}`,
+      description: `gps ${spec.task.replace(/_/g, ' ')} ${about.name}`.slice(0, 60),
+      taskName: about.task,
       prompt,
     }, host === 'codex' ? readConfig(projectRoot) || {} : {});
     const text = [
-      `${host === 'claude' ? 'Agent' : 'Codex spawn_agent'} tool call for ticket ${ticket.num} (${ticket.slug}), model ${model}, effort ${effort}:`,
+      `${host === 'claude' ? 'Agent' : 'Codex spawn_agent'} tool call for ${about.label}, model ${model}, effort ${effort}:`,
       ...Object.entries(call).filter(([key]) => !['prompt', 'message'].includes(key)).map(([key, value]) => `- ${key}: ${value}`),
       ...notes.map((note) => `- Note: ${note}`),
       `- Lifecycle: ${lifecycle}`,
@@ -86,6 +116,6 @@ main({
       prompt,
       '````',
     ].join('\n');
-    return { text, data: { ticket: `${ticket.num}-${ticket.slug}`, role, base, host, model, effort, call, notes, lifecycle } };
+    return { text, data: { [spec.ticket ? 'ticket' : 'session']: about.id, role, base, host, model, effort, call, notes, lifecycle } };
   },
 });
